@@ -14,7 +14,7 @@
     var svg = s('svg', { width: 1300, height: 525, viewBox: '0 0 940 380' });
     var tbl = h('div', { class: 'mono', style: { fontSize: '26px', fontWeight: 700 } });
     body.appendChild(h('div', { class: 'say' }, 'The bridge learns each SOURCE address and the port it came in on.'));
-    body.appendChild(h('div', { class: 'panel', style: { padding: '4px', alignSelf: 'flex-start' } }, svg));
+    body.appendChild(h('div', { class: 'panel', style: { padding: '4px' } }, svg));
     body.appendChild(tbl);
 
     function hostPos(n) {
@@ -71,7 +71,7 @@
         ? keys.map(function (m) { return m + ' → port ' + st.table[m].port; }).join(' · ')
         : 'empty, the bridge starts knowing nothing')));
     }
-    body.appendChild(ui.controls(step, reset));
+    body.appendChild(ui.controls());
     reset();
     return { step: step, reset: reset };
   }

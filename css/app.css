@@ -335,3 +335,8 @@ table.t.dv-table tr:first-child th:last-child { background-size: 50% 3px; backgr
 .dv-node.dest { background: var(--accent); border-color: var(--accent); color: #fff; }
 .dv-node.down { background: var(--red-bg); border-color: var(--red); color: var(--red); }
 .road-badge { display: none; } /* SPEC-v5: simulation only, no live/recorded modes to label */
+/* centred slides: the header and every block of the body sit on the stage's centre line */
+.scr-head { justify-content: center; }
+.scr-body { align-items: center; }
+.scr-body > .say { text-align: center; }
+.scr-body > .t20-stage { align-self: stretch; }

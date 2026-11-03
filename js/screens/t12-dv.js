@@ -62,7 +62,7 @@
       if (D.counting(net, DEST)) banner.appendChild(h('div', { class: 'banner err' }, 'Counting to infinity: A is unreachable, but the routers still quote finite distances.'));
       else if (stable) banner.appendChild(h('div', { class: 'banner ok' }, 'Stable after ' + (hist.length - 1) + ' exchange' + (hist.length === 2 ? '' : 's') + '.'));
     }
-    body.appendChild(ui.controls(step, reset));
+    body.appendChild(ui.controls());
     reset();
     return { step: step, reset: reset };
   }

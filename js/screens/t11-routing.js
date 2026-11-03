@@ -40,7 +40,7 @@
     var round = 0, rounds = Gr.flood(NODES, EDGES, 'A', HOPS, false);
     var svg = s('svg', { width: 1160, height: 594, viewBox: '0 0 860 440' }), info = h('div', { style: { fontSize: '26px', minHeight: '40px' } });
     body.appendChild(h('div', { class: 'say' }, 'Each router repeats the packet on every line except the one it came in on. Hop counter = ' + HOPS + '.'));
-    body.appendChild(h('div', { class: 'panel', style: { alignSelf: 'flex-start' } }, svg));
+    body.appendChild(h('div', { class: 'panel', style: {} }, svg));
     body.appendChild(info);
     function draw() {
       CN.clear(svg);
@@ -63,7 +63,7 @@
     draw();
     function step() { if (round >= rounds.length) return false; round++; draw(); return true; }
     function reset() { round = 0; draw(); }
-    body.appendChild(ui.controls(step, reset));
+    body.appendChild(ui.controls());
     return { step: step, reset: reset, prev: function () { if (round > 0) { round--; draw(); return true; } return false; } };
   }
 
@@ -71,7 +71,7 @@
     var k = 0, r = Gr.dijkstra(NODES, EDGES, 'A'), last = r.steps.length - 1;
     var svg = s('svg', { width: 1160, height: 594, viewBox: '0 0 860 440' }), info = h('div', { style: { fontSize: '26px', minHeight: '40px' } });
     body.appendChild(h('div', { class: 'say' }, 'Make the smallest tentative label (distance, predecessor) permanent, then relax its neighbours.'));
-    body.appendChild(h('div', { class: 'panel', style: { alignSelf: 'flex-start' } }, svg));
+    body.appendChild(h('div', { class: 'panel', style: {} }, svg));
     body.appendChild(info);
     function draw() {
       CN.clear(svg);
@@ -97,7 +97,7 @@
     draw();
     function step() { if (k >= last) return false; k++; draw(); return true; }
     function reset() { k = 0; draw(); }
-    body.appendChild(ui.controls(step, reset));
+    body.appendChild(ui.controls());
     return { step: step, reset: reset, prev: function () { if (k > 0) { k--; draw(); return true; } return false; } };
   }
 

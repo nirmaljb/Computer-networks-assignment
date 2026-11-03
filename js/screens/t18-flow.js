@@ -68,7 +68,8 @@
     function read() { st.f.readApp(CAP / 2, st.loseNext); st.loseNext = false; draw(); }
     function probe() { st.f.probe(); draw(); }
     function step() {
-      if (st.busy || st.script >= SCRIPT.length) return false;
+      if (st.busy) { clearTimeout(timer); st.f.deliver(); st.busy = false; }   // deliver what's in flight first
+      if (st.script >= SCRIPT.length) { draw(); return false; }
       var a = SCRIPT[st.script++];
       st.did = st.script + ' · ' + a[0];
       a[1]();
@@ -79,9 +80,9 @@
       st.f = CN.tcp.flow(CAP); st.loseNext = false; st.busy = false; st.script = 0; st.did = '';
       draw();
     }
-    body.appendChild(ui.controls(step, reset));
+    body.appendChild(ui.controls());
     reset();
-    return { step: step, reset: reset, destroy: function () { clearTimeout(timer); } };
+    return { step: step, reset: reset, runMs: 1200, destroy: function () { clearTimeout(timer); } };
   }
 
   function card(body, items) {

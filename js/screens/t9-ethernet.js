@@ -37,7 +37,7 @@
 
   function wifiSlide(body) {
     var st = { rts: false };
-    var WW = 1480, wsvg = s('svg', { width: WW, height: 250, viewBox: '0 0 ' + WW + ' 230' });
+    var WW = 1480, wsvg = s('svg', { width: 1440, height: 243, viewBox: '0 0 ' + WW + ' 230' });
     body.appendChild(h('div', { class: 'say' }, 'Idle for DIFS → random backoff → send → ACK after SIFS. SIFS < DIFS, so the ACK always wins.'));
     body.appendChild(h('div', { class: 'panel', style: { marginTop: '20px' } }, wsvg));
     function drawWifi() {
@@ -90,7 +90,7 @@
     drawWifi();
     function step() { if (st.rts) return false; st.rts = true; drawWifi(); return true; }
     function reset() { st.rts = false; drawWifi(); }
-    body.appendChild(ui.controls(step, reset));
+    body.appendChild(ui.controls());
     return { step: step, reset: reset };
   }
 

@@ -20,7 +20,7 @@
     body.appendChild(h('div', { class: 'say' }, variant === 'reno'
       ? 'Reno: on 3 duplicate ACKs, ssthresh = cwnd/2 and cwnd = ssthresh (fast recovery).'
       : 'Tahoe: on any loss, ssthresh = cwnd/2 and cwnd = 1 (slow start again).'));
-    body.appendChild(h('div', { class: 'panel', style: { alignSelf: 'flex-start', padding: '4px' } }, graph));
+    body.appendChild(h('div', { class: 'panel', style: { padding: '4px' } }, graph));
     body.appendChild(line);
     function draw() {
       line.textContent = roundText(st.rows, st.round);
@@ -67,7 +67,7 @@
     draw();
     function step() { if (st.round >= ROUNDS) return false; st.round++; draw(); return true; }
     function reset() { st.round = 0; draw(); }
-    body.appendChild(ui.controls(step, reset));
+    body.appendChild(ui.controls());
     return { step: step, reset: reset, prev: function () { if (st.round > 0) { st.round--; draw(); return true; } return false; } };
   }
 
@@ -92,14 +92,16 @@
       draw(); return true;
     }
     function reset() { round = 0; if (road) road.clear(); draw(); }
-    body.appendChild(ui.controls(step, reset));
+    body.appendChild(ui.controls());
     draw();
     CN.road.create(roadBox, { capacity: CAPACITY }, function (r, err) {
       if (!roadBox.isConnected) { if (r) r.destroy(); return; }
       if (!r) { stage.insertBefore(h('div', { class: 'banner warn' }, 'The 3D road needs WebGL (' + err + ').'), stage.firstChild); return; }
       road = r;
     });
-    return { step: step, reset: reset, destroy: function () { if (road) road.destroy(); } };
+    return { step: step, reset: reset, runMs: CN.road.PERIOD * 1000,
+      prev: function () { if (!round) return false; round--; if (road) road.clear(); draw(); return true; },
+      destroy: function () { if (road) road.destroy(); } };
   }
 
     function aimd(body) {

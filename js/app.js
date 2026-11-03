@@ -58,9 +58,14 @@
   ui.btn = function (label, onClick, cls, title) {
     return h('button', { class: 'btn ' + (cls || ''), onClick: function (e) { e.currentTarget.blur(); onClick(e); }, title: title }, label);
   };
-  // SPEC-v5: the only controls a sim slide shows. S and R press them from the keyboard.
-  ui.controls = function (onStep, onReset) {
-    return h('div', { class: 'row ctl' }, ui.btn('Step (S)', onStep, 'primary'), ui.btn('Reset (R)', onReset));
+  // The only controls a sim slide shows: Back, Step, Run, Reset. They drive the screen's controller
+  // through the deck (sim* below), so the keys do the same: ← Back, S Step, Space Run, R Reset.
+  ui.controls = function () {
+    return h('div', { class: 'row ctl' },
+      ui.btn('◀ Back', function () { simBack(); }, 'ctl-back'),
+      ui.btn('Step (S)', function () { simStep(); }, 'primary'),
+      ui.btn('Run', function () { simRun(); }, 'ctl-run'),
+      ui.btn('Reset (R)', function () { simReset(); }));
   };
   ui.store = {
     get: function (k, d) { try { var v = sessionStorage.getItem('cn.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
@@ -191,8 +196,49 @@
   }
   function setBut(v) { butShown = v; butBar.classList.toggle('shown', v); }
 
+  /* Sim controls. trail = the moves since Reset, each 'step' or 'run' (a screen may give Run a finer
+     move, ctrl.runStep, e.g. one tick where Step jumps to the next event). Back uses the screen's own
+     prev() when it has one and the last move was a Step; otherwise it resets and replays the trail minus
+     its last move (every sim is scripted or seeded, so the replay lands on the previous state; clicks on
+     the diagram since Reset are not replayed). Run repeats its move every ctrl.runMs (default 800 ms)
+     until the move returns false. */
+  var trail = [], runTimer = null;
+  function ctlButtons() {
+    var back = main.querySelector('.ctl-back'), run = main.querySelector('.ctl-run');
+    if (back) back.disabled = !trail.length;
+    if (run) run.textContent = runTimer ? 'Pause' : 'Run';
+  }
+  function stopRun() { clearInterval(runTimer); runTimer = null; ctlButtons(); }
+  function move(kind) {
+    var fn = ctrl && (kind === 'run' && ctrl.runStep ? ctrl.runStep : ctrl.step);
+    if (!fn || fn() === false) return false;
+    trail.push(kind);
+    return true;
+  }
+  function simStep() { stopRun(); move('step'); ctlButtons(); post(); }
+  function simReset() { stopRun(); if (ctrl && ctrl.reset) ctrl.reset(); trail = []; ctlButtons(); post(); }
+  function simBack() {
+    stopRun();
+    if (!trail.length) return false;
+    var last = trail.pop();
+    if (ctrl.prev && !(last === 'run' && ctrl.runStep)) ctrl.prev();
+    else {
+      ctrl.reset();
+      trail.forEach(function (k) { (k === 'run' && ctrl.runStep ? ctrl.runStep : ctrl.step)(); });
+    }
+    ctlButtons(); post();
+    return true;
+  }
+  function simRun() {
+    if (runTimer) return stopRun();
+    if (!move('run')) return ctlButtons();
+    runTimer = setInterval(function () { if (!move('run')) stopRun(); else ctlButtons(); post(); }, (ctrl && ctrl.runMs) || 800);
+    ctlButtons();
+  }
+
   function go(i) {
     i = Math.max(0, Math.min(screens.length - 1, i));
+    stopRun(); trail = [];
     if (ctrl && ctrl.destroy) ctrl.destroy();
     ctrl = null;
     if (i > 0 && !talkStart) startTimer();
@@ -213,6 +259,7 @@
       ctrl = {};
     }
     drawStory();
+    ctlButtons();
     try { history.replaceState(null, '', '#' + sc.id); } catch (e) { /* file:// in some browsers */ }
     ui.store.set('idx', i);
     post();
@@ -236,7 +283,7 @@
   function prev() {
     if (quizBusy()) return;
     if (butShown) { setBut(false); return post(); }
-    if (ctrl && ctrl.prev && ctrl.prev()) return post();
+    if (simBack()) return;
     var j = CN.content.stepIndex(idx, -1, podiumOn());
     if (j !== idx) go(j);
   }
@@ -320,8 +367,9 @@
       case 'p': case 'P': openPresenter(); break;
       case 't': case 'T': toggleTheme(); break;
       case 'f': case 'F': toggleFull(); break;
-      case 's': case 'S': if (ctrl && ctrl.step) ctrl.step(); post(); break;
-      case 'r': case 'R': if (ctrl && ctrl.reset) ctrl.reset(); post(); break;
+      case 's': case 'S': simStep(); break;
+      case 'r': case 'R': simReset(); break;
+      case ' ': if (main.querySelector('.ctl-run')) simRun(); else handled = false; break;
       default: handled = false;
     }
     if (handled) e.preventDefault();

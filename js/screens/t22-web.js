@@ -27,7 +27,7 @@
     var st = { n: 10, rtt: 100 }, W = 1300, LANE = 120;
     var svg = s('svg', { width: W, height: 3 * LANE + 50, viewBox: '0 0 ' + W + ' ' + (3 * LANE + 50) });
     body.appendChild(h('div', { class: 'say' }, 'A page of 1 HTML + 10 images, RTT 100 ms; transmission time ignored (as in Kurose & Ross).'));
-    body.appendChild(h('div', { class: 'panel', style: { padding: '6px', alignSelf: 'flex-start' } }, svg));
+    body.appendChild(h('div', { class: 'panel', style: { padding: '6px' } }, svg));
     function draw() {
       CN.clear(svg);
       var max = CN.http.rtts(st.n, 'nonpersistent'), x0 = 380, x1 = W - 150, u = (x1 - x0) / max;
@@ -73,7 +73,7 @@
     draw();
     function step() { if (at >= SCALE.length - 1) return false; at++; draw(); return true; }
     function reset() { at = 0; draw(); }
-    body.appendChild(ui.controls(step, reset));
+    body.appendChild(ui.controls());
     return { step: step, reset: reset, prev: function () { if (at > 0) { at--; draw(); return true; } return false; } };
   }
 

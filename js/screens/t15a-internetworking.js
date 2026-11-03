@@ -82,7 +82,7 @@
     function step() { if (st.k >= STOPS.length - 1) return false; st.k++; draw(); return true; }
     function reset() { st.k = 0; draw(); }
     draw();
-    body.appendChild(ui.controls(step, reset));
+    body.appendChild(ui.controls());
     return { step: step, reset: reset, prev: function () { if (st.k > 0) { st.k--; draw(); return true; } return false; } };
   }
 
@@ -103,7 +103,7 @@
     });
     as.appendChild(s('text', { x: 300, y: 232, 'text-anchor': 'middle', 'font-size': 20, 'font-weight': 800, fill: 'var(--accent)' }, 'BGP between ASes (policy)'));
     body.appendChild(h('div', { class: 'say' }, 'Inside an AS its owner picks the protocol (e.g. OSPF); between ASes BGP routes by policy, not just shortest path.'));
-    body.appendChild(h('div', { class: 'panel', style: { alignSelf: 'flex-start' } }, as));
+    body.appendChild(h('div', { class: 'panel', style: {} }, as));
     return {};
   }
 

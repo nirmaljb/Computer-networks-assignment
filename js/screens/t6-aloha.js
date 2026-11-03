@@ -41,7 +41,7 @@
     plot.appendChild(s('text', { x: gx(1.4), y: sy(0.352), 'font-size': 26, 'font-weight': 700, fill: 'var(--accent)' }, 'Slotted: S = Ge⁻ᴳ, max 1/e ≈ 0.368 at G = 1'));
     plot.appendChild(s('circle', { cx: gx(0.5), cy: sy(1 / (2 * Math.E)), r: 8, fill: 'var(--ink)' }));
     plot.appendChild(s('text', { x: gx(1.15), y: sy(0.2), 'font-size': 26, 'font-weight': 700 }, 'Pure (dashed): S = Ge⁻²ᴳ, max 1/2e ≈ 0.184 at G = 0.5'));
-    body.appendChild(h('div', { class: 'panel', style: { alignSelf: 'flex-start' } }, plot));
+    body.appendChild(h('div', { class: 'panel', style: {} }, plot));
     return {};
   }
 

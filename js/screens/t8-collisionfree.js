@@ -20,7 +20,7 @@
       bm.appendChild(s('text', { x: 308 + j * 100, y: 46, 'text-anchor': 'middle', 'font-size': 20, 'font-weight': 700, fill: 'var(--green)' }, 'frame ' + n));
     });
     body.appendChild(h('div', { class: 'say' }, 'Each station sets its bit in the contention period; then the set stations send in order.'));
-    body.appendChild(h('div', { class: 'panel', style: { alignSelf: 'flex-start', marginTop: '20px' } }, bm));
+    body.appendChild(h('div', { class: 'panel', style: { marginTop: '20px' } }, bm));
     return {};
   }
 
@@ -65,7 +65,7 @@
     draw();
     function step() { if (k < w) { k++; draw(); return true; } return false; }
     function reset() { k = 0; draw(); }
-    body.appendChild(ui.controls(step, reset));
+    body.appendChild(ui.controls());
     return { step: step, reset: reset, prev: function () { if (k > 0) { k--; draw(); return true; } return false; } };
   }
 
@@ -123,7 +123,7 @@
     drawW();
     function step() { if (st.maca) return false; st.maca = true; drawW(); return true; }
     function reset() { st.maca = false; drawW(); }
-    body.appendChild(ui.controls(step, reset));
+    body.appendChild(ui.controls());
     return { step: step, reset: reset };
   }
 

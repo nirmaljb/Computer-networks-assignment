@@ -25,7 +25,7 @@
         build(); draw();
       } : null });
     body.appendChild(h('div', { class: 'say' }, run.say));
-    body.appendChild(h('div', { class: 'panel', style: { padding: '4px', alignSelf: 'flex-start' } }, ts.el));
+    body.appendChild(h('div', { class: 'panel', style: { padding: '4px' } }, ts.el));
 
     function build() {
       st.sc = run.build({ x: 1000, y: 5000, xOld: 700, z: 4000, lose: st.lose });
@@ -61,7 +61,7 @@
         }
       }
     }
-    body.appendChild(ui.controls(step, reset));
+    body.appendChild(ui.controls());
     reset();
     return { step: step, reset: reset, prev: function () { if (st.tick > 0) { st.tick--; draw(); return true; } return false; } };
   }

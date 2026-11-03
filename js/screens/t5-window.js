@@ -50,9 +50,9 @@
       CN.arq.stepToEvent(sim);
       draw(); return true;
     }
-    body.appendChild(ui.controls(step, reset));
+    body.appendChild(ui.controls());
     reset();
-    return { step: step, reset: reset };
+    return { step: step, reset: reset, runMs: 600 };
   }
 
   CN.screens.t5 = function (root, sc) {

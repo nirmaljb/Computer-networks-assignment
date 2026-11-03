@@ -23,7 +23,7 @@
       ['First usable', r.firstStr], ['Last usable', r.lastStr], ['Usable hosts', '2^' + r.hostBits + ' − 2 = ' + r.usable]].forEach(function (x) {
       kv.appendChild(h('span', { class: 'k' }, x[0])); kv.appendChild(h('span', { class: 'v' }, x[1]));
     });
-    body.appendChild(h('div', { class: 'panel', style: { alignSelf: 'flex-start' } }, kv));
+    body.appendChild(h('div', { class: 'panel', style: {} }, kv));
     return {};
   }
 
@@ -31,7 +31,7 @@
     var r = IP.subnet(CIDR), sp = IP.split({ ip: r.ip, len: r.len }, SPLIT);
     body.appendChild(h('div', { class: 'say' }, 'Borrow ' + SPLIT + ' host bits from ' + r.networkStr + '/' + r.len + ' → ' + sp.subnets.length + ' equal subnets of /' + (r.len + SPLIT) + '.'));
     body.appendChild(h('div', { class: 'col', style: { gap: '16px', marginTop: '20px' } }, sp.subnets.map(function (x) {
-      return h('span', { class: 'chip mono', style: { fontSize: '34px', padding: '10px 24px', alignSelf: 'flex-start' } }, x.str);
+      return h('span', { class: 'chip mono', style: { fontSize: '34px', padding: '10px 24px' } }, x.str);
     })));
     return {};
   }

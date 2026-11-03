@@ -54,7 +54,7 @@
       osc.appendChild(s('text', { x: ox + 125, y: 158, 'text-anchor': 'middle', 'font-size': 18, fill: 'var(--muted)' }, 'West'));
     });
     body.appendChild(h('div', { class: 'say' }, 'Put load into the link weights and traffic flips between paths every update. Fix: multipath, shift traffic slowly.'));
-    body.appendChild(h('div', { class: 'panel', style: { alignSelf: 'flex-start' } }, osc));
+    body.appendChild(h('div', { class: 'panel', style: {} }, osc));
     return {};
   }
 
@@ -73,7 +73,7 @@
     var say = h('div', { class: 'say' });
     var svg = s('svg', { width: 1400, height: 447, viewBox: '0 0 940 300' });
     body.appendChild(say);
-    body.appendChild(h('div', { class: 'panel', style: { alignSelf: 'flex-start' } }, svg));
+    body.appendChild(h('div', { class: 'panel', style: {} }, svg));
     function draw() {
       st = STATES[at];
       say.textContent = st.say;
@@ -112,7 +112,7 @@
     draw();
     function step() { if (at >= STATES.length - 1) return false; at++; draw(); return true; }
     function reset() { at = 0; draw(); }
-    body.appendChild(ui.controls(step, reset));
+    body.appendChild(ui.controls());
     return { step: step, reset: reset, prev: function () { if (at > 0) { at--; draw(); return true; } return false; } };
   }
 

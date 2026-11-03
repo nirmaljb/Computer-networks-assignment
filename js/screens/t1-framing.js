@@ -44,9 +44,9 @@
         : 'Each frame starts with its own length (amber).'));
     }
     draw();
-    function step() { corrupt = true; draw(); }
+    function step() { if (corrupt) return false; corrupt = true; draw(); return true; }
     function reset() { corrupt = false; draw(); }
-    body.appendChild(ui.controls(step, reset));
+    body.appendChild(ui.controls());
     return { step: step, reset: reset };
   }
 
@@ -66,9 +66,9 @@
         : 'The sender puts an ESC before every FLAG or ESC in the data.'));
     }
     draw();
-    function step() { rx = true; draw(); }
+    function step() { if (rx) return false; rx = true; draw(); return true; }
     function reset() { rx = false; draw(); }
-    body.appendChild(ui.controls(step, reset));
+    body.appendChild(ui.controls());
     return { step: step, reset: reset };
   }
 
@@ -88,9 +88,9 @@
         : 'After every five 1s in a row the sender inserts a 0 (amber, S).'));
     }
     draw();
-    function step() { rx = true; draw(); }
+    function step() { if (rx) return false; rx = true; draw(); return true; }
     function reset() { rx = false; draw(); }
-    body.appendChild(ui.controls(step, reset));
+    body.appendChild(ui.controls());
     return { step: step, reset: reset };
   }
 

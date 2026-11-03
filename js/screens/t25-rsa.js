@@ -35,7 +35,7 @@
     draw();
     function step() { if (shown >= P.length) return false; shown++; draw(); return true; }
     function reset() { shown = 0; draw(); }
-    body.appendChild(ui.controls(step, reset));
+    body.appendChild(ui.controls());
     return { step: step, reset: reset, prev: function () { if (shown > 0) { shown--; draw(); return true; } return false; } };
   }
 

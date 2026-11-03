@@ -47,7 +47,7 @@
     draw();
     function step() { if (shown >= rows.length) return false; shown++; draw(); return true; }
     function reset() { shown = 1; draw(); }
-    body.appendChild(ui.controls(step, reset));
+    body.appendChild(ui.controls());
     return { step: step, reset: reset, prev: function () { if (shown > 1) { shown--; draw(); return true; } return false; } };
   }
 

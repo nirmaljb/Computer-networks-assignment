@@ -59,7 +59,7 @@
     draw();
     function step() { if (shown < total) { shown++; draw(); return true; } return false; }
     function reset() { shown = 0; draw(); }
-    body.appendChild(ui.controls(step, reset));
+    body.appendChild(ui.controls());
     return { step: step, reset: reset, prev: function () { if (shown > 0) { shown--; draw(); return true; } return false; } };
   }
 
@@ -95,7 +95,7 @@
     draw();
     function step() { if (flips.length) return false; flips = BURST.slice(); draw(); return true; }
     function reset() { flips = []; draw(); }
-    body.appendChild(ui.controls(step, reset));
+    body.appendChild(ui.controls());
     return { step: step, reset: reset };
   }
 

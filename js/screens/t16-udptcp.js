@@ -34,14 +34,14 @@
 
   function udp(body) {
     body.appendChild(h('div', { class: 'say' }, 'UDP adds ports, a length and a checksum. Nothing else.'));
-    body.appendChild(h('div', { class: 'col', style: { gap: '6px', marginTop: '20px' } }, ruler(), diagram(T.UDP)));
+    body.appendChild(h('div', { class: 'col', style: { gap: '6px', marginTop: '20px', width: '100%' } }, ruler(), diagram(T.UDP)));
     return {};
   }
 
   function tcp(body) {
     var r = T.tcpHeaderBytes(5);
     body.appendChild(h('div', { class: 'say' }, '20 bytes minimum, 60 maximum: header length counts 32-bit words, 5 × 4 = ' + r.bytes + ' bytes.'));
-    body.appendChild(h('div', { class: 'col', style: { gap: '6px', marginTop: '10px' } }, ruler(), diagram(T.TCP)));
+    body.appendChild(h('div', { class: 'col', style: { gap: '6px', marginTop: '10px', width: '100%' } }, ruler(), diagram(T.TCP)));
     return {};
   }
 

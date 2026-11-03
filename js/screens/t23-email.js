@@ -44,7 +44,7 @@
   }
 
   function dialogue(body) {
-    var k = 0, dialog = h('div', { class: 'working', style: { flex: '1', minHeight: 0, fontSize: '26px', whiteSpace: 'pre-wrap', overflow: 'hidden' } });
+    var k = 0, dialog = h('div', { class: 'working', style: { flex: '1', minHeight: 0, width: '1200px', fontSize: '26px', whiteSpace: 'pre-wrap', overflow: 'hidden' } });
     body.appendChild(h('div', { class: 'say' }, 'Alice\'s MTA (client, blue, left) talks to Bob\'s MTA (server, green, right) over TCP port 25.'));
     body.appendChild(dialog);
     function draw() {
@@ -60,12 +60,12 @@
     draw();
     function step() { if (k >= DIALOG.length) return false; k++; draw(); return true; }
     function reset() { k = 0; draw(); }
-    body.appendChild(ui.controls(step, reset));
+    body.appendChild(ui.controls());
     return { step: step, reset: reset, prev: function () { if (k > 0) { k--; draw(); return true; } return false; } };
   }
 
   function parts(body) {
-    body.appendChild(h('div', { class: 'col', style: { gap: '16px', marginTop: '20px' } },
+    body.appendChild(h('div', { class: 'col', style: { gap: '16px', marginTop: '20px', width: '1200px' } },
       [['Envelope', 'MAIL FROM:<alice@one.example.com>  RCPT TO:<bob@two.example.com>', 'Used by the MTAs to deliver. Bcc recipients appear only here.'],
         ['Header', 'From: alice@one.example.com\nTo: bob@two.example.com\nSubject: Hi', 'Shown to the user; written by the user agent (RFC 5322).'],
         ['Body', 'Hi Bob!', 'After the blank line: 7-bit ASCII text, or MIME parts.']].map(function (p) {

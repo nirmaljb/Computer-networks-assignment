@@ -13,7 +13,7 @@
     body.appendChild(h('div', { class: 'say' }, mode === 'iterative'
       ? 'Iterative: the resolver asks each level itself; each server returns a referral or the answer.'
       : 'Recursive: each server asks the next one on the client\'s behalf and passes the answer back.'));
-    body.appendChild(h('div', { class: 'panel', style: { padding: '4px', alignSelf: 'flex-start' } }, svg));
+    body.appendChild(h('div', { class: 'panel', style: { padding: '4px' } }, svg));
     // node positions: client, resolver, then the servers down a diagonal (root at the top)
     function nodes(zones) {
       var n = { client: [90, 520, 'Phone (client)'], resolver: [300, 410, 'Local resolver'] };
@@ -60,7 +60,7 @@
     }
     function reset() { st.cur = CN.dns.resolver(30).lookup(NAME, mode, 0); st.k = 0; draw(); }
     function step() { if (st.k >= st.cur.steps.length) return false; st.k++; draw(); return true; }
-    body.appendChild(ui.controls(step, reset));
+    body.appendChild(ui.controls());
     reset();
     return { step: step, reset: reset, prev: function () { if (st.k > 0) { st.k--; draw(); return true; } return false; } };
   }

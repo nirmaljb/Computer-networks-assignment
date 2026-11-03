@@ -37,7 +37,7 @@
     draw();
     function step() { if (k < enc.checks.length) { k++; draw(); return true; } return false; }
     function reset() { k = 0; draw(); }
-    body.appendChild(ui.controls(step, reset));
+    body.appendChild(ui.controls());
     return { step: step, reset: reset, prev: function () { if (k > 0) { k--; draw(); return true; } return false; } };
   }
 
@@ -89,7 +89,7 @@
       return false;
     }
     function reset() { flips = []; corrected = false; draw(); }
-    body.appendChild(ui.controls(step, reset));
+    body.appendChild(ui.controls());
     return { step: step, reset: reset, sub: function () { return flips.length ? 'flipped ' + flips.join(', ') : ''; } };
   }
 

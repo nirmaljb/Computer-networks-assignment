@@ -25,7 +25,7 @@
     var ts = CN.ui.timeSpace({ width: 1100, height: 560, visible: 30, rightPad: 260, timers: function () { return proto === 3; },
       label: function (m) { return m.kind === 'data' ? (proto === 1 ? 'frame' : 'frame ' + m.seq) : 'ACK ' + m.seq; },
       onKill: function (id) { sim.kill(id); ts.draw(sim); } });
-    body.appendChild(h('div', { class: 'panel', style: { padding: '6px', alignSelf: 'flex-start' } }, ts.el));
+    body.appendChild(h('div', { class: 'panel', style: { padding: '6px' } }, ts.el));
     function reset() {
       sim = CN.arq.create({ proto: 'gbn', n: 1, W: 1, total: 6, delay: 3, timeout: proto === 3 ? 8 : 1e6, noAck: proto === 1,
         drop: proto === 3 ? p3Drop() : null });
@@ -36,9 +36,9 @@
       CN.arq.stepToEvent(sim);
       ts.draw(sim); return true;
     }
-    body.appendChild(ui.controls(step, reset));
+    body.appendChild(ui.controls());
     reset();
-    return { step: step, reset: reset };
+    return { step: step, reset: reset, runMs: 600 };
   }
 
   function utilisation(body) {

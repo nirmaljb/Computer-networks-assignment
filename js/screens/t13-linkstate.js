@@ -21,7 +21,7 @@
     var stage = h('div', { style: { fontSize: '28px', fontWeight: 700, minHeight: '40px' } });
     var svg = s('svg', { width: 1400, height: 520, viewBox: '0 0 1100 410' });
     body.appendChild(stage);
-    body.appendChild(h('div', { class: 'panel', style: { padding: '4px', alignSelf: 'flex-start' } }, svg));
+    body.appendChild(h('div', { class: 'panel', style: { padding: '4px' } }, svg));
 
     function floodRounds() { return Gr.flood(NODES, EDGES, st.sel, 99, true); }
     function step() {
@@ -92,7 +92,7 @@
       if (st.k === 3 || st.k === 4) lspBox();
     }
     draw();
-    body.appendChild(ui.controls(step, reset));
+    body.appendChild(ui.controls());
     return { step: step, reset: reset, prev: prev };
   }
 
