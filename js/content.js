@@ -571,7 +571,7 @@
       but: 'TCP now delivers \'Hi\' reliably and fairly. But the phone never knew the server\'s IP, only its name.',
       history: 'October 1986: LBL to UC Berkeley throughput fell from 32 kbps to 40 bps. Jacobson\'s fix, 1988.',
       live: '"Stop 14\'s router can only drop or mark packets. TCP can\'t see the router, so it probes: double every round until it hits the threshold, then add one. A loss means the router is full: halve the threshold and back off. Tahoe starts again from 1; Reno, on three duplicate ACKs, carries on from the new threshold. Watch the road: the toll booth holds 39 per round trip, so the 40th truck is wrecked. But the phone never knew the server\'s IP, only its name."',
-      click: 'S steps a round, Space plays/pauses, R resets. Tahoe/Reno toggle; loss type; ssthresh and router capacity inputs. W widens the road; L switches live → replay → sim.',
+      click: 'S steps a round, Space plays/pauses, R resets. Tahoe/Reno toggle; loss type; ssthresh and router capacity inputs. Mouse on the road: drag rotates, right-drag moves, scroll zooms, double-click resets the view. G shows/hides the graph; W hides graph and controls (road only); L switches live → replay → sim.',
       facts: [
         'The sender keeps a congestion window cwnd and may have min(cwnd, receiver window) in flight.',
         'Slow start: cwnd = 1 segment, doubles every RTT up to ssthresh. Congestion avoidance: +1 segment per RTT (additive increase).',

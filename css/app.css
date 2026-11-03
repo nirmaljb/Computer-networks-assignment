@@ -317,11 +317,32 @@ svg text.halo { paint-order: stroke; stroke: var(--panel); stroke-width: 6px; st
 table.t.num td { font-family: var(--mono); text-align: right; }
 table.t tr.ign td { color: var(--muted); text-decoration: line-through; }
 table.t tr.ign td.keep { text-decoration: none; }
-.road-wrap { position: relative; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); background: var(--panel2); }
-.road-badge { position: absolute; left: 10px; top: 10px; font: 800 17px var(--sans); letter-spacing: .5px; padding: 3px 10px; border-radius: 8px; background: var(--ink); color: var(--bg); z-index: 2; }
+.road-wrap { position: relative; border-radius: 14px; overflow: hidden; border: 1px solid var(--line); background: var(--panel2); }
+.road-canvas { display: block; cursor: grab; touch-action: none; }
+.road-canvas.grabbing { cursor: grabbing; }
+.road-badge { position: absolute; left: 12px; top: 12px; font: 800 17px var(--sans); letter-spacing: .5px; padding: 3px 10px; border-radius: 8px; background: var(--ink); color: var(--bg); z-index: 2; pointer-events: none; }
 .road-badge.live { background: var(--red); color: #fff; }
 .road-badge.rec { background: var(--amber); color: #fff; }
-.road-legend { position: absolute; right: 10px; bottom: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; font-size: 16px; display: grid; grid-template-columns: auto 1fr; gap: 0 8px; align-items: center; z-index: 2; }
-.road-note { position: absolute; left: 10px; bottom: 10px; font-size: 16px; font-weight: 700; color: var(--muted); background: var(--panel); border-radius: 6px; padding: 2px 8px; z-index: 2; }
-#main.road-wide .t20-left { display: none; }
-#main.road-wide .t20-right { flex: 1; }
+.road-legend { position: absolute; right: 12px; bottom: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; font-size: 16px; display: grid; grid-template-columns: auto 1fr; gap: 3px 8px; align-items: center; z-index: 2; pointer-events: none; box-shadow: 0 4px 14px rgba(0, 0, 0, .12); }
+.road-sw { display: inline-block; width: 22px; height: 11px; border-radius: 3px; }
+.road-sw-car { width: 15px; } .road-sw-bus { width: 30px; } .road-sw-van { height: 14px; }
+.road-note { position: absolute; left: 12px; bottom: 12px; font-size: 16px; font-weight: 700; color: var(--muted); background: var(--panel); border-radius: 6px; padding: 2px 8px; z-index: 2; pointer-events: none; }
+.road-tag { position: absolute; font: 700 16px var(--sans); color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 1px 8px; white-space: nowrap; z-index: 1; pointer-events: none; box-shadow: 0 2px 8px rgba(0, 0, 0, .12); }
+.road-hint { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); font-size: 15px; color: var(--muted); background: var(--panel); border-radius: 999px; padding: 3px 14px; z-index: 2; pointer-events: none; opacity: .92; transition: opacity .6s; white-space: nowrap; }
+.road-hint.gone { opacity: 0; }
+/* S20: the road is the stage, the graph an inset (G), the controls one bar; W hides both */
+.t20-stage { position: relative; flex: 1; min-height: 0; }
+.t20-road { position: absolute; inset: 0; }
+.t20-inset { position: absolute; left: 12px; bottom: 12px; padding: 4px; z-index: 3; background: color-mix(in srgb, var(--panel) 92%, transparent); box-shadow: 0 6px 20px rgba(0, 0, 0, .14); }
+.t20-inset svg { display: block; }
+.t20-stage.no-graph .t20-inset, .t20-stage.mode-live .t20-inset { display: none; }
+.t20-status { position: absolute; right: 12px; top: 12px; z-index: 3; max-width: 680px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 6px 14px; font-size: 20px; box-shadow: 0 4px 14px rgba(0, 0, 0, .12); }
+.t20-stage.no-road .t20-inset { position: static; display: block; margin: 0 auto; box-shadow: none; }
+.t20-stage.no-road .t20-status { position: static; margin: 8px auto 0; max-width: none; }
+.t20-bar { gap: 12px; align-items: center; }
+.t20-bar .card-chips { gap: 6px; flex-wrap: nowrap; }
+.t20-bar .btn { font-size: 18px; padding-left: 11px; padding-right: 11px; }
+.t20-bar .field { font-size: 18px; }
+.t20-bar .card-chips .label { display: none; }
+.t20-bar .dim { opacity: .35; pointer-events: none; }
+#main.t20-clean .t20-bar, #main.t20-clean .t20-inset { display: none; }

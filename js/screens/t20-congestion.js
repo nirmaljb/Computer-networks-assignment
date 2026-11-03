@@ -7,14 +7,15 @@
   CN.screens.t20 = function (root, sc) {
     var body = ui.screen(root, { num: sc.stop, title: sc.title, hero: true });
     var T = CN.tcp, ROUNDS = 24;
-    var st = { ssthresh: 32, capacity: 39, variant: 'tahoe', loss: 'dupack', round: 0, rows: null, mode: 'sim', wide: false };
+    var st = { ssthresh: 32, capacity: 39, variant: 'tahoe', loss: 'dupack', round: 0, rows: null, mode: 'sim', wide: false, graph: true };
     var road = null, feed = null, roadErr = null, playing = false, timer = null;
 
-    var GW = 700, GH = 360;
+    // The road is the stage; the cwnd graph is an inset (G) and the controls are one bar under it.
+    var GW = 470, GH = 250;
     var graph = s('svg', { width: GW, height: GH, viewBox: '0 0 ' + GW + ' ' + GH });
-    var eventLine = h('div', { class: 'panel small', style: { minHeight: '58px', fontSize: '21px' } });
+    var status = h('div', { class: 't20-status' });
     function numField(key, lo, hi) {
-      var f = ui.field(String(st[key]), { width: 70, onInput: function (v) {
+      var f = ui.field(String(st[key]), { width: 64, onInput: function (v) {
         var n = +v, ok = /^\d+$/.test(v.trim()) && n >= lo && n <= hi;
         f.classList.toggle('invalid', !ok);
         if (ok) { st[key] = n; rebuild(); }
@@ -24,16 +25,18 @@
     var fSs = numField('ssthresh', 2, 64), fCap = numField('capacity', 8, 64);
     var varSeg = ui.seg([['tahoe', 'Tahoe'], ['reno', 'Reno']], st.variant, function (v) { st.variant = v; rebuild(); });
     var lossSeg = ui.seg([['dupack', '3 dup ACKs'], ['timeout', 'Timeout']], st.loss, function (v) { st.loss = v; rebuild(); });
-    var playBtn = ui.btn('Play (Space)', function () { togglePlay(); }, 'primary');
-    var left = h('div', { class: 'col t20-left', style: { width: '720px', gap: '8px', flex: 'none' } },
-      h('div', { class: 'panel', style: { padding: '4px' } }, graph),
-      h('div', { class: 'row nowrap', style: { gap: '8px' } }, varSeg, lossSeg,
-        h('span', { class: 'label' }, 'ssthresh'), fSs, h('span', { class: 'label' }, 'capacity'), fCap),
-      h('div', { class: 'row nowrap', style: { gap: '8px' } }, ui.btn('Step (S)', step), playBtn, ui.btn('Reset (R)', reset),
-        ui.btn('Wide road (W)', toggleWide), ui.btn('Live / replay (L)', toggleLive)),
-      eventLine,
+    var playBtn = ui.btn('Play', function () { togglePlay(); }, 'primary', 'Space');
+    var graphBtn = ui.btn('Graph', toggleGraph, '', 'G');
+    var inset = h('div', { class: 't20-inset panel' }, graph);
+    var roadBox = h('div', { class: 't20-road' });
+    var stage = h('div', { class: 't20-stage' }, roadBox, inset, status);
+    var simCtl = h('div', { class: 'row nowrap', style: { gap: '8px' } }, varSeg, lossSeg,
+      h('span', { class: 'label' }, 'ssthresh'), fSs, h('span', { class: 'label' }, 'capacity'), fCap);
+    var bar = h('div', { class: 't20-bar row nowrap' }, simCtl,
+      h('div', { class: 'row nowrap', style: { gap: '8px' } }, ui.btn('Step', step, '', 'S'), playBtn, ui.btn('Reset', reset, '', 'R')),
+      h('div', { class: 'row nowrap', style: { gap: '8px', marginLeft: 'auto' } }, graphBtn, ui.btn('Live', toggleLive, '', 'L: live → recorded → simulation')),
       ui.cards([
-        ['Congestion collapse', function () {
+        ['Collapse of 1986', function () {
           return h('div', { class: 'col' },
             h('div', null, 'October 1986: throughput between LBL and UC Berkeley (400 m, three hops) fell from 32 kbps to 40 bps. Senders retransmitted into full queues, so the links carried mostly duplicates.'),
             h('div', null, 'Jacobson (1988) added slow start, congestion avoidance (AIMD) and the RTO estimator of stop 19 to TCP. More buffers would not have helped: longer queues just mean later timeouts and more duplicates.'));
@@ -45,13 +48,8 @@
             h('div', null, 'The receiver echoes it with ', h('b', null, 'ECE'), ' on its ACKs; the sender halves cwnd as if a packet were lost and sets ', h('b', null, 'CWR'), ' (the two flags of stop 16).'),
             h('div', { class: 'muted' }, 'Same signal, no lost packet, no retransmission.'));
         }]
-      ], body));
-    var roadBox = h('div', { style: { width: '100%', flex: 1, minHeight: 0, position: 'relative' } });
-    var infoLine = h('div');
-    var roadInfo = h('div', { class: 'panel small col', style: { gap: '2px' } }, infoLine,
-      h('div', { class: 'muted' }, h('span', { class: 'kbd' }, 'W'), ' wide road · ', h('span', { class: 'kbd' }, 'L'), ' live → recorded → sim · the badge always names the mode'));
-    var right = h('div', { class: 't20-right col grow', style: { minWidth: 0, gap: '8px' } }, roadBox, roadInfo);
-    body.appendChild(h('div', { class: 'row nowrap', style: { alignItems: 'stretch', gap: '16px', flex: 1, minHeight: 0 } }, left, right));
+      ], stage));
+    body.appendChild(h('div', { class: 't20 col', style: { flex: 1, minHeight: 0, gap: '10px' } }, stage, bar));
 
     function aimdCard() {
       var W = 420, H = 300, p = s('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H });
@@ -80,7 +78,6 @@
       st.rows = T.cwndTrace({ ssthresh: st.ssthresh, capacity: st.capacity, variant: st.variant, loss: st.loss, rounds: ROUNDS });
       st.round = Math.min(st.round, ROUNDS);
       if (road) { road.clear(); if (st.mode === 'sim') road.setCapacity(st.capacity); }
-      if (infoLine) drawInfo();
       draw();
     }
     function drawGraph() {
@@ -124,22 +121,28 @@
         if (done && row.round === st.round) graph.appendChild(s('text', { x: X(row.round) + 10, y: Y(row.cwnd) + 20, 'font-size': 17, 'font-weight': 800, fill: 'var(--blue)' }, String(row.cwnd)));
       });
     }
+    // one or two lines over the road: the round, and what the booth did with it
     function drawEvent() {
-      CN.clear(eventLine);
+      CN.clear(status);
+      if (st.mode !== 'sim') {
+        status.appendChild(h('div', null, h('b', null, 'One vehicle per packet'), ' (at most 40 a second)'));
+        status.appendChild(h('div', { class: 'muted' }, 'Real traffic: this shows protocols, not slow start.'));
+        return;
+      }
       if (!st.round) {
-        eventLine.appendChild(h('span', { class: 'muted' }, 'S sends round 1 (cwnd 1). ' + (st.variant === 'reno' ? 'Reno: 3 dup ACKs → cwnd = new ssthresh.' : 'Tahoe: any loss → cwnd = 1.')));
+        status.appendChild(h('div', null, h('b', null, 'S'), ' sends round 1 (cwnd 1)'));
+        status.appendChild(h('div', { class: 'muted' }, st.variant === 'reno' ? 'Reno: 3 dup ACKs → cwnd = new ssthresh' : 'Tahoe: any loss → cwnd = 1'));
         return;
       }
       var r = st.rows[st.round - 1], rd = T.road(r.cwnd, st.capacity);
-      eventLine.appendChild(h('b', null, 'Round ' + r.round + ': '));
-      eventLine.appendChild(document.createTextNode('cwnd ' + r.cwnd + ', ' + r.phase + ' (ssthresh ' + r.ssthresh + '). '));
-      if (r.loss) eventLine.appendChild(h('span', { class: 'bad', style: { fontWeight: 700 } }, r.cwnd + ' > capacity ' + st.capacity + ' → ' + rd.dropped + ' wrecked; ' + r.event + '.'));
-      else eventLine.appendChild(h('span', { class: 'ok' }, 'All ' + r.cwnd + ' fit (served ' + rd.served + (rd.queued ? ', queued ' + rd.queued : '') + ').'));
+      status.appendChild(h('div', null, h('b', null, 'Round ' + r.round + ' · cwnd ' + r.cwnd), ' · ' + r.phase));
+      if (r.loss) status.appendChild(h('div', { class: 'bad', style: { fontWeight: 700 } }, r.cwnd + ' > capacity ' + st.capacity + ' → ' + rd.dropped + ' wrecked; ' + r.event));
+      else status.appendChild(h('div', { class: 'ok' }, 'All ' + r.cwnd + ' fit: served ' + rd.served + (rd.queued ? ', queued ' + rd.queued : '')));
     }
     function draw() {
       varSeg.set(st.variant); lossSeg.set(st.loss);
       drawGraph(); drawEvent();
-      playBtn.textContent = playing ? 'Pause (Space)' : 'Play (Space)';
+      playBtn.textContent = playing ? 'Pause' : 'Play';
     }
     function step() {
       if (st.round >= ROUNDS) { stopPlay(); return; }
@@ -150,19 +153,15 @@
     function togglePlay() { if (playing) stopPlay(); else { playing = true; step(); timer = setInterval(function () { if (st.round >= ROUNDS) stopPlay(); else step(); }, CN.road.PERIOD * 1000); draw(); } }
     function stopPlay() { playing = false; clearInterval(timer); draw(); }
     function reset() { stopPlay(); st.round = 0; if (road) road.clear(); draw(); }
-    function toggleWide() {
-      st.wide = !st.wide;
-      root.classList.toggle('road-wide', st.wide);
-    }
-    function drawInfo() {
-      CN.clear(infoLine);
-      if (st.mode === 'sim') infoLine.appendChild(h('span', null, h('b', null, 'SIM: '), 'trucks leaving each round = cwnd. The booth serves ' + Math.min(30, st.capacity) + ' per round trip and queues ' + Math.max(0, st.capacity - 30) + ', so a window over ' + st.capacity + ' loses trucks: the graph\'s loss.'));
-      else infoLine.appendChild(h('span', null, h('b', null, st.mode === 'live' ? 'LIVE: ' : 'RECORDED: '), 'one vehicle per packet (sampled to 40/s). Trucks are TCP data, mostly HTTPS; cars are ACKs; vans are DNS; buses are QUIC. This shows protocols, not slow start.'));
-    }
+    // G: graph inset on/off; W: road only (graph and control bar hidden; S, Space, R, L still work)
+    function toggleGraph() { st.graph = !st.graph; stage.classList.toggle('no-graph', !st.graph); graphBtn.classList.toggle('on', st.graph); }
+    function toggleWide() { st.wide = !st.wide; root.classList.toggle('t20-clean', st.wide); }
     function setMode(mode, info, why) {
       var changed = mode !== st.mode;
       st.mode = mode;
-      drawInfo();
+      stage.classList.toggle('mode-live', mode !== 'sim');
+      simCtl.classList.toggle('dim', mode !== 'sim');
+      draw();
       if (road) { road.setMode(mode, info); if (changed) road.clear(); }
       if (changed || why) CN.toast((why ? why + ' ' : '') + (mode === 'live' ? 'LIVE: this laptop' : mode === 'replay' ? 'RECORDED replay' : 'SIMULATION'));
     }
@@ -178,15 +177,15 @@
     }
 
     rebuild();
-    drawInfo();
+    graphBtn.classList.add('on');
     CN.road.create(roadBox, { capacity: st.capacity }, function (r, err) {
       if (!roadBox.isConnected) { if (r) r.destroy(); return; }
       if (!r) {
         roadErr = err;
-        right.style.display = 'none';
-        left.style.width = '100%';
-        graph.setAttribute('width', 1180); graph.setAttribute('height', 500);
-        left.insertBefore(h('div', { class: 'banner warn small' }, '3D road needs WebGL (' + err + '): the graph alone shows the same model.'), left.firstChild);
+        // no WebGL: the graph takes the stage, at full size
+        stage.classList.add('no-road');
+        graph.setAttribute('width', 1100); graph.setAttribute('height', 570);
+        stage.insertBefore(h('div', { class: 'banner warn small' }, '3D road needs WebGL (' + err + '): the graph alone shows the same model.'), stage.firstChild);
         return;
       }
       road = r;
@@ -197,10 +196,11 @@
       key: function (e) {
         if (e.key === ' ') { togglePlay(); return true; }
         if (e.key === 'w' || e.key === 'W') { toggleWide(); return true; }
+        if (e.key === 'g' || e.key === 'G') { toggleGraph(); return true; }
         if (e.key === 'l' || e.key === 'L') { toggleLive(); return true; }
         return false;
       },
-      destroy: function () { stopPlay(); if (feed) feed.stop(); if (road) road.destroy(); root.classList.remove('road-wide'); }
+      destroy: function () { stopPlay(); if (feed) feed.stop(); if (road) road.destroy(); root.classList.remove('t20-clean'); }
     };
   };
 })();
