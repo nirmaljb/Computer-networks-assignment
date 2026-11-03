@@ -2,59 +2,54 @@
   'use strict';
   var CN = window.CN, h = CN.h, s = CN.s, ui = CN.ui, Gr = CN.graph;
 
+  // SPEC-v5: 13a walks router B through the five link state steps (Step), the LSP drawn beside the map;
+  // 13b is the DV vs LS table.
   var NODES = ['A', 'B', 'C', 'D', 'E', 'F'];
   var POS = { A: [90, 200], B: [280, 80], C: [280, 320], D: [520, 80], E: [520, 320], F: [720, 200] };
   var EDGES = [['A', 'B', 2], ['A', 'C', 5], ['B', 'C', 1], ['B', 'D', 4], ['C', 'E', 3], ['D', 'E', 1], ['D', 'F', 2], ['E', 'F', 6]];
-  var STEPS = ['The routers', '1 · Discover neighbours (HELLO)', '2 · Set link costs', '3 · Build a link state packet', '4 · Flood the LSPs', '5 · Run Dijkstra locally'];
-  // v3: LS = S11a's flooding + S11b's Dijkstra
-  var BACK = { 4: 'flooding (S11a)', 5: 'Dijkstra (S11b)' };
+  var STAGES = [
+    'Each router knows only itself. Goal: every router gets the whole map.',
+    '1 · Discover neighbours: send HELLO on each line.',
+    '2 · Set link costs (e.g. the inverse of bandwidth).',
+    '3 · Build a link state packet: sender, sequence, age, each neighbour with its cost.',
+    '4 · Flood the LSP. Routers keep (source, seq) and drop duplicates (✕).',
+    '5 · Run Dijkstra locally on the full map: B\'s sink tree.'
+  ];
 
-  CN.screens.t13 = function (root, sc) {
-    var body = ui.screen(root, { num: sc.stop, title: sc.title, sub: 'routing with a map' });
+  function steps(body) {
     var st = { k: 0, sel: 'B', round: 0 };
-
-    var stepper = h('div', { class: 'row', style: { gap: '6px' } });
-    var svg = s('svg', { width: 740, height: 370, viewBox: '0 0 820 410' });
-    var side = h('div', { class: 'col grow', style: { gap: '10px' } });
-    body.appendChild(stepper);
-    body.appendChild(h('div', { class: 'row nowrap', style: { alignItems: 'flex-start', gap: '16px' } }, h('div', { class: 'panel', style: { padding: '4px' } }, svg), side));
-    body.appendChild(h('table', { class: 't', style: { fontSize: '19px' } },
-      h('tr', null, h('th', null, ''), h('th', null, 'Distance vector'), h('th', null, 'Link state')),
-      h('tr', null, h('th', null, 'Tells'), h('td', null, 'neighbours only: its whole distance table'), h('td', null, 'everyone (flood): only its own links')),
-      h('tr', null, h('th', null, 'Computes'), h('td', null, 'Bellman-Ford, distributed'), h('td', null, 'Dijkstra on the full map, locally')),
-      h('tr', null, h('th', null, 'Bad news'), h('td', null, 'counts to infinity'), h('td', null, 'one flood, converges fast')),
-      h('tr', null, h('th', null, 'Cost'), h('td', null, 'simple, little memory (RIP)'), h('td', null, 'more memory (≈ k·n) and CPU (OSPF, IS-IS)'))));
+    var stage = h('div', { style: { fontSize: '28px', fontWeight: 700, minHeight: '40px' } });
+    var svg = s('svg', { width: 1400, height: 520, viewBox: '0 0 1100 410' });
+    body.appendChild(stage);
+    body.appendChild(h('div', { class: 'panel', style: { padding: '4px', alignSelf: 'flex-start' } }, svg));
 
     function floodRounds() { return Gr.flood(NODES, EDGES, st.sel, 99, true); }
-
     function step() {
-      if (st.k === 4) {
-        var n = floodRounds().length;
-        if (st.round < n) { st.round++; draw(); return; }
-      }
-      st.k = (st.k + 1) % STEPS.length;
-      st.round = 0;
-      draw();
+      if (st.k === 4 && st.round < floodRounds().length) { st.round++; draw(); return true; }
+      if (st.k === STAGES.length - 1) return false;
+      st.k++; st.round = 0; draw(); return true;
     }
-
-    // reverse of step(): back through the flood hops, then to the previous stage (flood shown finished)
-    function back() {
+    function prev() {
       if (st.k === 4 && st.round > 0) st.round--;
       else if (st.k > 0) { st.k--; st.round = st.k === 4 ? floodRounds().length : 0; }
-      draw();
+      else return false;
+      draw(); return true;
     }
-
-    function draw() {
-      CN.clear(stepper);
-      var b0 = ui.backBtn(back);
-      b0.disabled = st.k === 0;
-      stepper.appendChild(b0);
-      STEPS.forEach(function (t, i) {
-        var b = ui.btn(BACK[i] ? h('span', null, t, h('span', { class: 'btn-tag' }, BACK[i])) : t, function () { st.k = i; st.round = 0; draw(); });
-        b.classList.toggle('on', i === st.k);
-        stepper.appendChild(b);
+    function reset() { st.k = 0; st.round = 0; draw(); }
+    function lspBox() {
+      var nb = EDGES.filter(function (e) { return e[0] === st.sel || e[1] === st.sel; }).map(function (e) { return [e[0] === st.sel ? e[1] : e[0], e[2]]; });
+      var rows = [['Seq', '23'], ['Age', '60']].concat(nb.map(function (x) { return [x[0], String(x[1])]; }));
+      var x = 860, y = 40, w = 220, rh = 40;
+      svg.appendChild(s('rect', { x: x, y: y, width: w, height: rh * (rows.length + 1), rx: 8, fill: 'var(--panel)', stroke: 'var(--accent)', 'stroke-width': 3 }));
+      svg.appendChild(s('text', { x: x + w / 2, y: y + 28, 'text-anchor': 'middle', 'font-size': 24, 'font-weight': 800, fill: 'var(--accent)' }, 'LSP from ' + st.sel));
+      rows.forEach(function (r, i) {
+        svg.appendChild(s('text', { x: x + 24, y: y + rh * (i + 1) + 28, 'font-size': 22, 'font-weight': 700 }, r[0]));
+        svg.appendChild(s('text', { x: x + w - 24, y: y + rh * (i + 1) + 28, 'text-anchor': 'end', 'font-size': 22, 'font-weight': 700, class: 'mono' }, r[1]));
       });
-      CN.clear(svg); CN.clear(side);
+    }
+    function draw() {
+      stage.textContent = STAGES[st.k];
+      CN.clear(svg);
       var rounds = floodRounds(), cur = st.k === 4 && st.round > 0 ? rounds[st.round - 1] : null;
       var has = {};
       has[st.sel] = true;
@@ -88,46 +83,31 @@
       NODES.forEach(function (n) {
         var p = POS[n], isSel = n === st.sel;
         var fill = st.k === 4 && has[n] ? 'var(--blue-bg)' : isSel && st.k >= 3 ? 'var(--accent)' : 'var(--panel)';
-        var g = s('g', { class: 'clickable' },
+        var g = s('g', null,
           s('circle', { cx: p[0], cy: p[1], r: 30, fill: fill, stroke: 'var(--ink)', 'stroke-width': 3 }),
           s('text', { x: p[0], y: p[1] + 9, 'text-anchor': 'middle', 'font-size': 26, 'font-weight': 800, fill: isSel && st.k >= 3 && st.k !== 4 ? '#fff' : 'var(--ink)' }, n));
-        g.addEventListener('click', function () { st.sel = n; st.round = 0; draw(); });
         svg.appendChild(g);
       });
 
-      var text = [
-        ['Each router knows only itself. Goal: every router gets the whole map, then computes its own routes.'],
-        ['Send HELLO on each line; the reply names the neighbour. A broadcast LAN is modelled as a node of its own.'],
-        ['Cost per link: inverse of bandwidth (1 Gbps → 1, 100 Mbps → 10), or delay measured with ECHO packets.'],
-        null, null, null
-      ][st.k];
-      if (text) side.appendChild(h('div', { class: 'panel', style: { fontSize: '25px' } }, text[0]));
-      if (st.k === 3 || st.k === 4) {
-        var nb = EDGES.filter(function (e) { return e[0] === st.sel || e[1] === st.sel; }).map(function (e) { return [e[0] === st.sel ? e[1] : e[0], e[2]]; });
-        var card = h('table', { class: 't', style: { fontSize: '23px' } },
-          h('tr', null, h('th', { colspan: 2 }, 'LSP from ' + st.sel)),
-          h('tr', null, h('td', null, 'Sequence'), h('td', { class: 'mono' }, '23')),
-          h('tr', null, h('td', null, 'Age'), h('td', { class: 'mono' }, '60')),
-          nb.map(function (x) { return h('tr', null, h('td', { class: 'mono' }, x[0]), h('td', { class: 'mono' }, String(x[1]))); }));
-        side.appendChild(h('div', { class: 'row', style: { alignItems: 'flex-start' } }, card,
-          h('div', { class: 'small', style: { maxWidth: '330px' } }, 'Sender ID, sequence number, age, then each neighbour with its cost. Click another router to see its LSP.')));
-      }
-      if (st.k === 4) {
-        side.appendChild(h('div', { class: 'panel', style: { fontSize: '22px' } },
-          cur ? h('div', null, 'Hop ' + st.round + ': ' + cur.sent.length + ' copies, ', h('b', { class: 'bad' }, cur.dups + ' duplicate' + (cur.dups === 1 ? '' : 's') + ' dropped ✕'), '; ' + cur.reached + ' / 6 routers have it')
-              : h('div', null, 'S floods ' + st.sel + '\'s LSP. Every router does this.'),
-          h('div', { class: 'small muted' }, 'Keep (source, seq); drop old or duplicate LSPs. 32-bit sequence numbers; age (decremented each second and each hop) clears crashed or corrupted entries. Per-line send/ACK flags.')));
-      }
-      if (st.k === 5) {
-        var r2 = Gr.dijkstra(NODES, EDGES, st.sel), tb = Gr.table(r2);
-        side.appendChild(h('table', { class: 't', style: { fontSize: '23px' } },
-          h('tr', null, h('th', { colspan: 3 }, 'Router ' + st.sel + ': Dijkstra on the full map')),
-          h('tr', null, h('th', null, 'to'), h('th', null, 'cost'), h('th', null, 'next hop')),
-          NODES.map(function (n) { return h('tr', null, h('td', { class: 'mono' }, n), h('td', { class: 'c mono' }, String(tb[n].cost)), h('td', { class: 'c mono' }, tb[n].next)); })));
-        side.appendChild(h('div', { class: 'small muted' }, 'Click any router: same map, its own sink tree. OSPF and IS-IS.'));
-      }
+      if (st.k === 3 || st.k === 4) lspBox();
     }
     draw();
-    return { step: step, reset: function () { st.k = 0; st.round = 0; st.sel = 'B'; draw(); } };
+    body.appendChild(ui.controls(step, reset));
+    return { step: step, reset: reset, prev: prev };
+  }
+
+  function compare(body) {
+    body.appendChild(h('table', { class: 't', style: { fontSize: '30px', marginTop: '30px' } },
+      h('tr', null, h('th', null, ''), h('th', null, 'Distance vector'), h('th', null, 'Link state')),
+      h('tr', null, h('th', null, 'Tells'), h('td', null, 'neighbours only: its whole distance table'), h('td', null, 'everyone (flood): only its own links')),
+      h('tr', null, h('th', null, 'Computes'), h('td', null, 'Bellman-Ford, distributed'), h('td', null, 'Dijkstra on the full map, locally')),
+      h('tr', null, h('th', null, 'Bad news'), h('td', null, 'counts to infinity'), h('td', null, 'one flood, converges fast')),
+      h('tr', null, h('th', null, 'Cost'), h('td', null, 'simple, little memory (RIP)'), h('td', null, 'more memory and CPU (OSPF, IS-IS)'))));
+    return {};
+  }
+
+  CN.screens.t13 = function (root, sc) {
+    var body = ui.screen(root, { num: sc.stop, title: sc.title });
+    return sc.part === 'compare' ? compare(body) : steps(body);
   };
 })();

@@ -1,4 +1,4 @@
-/* Deck shell: DOM helpers, stage scaling, navigation, keys, theme, journey bar,
+/* Deck shell: DOM helpers, stage scaling, navigation, keys, theme,
    journey map, presenter sync. Screens register in CN.screens[id] as
    function (root) → controller { step, reset, next, prev, key, destroy }. */
 (function () {
@@ -47,11 +47,10 @@
   var ui = CN.ui = {};
   ui.screen = function (root, opts) {
     var body = h('div', { class: 'scr-body' });
+    // SPEC-v5: the header is the S-number and the title, nothing else
     var head = h('div', { class: 'scr-head' },
       opts.num ? h('span', { class: 'scr-num' }, 'S' + opts.num) : null,
-      h('h1', { class: 'scr-title' }, opts.title),
-      opts.hero ? h('span', { class: 'hero-badge' }, '★ live sim') : null,
-      opts.sub ? h('span', { class: 'scr-sub' }, opts.sub) : null);
+      h('h1', { class: 'scr-title' }, opts.title));
     var el = h('div', { class: 'scr' }, head, body);
     root.appendChild(el);
     return body;
@@ -59,88 +58,9 @@
   ui.btn = function (label, onClick, cls, title) {
     return h('button', { class: 'btn ' + (cls || ''), onClick: function (e) { e.currentTarget.blur(); onClick(e); }, title: title }, label);
   };
-  // "◀ Back" next to a Step button: undoes the last step. Screens set .disabled when there is nothing to undo.
-  ui.backBtn = function (onClick) { return ui.btn('◀ Back', onClick, '', 'Undo the last step'); };
-  // Segmented control. options: [[value, label], ...]
-  ui.seg = function (options, value, onChange) {
-    var wrap = h('span', { class: 'seg' }), btns = {};
-    options.forEach(function (o) {
-      var b = ui.btn(o[1], function () { wrap.set(o[0]); onChange(o[0]); });
-      btns[o[0]] = b; wrap.appendChild(b);
-    });
-    wrap.set = function (v) { Object.keys(btns).forEach(function (k) { btns[k].classList.toggle('on', String(k) === String(v)); }); };
-    wrap.set(value);
-    return wrap;
-  };
-  ui.toggle = function (label, value, onChange) {
-    var b = ui.btn(label, function () { b.value = !b.value; b.classList.toggle('on', b.value); onChange(b.value); });
-    b.value = !!value; b.classList.toggle('on', b.value);
-    b.set = function (v) { b.value = !!v; b.classList.toggle('on', b.value); };
-    return b;
-  };
-  ui.field = function (value, opts) {
-    opts = opts || {};
-    var f = h('input', { class: 'field', value: value, spellcheck: 'false', autocomplete: 'off', style: { width: (opts.width || 300) + 'px' }, placeholder: opts.placeholder || '' });
-    if (opts.onInput) f.addEventListener('input', function () { opts.onInput(f.value); });
-    f.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === 'Escape') f.blur(); });
-    return f;
-  };
-  ui.tabs = function (names, cur, onChange) {
-    var wrap = h('div', { class: 'tabs' }), btns = [];
-    names.forEach(function (n, i) {
-      var b = h('button', { class: 'tab', onClick: function (e) { e.currentTarget.blur(); wrap.set(i); onChange(i); } }, n);
-      btns.push(b); wrap.appendChild(b);
-    });
-    wrap.set = function (i) { btns.forEach(function (b, j) { b.classList.toggle('on', i === j); }); };
-    wrap.set(cur);
-    return wrap;
-  };
-  // Polynomial 'x^4 + x + 1' → element with superscripts
-  ui.poly = function (str) {
-    var span = h('span', { class: 'poly' });
-    str.split(/(\^\d+)/).forEach(function (p) {
-      if (p[0] === '^') span.appendChild(h('sup', null, p.slice(1))); else span.appendChild(document.createTextNode(p));
-    });
-    return span;
-  };
-  // Run/stop loop for "Run" buttons. stepFn returns false to stop.
-  ui.runner = function (stepFn, ms, onState) {
-    var timer = null;
-    var r = {
-      get running() { return !!timer; },
-      start: function () {
-        if (timer) return;
-        timer = setInterval(function () { if (stepFn() === false) r.stop(); }, ms);
-        onState && onState(true);
-      },
-      stop: function () { if (timer) { clearInterval(timer); timer = null; onState && onState(false); } },
-      toggle: function () { timer ? r.stop() : r.start(); }
-    };
-    return r;
-  };
-  // Cards (SPEC-v4): a row of chips; each opens its card in a panel floating over the sim.
-  // list: [[title, () → node]]. Returns the chip row; .close() hides the open card.
-  ui.cards = function (list, host) {
-    var row = h('div', { class: 'row card-chips' }, h('span', { class: 'label' }, 'Cards')), pop = null, openIdx = -1, chips = [];
-    function close() { if (pop) { pop.remove(); pop = null; } openIdx = -1; chips.forEach(function (c) { c.classList.remove('on'); }); }
-    list.forEach(function (c, i) {
-      var b = ui.btn(c[0], function () {
-        var was = openIdx; close();
-        if (was === i) return;
-        openIdx = i; b.classList.add('on');
-        pop = h('div', { class: 'card-pop panel' },
-          h('div', { class: 'row nowrap', style: { justifyContent: 'space-between' } }, h('h3', null, c[0]), ui.btn('✕', close, '', 'Close')),
-          c[1]());
-        host.appendChild(pop);
-      });
-      chips.push(b); row.appendChild(b);
-    });
-    row.close = close;
-    return row;
-  };
-  ui.svgPoint = function (svg, evt) {
-    var p = svg.createSVGPoint(); p.x = evt.clientX; p.y = evt.clientY;
-    return p.matrixTransform(svg.getScreenCTM().inverse());
+  // SPEC-v5: the only controls a sim slide shows. S and R press them from the keyboard.
+  ui.controls = function (onStep, onReset) {
+    return h('div', { class: 'row ctl' }, ui.btn('Step (S)', onStep, 'primary'), ui.btn('Reset (R)', onReset));
   };
   ui.store = {
     get: function (k, d) { try { var v = sessionStorage.getItem('cn.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
@@ -226,7 +146,7 @@
   };
 
   /* ---------------- Deck ---------------- */
-  var screens, idx = 0, ctrl = null, stage, main, journey, problem, butBar, foot, overlay, toastEl, toastTimer, presenter = null;
+  var screens, idx = 0, ctrl = null, stage, main, problem, butBar, overlay, toastEl, toastTimer, presenter = null;
   var butShown = false;
   var talkStart = null;
 
@@ -248,27 +168,6 @@
     stage.style.transform = 'translate(' + (window.innerWidth - 1600 * sc) / 2 + 'px,' + (window.innerHeight - 900 * sc) / 2 + 'px) scale(' + sc + ')';
   }
 
-  var UNITS = [['Unit II', 'Frame', 1, 10], ['Unit III', 'Packet', 11, 15], ['Unit IV', 'Segment', 16, 20], ['Unit V', 'Message', 21, 25]];
-  function drawJourney() {
-    clear(journey);
-    var cur = screens[idx], curTopic = cur.topic || null;
-    var passed = 0;
-    for (var i = 0; i <= idx; i++) if (screens[i].topic) passed = Math.max(passed, screens[i].topic);
-    if (cur.id === 'close') passed = CN.content.topics.length - 1;
-    function dot(n) {
-      var cls = 'jb-dot' + (n === curTopic ? ' cur' : (n < passed || (n === passed && !curTopic) ? ' done' : ''));
-      return h('span', { class: cls, title: 'S' + n + ' · ' + CN.content.topics[n].short, onClick: function () { CN.goTopic(n); } }, String(n));
-    }
-    UNITS.forEach(function (u, k) {
-      if (k) journey.appendChild(h('span', { class: 'jb-sep' }));
-      journey.appendChild(h('span', { class: 'jb-unit' }, h('span', null, u[0]), h('span', null, u[1])));
-      var d = h('span', { class: 'jb-dots' });
-      for (var n = u[2]; n <= u[3]; n++) d.appendChild(dot(n));
-      journey.appendChild(d);
-    });
-    journey.appendChild(h('span', { class: 'jb-name' }, cur.stop ? CN.content.label(cur) : cur.title));
-  }
-
   // Problem strip (top) and But… banner (bottom, hidden until → reveals it).
   function drawStory() {
     var cur = screens[idx], nx = screens[idx + 1];
@@ -278,13 +177,6 @@
     if (cur.problem) {
       problem.appendChild(h('span', { class: 'pb-label' }, 'PROBLEM'));
       problem.appendChild(h('span', { class: 'pb-text' }, cur.problem));
-      if (cur.act) {
-        var act = h('span', { class: 'pb-act' }, 'Act ' + cur.act + ' · ' + CN.content.acts[cur.act].name);
-        problem.appendChild(act);
-        // the Problem line is a must-say: drop the act label rather than cut the line
-        var txt = problem.querySelector('.pb-text');
-        if (txt.scrollWidth > txt.clientWidth + 1) problem.removeChild(act);
-      }
       // still too long at 26 px: give the strip a second line instead of shrinking it
       var pt = problem.querySelector('.pb-text');
       if (pt.scrollWidth > pt.clientWidth + 1) stage.classList.add('problem-2l');
@@ -298,14 +190,6 @@
     butBar.classList.toggle('shown', butShown);
   }
   function setBut(v) { butShown = v; butBar.classList.toggle('shown', v); }
-
-  function drawFoot() {
-    clear(foot);
-    var cur = screens[idx];
-    foot.appendChild(h('span', { class: 'syl' }, 'Syllabus: ' + cur.syllabus));
-    foot.appendChild(h('span', null, (idx + 1) + ' / ' + screens.length));
-    foot.appendChild(h('span', null, h('span', { class: 'kbd' }, 'M'), ' map'));
-  }
 
   function go(i) {
     i = Math.max(0, Math.min(screens.length - 1, i));
@@ -328,7 +212,7 @@
       main.appendChild(h('div', { class: 'banner err', style: { margin: '40px' } }, 'Screen "' + sc.id + '" failed: ' + err.message));
       ctrl = {};
     }
-    drawJourney(); drawStory(); drawFoot();
+    drawStory();
     try { history.replaceState(null, '', '#' + sc.id); } catch (e) { /* file:// in some browsers */ }
     ui.store.set('idx', i);
     post();
@@ -395,7 +279,7 @@
     clear(overlay);
     overlay.appendChild(h('div', { class: 'row', style: { justifyContent: 'space-between' } },
       h('h1', { class: 'scr-title' }, 'Journey map'),
-      h('span', { class: 'scr-sub' }, 'Click any stop to jump · Esc or M closes')));
+      h('span', { class: 'muted' }, 'Click any stop to jump · Esc or M closes')));
     var cur = screens[idx].topic, line = ui.mapProblem();
     overlay.appendChild(ui.map({
       reveal: 3, cur: function (n) { return n === cur; }, height: 700, width: 1265,
@@ -446,22 +330,17 @@
   function init() {
     screens = CN.content.screens;
     stage = document.getElementById('stage');
-    journey = h('div', { id: 'journey' });
     problem = h('div', { id: 'problem' });
     main = h('div', { id: 'main' });
     butBar = h('div', { id: 'but' });
-    foot = h('div', { id: 'foot' });
     overlay = h('div', { id: 'overlay' });
     toastEl = h('div', { class: 'qz-toast' });
-    append(stage, [journey, problem, main, butBar, foot, overlay, toastEl]);
+    append(stage, [problem, main, butBar, overlay, toastEl]);
     document.title = CN.content.deckTitle;
     document.documentElement.setAttribute('data-theme', ui.store.get('theme', 'light'));
     talkStart = ui.store.get('talkStart', null);
     window.addEventListener('resize', fit);
     document.addEventListener('keydown', onKey);
-    // range sliders must not keep focus, or arrow keys would move them instead of the deck
-    document.addEventListener('change', function (e) { if (e.target.type === 'range') e.target.blur(); });
-    document.addEventListener('pointerup', function (e) { if (e.target.type === 'range') setTimeout(function () { e.target.blur(); }, 0); });
     fit();
     var start = 0, hash = (location.hash || '').slice(1);
     if (hash) screens.forEach(function (sc, i) { if (sc.id === hash) start = i; });

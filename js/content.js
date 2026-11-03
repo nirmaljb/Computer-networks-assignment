@@ -66,6 +66,12 @@
     /* ---------- Act 1 · One link ---------- */
     {
       id: 't1', topic: 1, stop: '1', act: 1, short: 'Services & framing', title: 'Design issues: services & framing', target: 25,
+      subs: [
+        { id: 't1', part: 'services', stop: '1a', short: 'Services', title: 'Data link services', click: 'Static: the three services.' },
+        { id: 't1b', part: 'count', stop: '1b', short: 'Byte count', title: 'Framing: byte count', click: 'Step corrupts the 2nd count (Fig 3-3).' },
+        { id: 't1c', part: 'bytes', stop: '1c', short: 'Byte stuffing', title: 'Framing: byte stuffing (PPP)', click: 'Step shows the receiver removing the ESC (Fig 3-4).' },
+        { id: 't1d', part: 'bits', stop: '1d', short: 'Bit stuffing', title: 'Framing: bit stuffing (HDLC, USB)', click: 'Step shows the receiver destuffing (Fig 3-5).' }
+      ],
       syllabus: 'Design Issues – Services, Framing, Error Control, Flow Control',
       problem: 'The wire delivers an endless bit stream. Where does a frame start and end?',
       but: 'The frame is found, but noise flipped a bit inside it.',
@@ -86,6 +92,10 @@
     },
     {
       id: 't2', topic: 2, stop: '2', act: 1, hero: true, short: 'Hamming code', title: 'Hamming code', target: 50,
+      subs: [
+        { id: 't2', part: 'encode', stop: '2a', short: 'Hamming encode', title: 'Hamming code: building the codeword', click: 'Step computes P1, P2, P4, P8 in turn and lights what each covers. ← undoes.' },
+        { id: 't2b', part: 'correct', stop: '2b', short: 'Hamming correct', title: 'Hamming code: find and fix the error', click: 'Click any bit to flip it, or Step flips bit 5. Next Step corrects.' }
+      ],
       syllabus: 'Error Detection and Correction Codes, Hamming Code',
       problem: 'A bit flipped in transit. Can the receiver find and fix it without asking again?',
       but: 'Correcting costs check bits on every block. On a clean link, detecting and resending is cheaper, and real errors come in bursts.',
@@ -109,6 +119,10 @@
     },
     {
       id: 't3', topic: 3, stop: '3', act: 1, hero: true, short: 'CRC', title: 'Cyclic Redundancy Check', target: 45,
+      subs: [
+        { id: 't3', part: 'divide', stop: '3a', short: 'CRC sender', title: 'CRC: the sender divides', click: 'Step adds one XOR row of the long division. ← undoes.' },
+        { id: 't3b', part: 'check', stop: '3b', short: 'CRC receiver', title: 'CRC: the receiver checks', click: 'Click bits to flip them, or Step sends a 3-bit burst.' }
+      ],
       syllabus: 'Cyclic Redundancy Check',
       problem: 'We need a cheap, strong detector that catches bursts.',
       but: 'CRC can only say "bad frame", and the receiver drops it. The sender doesn\'t even know.',
@@ -131,6 +145,12 @@
     },
     {
       id: 't4', topic: 4, stop: '4', act: 1, short: 'Stop-and-wait', title: 'Simplex & stop-and-wait', target: 20,
+      subs: [
+        { id: 't4', part: 'p1', stop: '4a', short: 'Protocol 1', title: 'Protocol 1: utopian simplex', click: 'Step runs to the next event. Click a message in flight to destroy it.' },
+        { id: 't4b', part: 'p2', stop: '4b', short: 'Protocol 2', title: 'Protocol 2: simplex stop-and-wait', click: 'Step runs to the next event. Click a message in flight to destroy it.' },
+        { id: 't4c', part: 'p3', stop: '4c', short: 'Protocol 3', title: 'Protocol 3: stop-and-wait on a noisy channel (PAR / ARQ)', click: 'Scripted: frame 1 lost once (timeout, resend), first ACK 2 lost (duplicate discarded, re-ACKed).' },
+        { id: 't4d', part: 'util', stop: '4d', short: 'Utilisation', title: 'Why stop-and-wait is not enough', click: 'Static.' }
+      ],
       syllabus: 'Data Link Layer Protocols, Simplex Protocol',
       problem: 'A dropped frame is silent. How does the sender know to resend?',
       but: 'It works, but a satellite sender sits idle 96% of the time.',
@@ -150,6 +170,11 @@
     },
     {
       id: 't5', topic: 5, stop: '5', act: 1, hero: true, short: 'Sliding window', title: 'Sliding window: Go-Back-N vs Selective Repeat', target: 50,
+      subs: [
+        { id: 't5', part: 'gbn', stop: '5a', short: 'Go-Back-N', title: 'Go-Back-N (Protocol 5)', click: 'Step runs to the next event. Frame 1 is lost once; GBN resends 1–4.' },
+        { id: 't5b', part: 'sr', stop: '5b', short: 'Selective Repeat', title: 'Selective Repeat (Protocol 6)', click: 'Same loss; SR buffers 2–4 and resends only 1.' },
+        { id: 't5c', part: 'trap', stop: '5c', short: 'SR window limit', title: 'Selective Repeat: why W ≤ 2ⁿ⁻¹', click: 'W = 7, every early ACK lost: old frame 0 is accepted as new.' }
+      ],
       syllabus: 'Sliding Window Protocols',
       problem: 'One frame per round trip wastes the pipe.',
       but: "That's two machines on one wire. A LAN is fifty machines on one cable. Who talks?",
@@ -174,6 +199,12 @@
     /* ---------- Act 2 · Shared channel ---------- */
     {
       id: 't6', topic: 6, stop: '6', act: 2, short: 'ALOHA', title: 'Channel allocation & ALOHA', target: 25,
+      subs: [
+        { id: 't6', part: 'static', stop: '6a', short: 'Static allocation', title: 'Static channel allocation', click: 'Static.' },
+        { id: 't6b', part: 'curves', stop: '6b', short: 'ALOHA throughput', title: 'ALOHA: throughput vs load', click: 'Static.' },
+        { id: 't6c', part: 'pure', stop: '6c', short: 'Pure ALOHA', title: 'Pure ALOHA: vulnerable period', click: 'Static, G = 1.' },
+        { id: 't6d', part: 'slotted', stop: '6d', short: 'Slotted ALOHA', title: 'Slotted ALOHA: vulnerable period', click: 'Static, G = 1.' }
+      ],
       syllabus: 'Medium Access Control Sublayer, Channel Allocation Problem, Multiple Access Protocols, ALOHA',
       problem: 'Many stations, one channel. Fixed slices waste bursty traffic. Who sends?',
       but: "ALOHA doesn't even check whether someone is already talking.",
@@ -191,6 +222,13 @@
     },
     {
       id: 't7a', screen: 't7', topic: 7, stop: '7a', act: 2, hero: true, short: 'CSMA & CSMA/CD', title: 'CSMA & CSMA/CD', target: 40,
+      subs: [
+        { id: 't7a', part: '1p', stop: '7a', short: '1-persistent CSMA', title: '1-persistent CSMA', click: 'Step runs to the next event.' },
+        { id: 't7b', part: 'np', stop: '7b', short: 'Non-persistent CSMA', title: 'Non-persistent CSMA', click: 'Step runs to the next event.' },
+        { id: 't7c', part: 'pp', stop: '7c', short: 'p-persistent CSMA', title: 'p-persistent CSMA', click: 'Step runs to the next event.' },
+        { id: 't7d', part: 'cd', stop: '7d', short: 'CSMA/CD', title: 'CSMA with collision detection', click: 'Step runs to the next event: collision, jam, backoff.' },
+        { id: 't7e', part: 'minframe', stop: '7e', short: 'Minimum frame', title: 'CSMA/CD: minimum frame size', click: 'Static.' }
+      ],
       syllabus: 'CSMA Protocols',
       problem: 'Listen before talking, and stop when you collide.',
       but: "Put together, that's exactly classic Ethernet.",
@@ -211,7 +249,7 @@
       ]
     },
     {
-      id: 't7b', screen: 't9', part: 'eth', topic: 7, stop: '7b', act: 2, short: 'Ethernet MAC', title: 'Ethernet MAC sublayer', target: 15,
+      id: 't7f', screen: 't9', part: 'eth', topic: 7, stop: '7f', act: 2, short: 'Ethernet MAC', title: 'Ethernet MAC sublayer', target: 15,
       syllabus: 'Ethernet MAC Sublayer Protocol',
       problem: 'What does a real frame carrying all these fixes look like?',
       but: 'Ethernet accepts collisions and cleans up after them. Can we avoid them entirely?',
@@ -229,6 +267,11 @@
     },
     {
       id: 't8', part: 'turns', topic: 8, stop: '8', act: 2, short: 'Collision-free', title: 'Collision-free protocols', target: 20,
+      subs: [
+        { id: 't8', part: 'bitmap', stop: '8a', short: 'Bitmap', title: 'Collision-free: the bitmap protocol', click: 'Static.' },
+        { id: 't8b', part: 'token', stop: '8b', short: 'Token passing', title: 'Collision-free: token passing', click: 'Static.' },
+        { id: 't8c', part: 'countdown', stop: '8c', short: 'Binary countdown', title: 'Collision-free: binary countdown', click: 'Step reveals one bit time. ← undoes.' }
+      ],
       syllabus: 'Collision-Free Protocols',
       problem: 'Every collision wastes contention time. Can stations take turns instead?',
       but: 'All of these assume every station hears every other station. Radio breaks that.',
@@ -244,6 +287,10 @@
     },
     {
       id: 't9a', screen: 't8', part: 'wireless', topic: 9, stop: '9a', act: 2, short: 'Wireless LAN', title: 'Wireless LAN protocols', target: 20,
+      subs: [
+        { id: 't9a', part: 'hidden', stop: '9a', short: 'Hidden terminal', title: 'Wireless LAN: the hidden terminal', click: 'Step adds MACA (RTS/CTS).' },
+        { id: 't9b', part: 'exposed', stop: '9b', short: 'Exposed terminal', title: 'Wireless LAN: the exposed terminal', click: 'Step adds MACA (RTS/CTS).' }
+      ],
       syllabus: 'Wireless LAN Protocols',
       problem: "On radio you can't hear everyone, and you can't listen while you send.",
       but: '802.11 turns this idea into a full MAC.',
@@ -259,7 +306,7 @@
       qa: [['Why can\'t 802.11 use CD?', 'Radios can\'t hear while sending, and collisions happen at the receiver (hidden terminals). So 802.11 uses CSMA/CA + ACKs.']]
     },
     {
-      id: 't9b', screen: 't9', part: 'wifi', topic: 9, stop: '9b', act: 2, short: '802.11 MAC', title: '802.11 MAC sublayer', target: 15,
+      id: 't9c', screen: 't9', part: 'wifi', topic: 9, stop: '9c', act: 2, short: '802.11 MAC', title: '802.11 MAC sublayer', target: 15,
       syllabus: '802.11 MAC Sublayer Protocol',
       problem: "Wi-Fi can't detect collisions, so it must avoid them and confirm every frame.",
       but: 'Wired or wireless, one LAN only reaches so far and holds so many stations.',
@@ -281,19 +328,23 @@
     /* ---------- Act 3 · Many LANs ---------- */
     {
       id: 't10', topic: 10, stop: '10', act: 3, short: 'Switching & devices', title: 'Data link layer switching & devices', target: 25,
+      subs: [
+        { id: 't10', part: 'learning', stop: '10a', short: 'Learning bridge', title: 'Learning bridges', click: 'Step sends the next scripted frame: A→D floods, D→A forwards, B→A is filtered (A is on B\'s own port).' },
+        { id: 't10b', part: 'devices', stop: '10b', short: 'Devices', title: 'Repeaters, hubs, bridges, switches, routers, gateways', click: 'Static.' }
+      ],
       syllabus: 'Uses of Bridges, Learning Bridges, Repeaters, Hubs, Bridges, Switches, Routers and Gateways',
       problem: 'Join LANs without one giant collision domain.',
       but: 'A switch only knows MAC addresses on its own LAN. To reach a server abroad, the frame must reach a router and become a packet.',
       history: 'Spanning tree, Radia Perlman, DEC, 1985.',
       live: '"To join LANs, put a bridge between them; a switch is a many-port learning bridge. It starts knowing nothing, floods, and learns from source addresses. Three frames in, its table is built. Hubs repeat bits, switches learn MAC addresses. But a switch only knows the addresses on its own LAN. To reach a server in another country, the frame has to reach a router and become a packet."',
-      click: 'S plays A→D (flood), D→A (forward), A→B (filter). Or click a sender then a receiver.',
+      click: 'S plays A→D (flood), D→A (forward), B→A (filter).',
       facts: [
         'Uses: join LANs, extend distance, isolate traffic (each LAN its own collision domain), reliability.',
         'Learning bridge: learns source MAC → arrival port (timestamped). Dest on arrival port → discard; known elsewhere → forward; unknown → flood all but arrival port. Entries age out; promiscuous; plug-and-play.',
         'Spanning tree (Perlman, 802.1D): loops → broadcast storms; elect lowest-ID root, shortest-path tree, disable other ports.',
         'Physical: repeater, hub (one collision domain). Data link: bridge, switch (one per port; full duplex = no collisions). Network: router (separates broadcast domains). Transport/application: gateways.'
       ],
-      example: 'A→D floods · D→A forwards · A→B filtered. 8-port hub/switch/router: collision 1/8/8, broadcast 1/1/8.',
+      example: 'A→D floods · D→A forwards · B→A filtered. 8-port hub/switch/router: collision 1/8/8, broadcast 1/1/8.',
       qa: [
         ['Why learn from the source, not the destination?', 'The source tells you where the sender lives; the destination says nothing about location.'],
         ['Domains for 8-port hub / switch / router?', 'Collision: 1 / 8 / 8. Broadcast: 1 / 1 / 8.'],
@@ -310,6 +361,10 @@
     /* ---------- Act 4 · Finding a path ---------- */
     {
       id: 't11a', screen: 't11', part: 'flood', topic: 11, stop: '11a', act: 4, short: 'Design issues + flooding', title: 'Design issues & flooding', target: 20,
+      subs: [
+        { id: 't11a', part: 'vc', stop: '11a', short: 'Datagram vs VC', title: 'Datagram vs virtual-circuit networks', click: 'Static.' },
+        { id: 't11b', part: 'flood', stop: '11b', short: 'Flooding', title: 'Flooding', click: 'Step sends the next hop; hop counter 3. ← undoes.' }
+      ],
       syllabus: 'Design Issues – Routing Algorithms, Flooding',
       problem: 'The router has a packet. Which line does it go out on?',
       but: 'Flooding finds the shortest path but drowns the network in copies. With a map, a router could compute the best path once.',
@@ -329,7 +384,11 @@
       ]
     },
     {
-      id: 't11b', screen: 't11', part: 'dijkstra', topic: 11, stop: '11b', act: 4, short: 'Optimality + Dijkstra', title: 'Optimality principle & Dijkstra', target: 25,
+      id: 't11c', screen: 't11', part: 'dijkstra', topic: 11, stop: '11c', act: 4, short: 'Optimality + Dijkstra', title: 'Optimality principle & Dijkstra', target: 25,
+      subs: [
+        { id: 't11c', part: 'optimality', stop: '11c', short: 'Optimality principle', title: 'The optimality principle', click: 'Static.' },
+        { id: 't11d', part: 'dijkstra', stop: '11d', short: 'Dijkstra', title: 'Dijkstra\'s shortest path algorithm', click: 'Step makes the next label permanent. ← undoes. Ends with A → D = 10 via A-B-E-F-H-D.' }
+      ],
       syllabus: 'The Optimality Principle, Shortest Path Algorithm',
       problem: 'Given a map, what is the best path, and is there a consistent answer?',
       but: 'Dijkstra needs the whole map. Who gives every router the map and keeps it current?',
@@ -345,6 +404,11 @@
     },
     {
       id: 't12', topic: 12, stop: '12', act: 4, hero: true, short: 'Distance vector', title: 'Distance vector routing', target: 45,
+      subs: [
+        { id: 't12', part: 'good', stop: '12a', short: 'DV: good news', title: 'Distance vector: good news travels fast', click: 'Step = one exchange. Click a router in the top row to take it down/up.' },
+        { id: 't12b', part: 'bad', stop: '12b', short: 'DV: bad news', title: 'Distance vector: count to infinity', click: 'Step = one exchange; distances climb toward ∞ = 16.' },
+        { id: 't12c', part: 'poison', stop: '12c', short: 'Poisoned reverse', title: 'Split horizon with poisoned reverse', click: 'Bad news now spreads one hop per exchange: every router reads 16 after 4 exchanges (on this chain).' }
+      ],
       syllabus: 'Distance Vector Routing',
       problem: 'No router has the map. Can routers find best paths by only asking their neighbours?',
       but: 'Bad news crawls. In 1979 the ARPANET replaced it.',
@@ -367,6 +431,10 @@
     },
     {
       id: 't13', topic: 13, stop: '13', act: 4, short: 'Link state', title: 'Link state routing', target: 20,
+      subs: [
+        { id: 't13', part: 'steps', stop: '13a', short: 'Link state steps', title: 'Link state routing: five steps', click: 'Step walks the five steps for router B (flood hop by hop). ← undoes.' },
+        { id: 't13b', part: 'compare', stop: '13b', short: 'DV vs LS', title: 'Distance vector vs link state', click: 'Static.' }
+      ],
       syllabus: 'Link State Routing',
       problem: 'Give every router the full map instead of rumours.',
       but: 'Every router now picks the best route. But if everyone sends at once, the best route jams.',
@@ -387,6 +455,12 @@
     /* ---------- Act 5 · Too much traffic ---------- */
     {
       id: 't14', topic: 14, stop: '14', act: 5, short: 'Congestion control', title: 'Congestion control', target: 25,
+      subs: [
+        { id: 't14', part: 'approaches', stop: '14a', short: 'Approaches', title: 'Approaches to congestion control', click: 'Static.' },
+        { id: 't14b', part: 'routing', stop: '14b', short: 'Traffic-aware routing', title: 'Traffic-aware routing', click: 'Static.' },
+        { id: 't14c', part: 'throttling', stop: '14c', short: 'Throttling', title: 'Admission control & traffic throttling', click: 'Static.' },
+        { id: 't14d', part: 'shedding', stop: '14d', short: 'Load shedding', title: 'Load shedding', click: 'Step: normal → tail drop (wine) → head drop (milk) → RED. Picture of the trend only.' }
+      ],
       syllabus: 'Congestion Control Approaches, Traffic-Aware Routing, Admission Control, Traffic Throttling, Load Shedding',
       problem: "Good routes don't help when more traffic arrives than the links can carry.",
       but: 'All this assumes one network run one way. The Internet is thousands of networks that differ in everything.',
@@ -411,7 +485,11 @@
 
     /* ---------- Act 6 · Many networks ---------- */
     {
-      id: 't15a', part: 'differ', topic: 15, stop: '15a', act: 6, short: 'Internetworking', title: 'Internetworking', target: 15,
+      id: 't15a', screen: 't15a', part: 'differ', topic: 15, stop: '15a', act: 6, short: 'Internetworking', title: 'Internetworking', target: 15,
+      subs: [
+        { id: 't15a', part: 'differ', stop: '15a', short: 'How networks differ', title: 'How networks differ', click: 'Static.' },
+        { id: 't15b', part: 'frag', stop: '15b', short: 'Fragmentation', title: 'Fragmentation', click: 'Static: 4000-byte datagram, MTU 1500.' }
+      ],
       syllabus: 'Internetworking',
       problem: 'Networks differ in addressing, service and maximum packet size. How does one packet cross them all?',
       but: "IP's answer needs one common header and one global address plan.",
@@ -425,7 +503,12 @@
       qa: [['Why is the offset in 8-byte units?', 'The field is 13 bits; 2¹³ × 8 = 65,536 covers the largest datagram. So every fragment but the last carries a multiple of 8 data bytes.']]
     },
     {
-      id: 't15b', part: 'v4', topic: 15, stop: '15b', act: 6, hero: true, short: 'IPv4 + IP Lab', title: 'IP Lab: IPv4 & IP addresses', target: 35,
+      id: 't15b', screen: 't15b', part: 'v4', topic: 15, stop: '15b', act: 6, hero: true, short: 'IPv4 + IP Lab', title: 'IP Lab: IPv4 & IP addresses', target: 35,
+      subs: [
+        { id: 't15c', part: 'addr', stop: '15c', short: 'IPv4 address', title: 'IPv4 addresses and masks', click: 'Static: 192.168.10.77/26.' },
+        { id: 't15d', part: 'subnet', stop: '15d', short: 'Subnetting', title: 'Subnetting', click: 'Static: /26 into 4 subnets.' },
+        { id: 't15e', part: 'lpm', stop: '15e', short: 'Longest prefix match', title: 'CIDR: longest prefix match', click: 'Static: Tanenbaum\'s Cambridge/Edinburgh/Oxford table.' }
+      ],
       syllabus: 'IPv4, IP Addresses',
       problem: 'Every host on every network needs a unique address that routers can aggregate.',
       but: 'Even with CIDR and NAT, 32 bits ran out.',
@@ -446,6 +529,12 @@
     },
     {
       id: 't15c', screen: 't15a', part: 'tunnel', topic: 15, stop: '15c', act: 6, short: 'IPv6 → tunneling → AS', title: 'IPv6 → tunneling → AS routing', target: 20,
+      subs: [
+        { id: 't15f', part: 'v6addr', stop: '15f', short: 'IPv6 address', title: 'IPv6 addresses', click: 'Static.' },
+        { id: 't15g', part: 'headers', stop: '15g', short: 'IPv4 vs IPv6 header', title: 'IPv4 vs IPv6 header', click: 'Static.' },
+        { id: 't15h', part: 'tunnel', stop: '15h', short: 'Tunneling', title: 'Tunneling IPv6 across IPv4', click: 'Step moves the packet through the five stops. ← undoes.' },
+        { id: 't15i', part: 'as', stop: '15i', short: 'Two-level routing', title: 'Internetwork routing: two levels', click: 'Static.' }
+      ],
       syllabus: 'IPv6, Tunneling, Internetwork Routing',
       problem: "4.3 billion addresses aren't enough.",
       but: "'Hi' reaches the server's IP. But IP loses, duplicates and reorders packets, and the server runs a hundred programs. Which one gets 'Hi'?",
@@ -474,6 +563,12 @@
     /* ---------- Act 7 · End to end (Unit IV) ---------- */
     {
       id: 't16', topic: 16, stop: '16', act: 7, short: 'UDP vs TCP', title: 'Transport: ports, UDP and the TCP header', target: 0,
+      subs: [
+        { id: 't16', part: 'ports', stop: '16a', short: 'Ports & sockets', title: 'Transport: ports, sockets, connections', click: 'Static.' },
+        { id: 't16b', part: 'udp', stop: '16b', short: 'UDP header', title: 'The UDP header', click: 'Static.' },
+        { id: 't16c', part: 'tcp', stop: '16c', short: 'TCP header', title: 'The TCP header', click: 'Static.' },
+        { id: 't16d', part: 'sockets', stop: '16d', short: 'Berkeley sockets', title: 'Berkeley sockets', click: 'Static.' }
+      ],
       syllabus: 'Transport Service, Berkeley Sockets, Elements of Transport Protocols: Addressing, UDP, TCP Segment Header',
       problem: 'IP delivers to a host, not to a program, and promises nothing.',
       but: 'TCP promises a reliable stream, but both ends must first agree they\'re talking, over a network that loses and delays packets.',
@@ -497,6 +592,13 @@
     },
     {
       id: 't17', topic: 17, stop: '17', act: 7, hero: true, short: 'Connect & release', title: 'Connection establishment & release', target: 0,
+      subs: [
+        { id: 't17', part: 'normal', stop: '17a', short: 'Three-way handshake', title: 'Three-way handshake', click: 'Step = one tick. Click an arrow in flight to lose it.' },
+        { id: 't17b', part: 'oldsyn', stop: '17b', short: 'Old duplicate SYN', title: 'Delayed duplicate: old SYN', click: 'Step = one tick.' },
+        { id: 't17c', part: 'oldsynack', stop: '17c', short: 'Old SYN + old ACK', title: 'Delayed duplicates: old SYN and old ACK', click: 'Step = one tick.' },
+        { id: 't17d', part: 'release', stop: '17d', short: 'Release', title: 'Connection release', click: 'Step = one tick.' },
+        { id: 't17e', part: 'synflood', stop: '17e', short: 'SYN flood', title: 'SYN flood and SYN cookies', click: 'Static.' }
+      ],
       syllabus: 'Connection Establishment, Connection Release, TCP Connection Establishment and Release',
       problem: 'Set up a connection when the setup packets themselves can be lost, delayed or duplicated.',
       but: 'The connection is open. A fast sender can now bury a slow receiver.',
@@ -521,6 +623,11 @@
     },
     {
       id: 't18', topic: 18, stop: '18', act: 7, short: 'Flow control', title: 'Flow control & buffering', target: 0,
+      subs: [
+        { id: 't18', part: 'window', stop: '18a', short: 'Window management', title: 'Flow control: window management', click: 'Step plays the next action of Tanenbaum\'s sequence (4096-byte buffer).' },
+        { id: 't18b', part: 'nagle', stop: '18b', short: 'Nagle', title: 'Nagle\'s algorithm', click: 'Static.' },
+        { id: 't18c', part: 'clark', stop: '18c', short: 'Clark', title: 'Silly window syndrome: Clark\'s fix', click: 'Static.' }
+      ],
       syllabus: 'Flow Control and Buffering, Sliding Window',
       problem: 'The sender can send faster than the receiver\'s application reads.',
       but: 'The window needs ACKs. If an ACK is late, when should the sender give up and resend?',
@@ -543,6 +650,11 @@
     },
     {
       id: 't19', topic: 19, stop: '19', act: 7, short: 'Timer management', title: 'Timer management: RTO', target: 0,
+      subs: [
+        { id: 't19', part: 'formulas', stop: '19a', short: 'RTO formulas', title: 'Timer management: the RTO formulas', click: 'Static.' },
+        { id: 't19b', part: 'table', stop: '19b', short: 'RTO worked', title: 'RTO worked example', click: 'Step reveals the next sample. Final RTO 325.0390625 ms.' },
+        { id: 't19c', part: 'karn', stop: '19c', short: 'Karn', title: 'Karn\'s algorithm', click: 'Step reveals the next sample; sample 3 is a retransmission.' }
+      ],
       syllabus: 'Timer Management',
       problem: 'Too short a timeout floods the net with duplicates; too long stalls on every loss.',
       but: 'The timer protects one connection. In stop 14 the router could only drop or mark packets; it\'s the senders that must slow down.',
@@ -566,6 +678,14 @@
     },
     {
       id: 't20', topic: 20, stop: '20', act: 7, hero: true, short: 'TCP congestion', title: 'TCP congestion control', target: 0,
+      subs: [
+        { id: 't20', part: 'tahoe', stop: '20a', short: 'Tahoe', title: 'TCP congestion control: Tahoe', click: 'Step = one round (ssthresh 32, capacity 39).' },
+        { id: 't20b', part: 'reno', stop: '20b', short: 'Reno', title: 'TCP congestion control: Reno', click: 'Step = one round.' },
+        { id: 't20c', part: 'road', stop: '20c', short: 'Traffic road', title: 'The congestion road', click: 'Step = one round; one vehicle per segment.' },
+        { id: 't20d', part: 'collapse', stop: '20d', short: 'Collapse of 1986', title: 'Congestion collapse, 1986', click: 'Static.' },
+        { id: 't20e', part: 'aimd', stop: '20e', short: 'AIMD is fair', title: 'Why AIMD is fair', click: 'Static.' },
+        { id: 't20f', part: 'ecn', stop: '20f', short: 'ECN', title: 'Explicit congestion notification', click: 'Static.' }
+      ],
       syllabus: 'Congestion Control (TCP)',
       problem: 'Every TCP must find its fair share of a bottleneck it can\'t see, using only drops (and ECN marks) as signals.',
       but: 'TCP now delivers \'Hi\' reliably and fairly. But the phone never knew the server\'s IP, only its name.',
@@ -592,6 +712,11 @@
     /* ---------- Act 8 · Names, pages and secrets (Unit V) ---------- */
     {
       id: 't21', topic: 21, stop: '21', act: 8, hero: true, short: 'DNS', title: 'DNS: the Domain Name System', target: 0,
+      subs: [
+        { id: 't21', part: 'iterative', stop: '21a', short: 'Iterative DNS', title: 'DNS: iterative resolution', click: 'Step = one message.' },
+        { id: 't21b', part: 'recursive', stop: '21b', short: 'Recursive DNS', title: 'DNS: recursive resolution', click: 'Step = one message.' },
+        { id: 't21c', part: 'records', stop: '21c', short: 'Resource records', title: 'DNS resource records', click: 'Static.' }
+      ],
       syllabus: 'DNS',
       problem: 'People type names; IP needs addresses.',
       but: 'Now the phone can reach the server. What does it actually ask for, and how is the reply delivered fast to millions?',
@@ -613,6 +738,14 @@
     },
     {
       id: 't22', topic: 22, stop: '22', act: 8, short: 'WWW, HTTP & CDN', title: 'The Web: HTTP, caches and CDNs', target: 0,
+      subs: [
+        { id: 't22', part: 'request', stop: '22a', short: 'URL & request', title: 'The Web: URLs and HTTP requests', click: 'Static.' },
+        { id: 't22b', part: 'rtts', stop: '22b', short: 'Connections', title: 'HTTP: non-persistent vs persistent', click: 'Static: 1 HTML + 10 images, RTT 100 ms.' },
+        { id: 't22c', part: 'scale', stop: '22c', short: 'Caches & CDNs', title: 'Bringing the page closer: caches and CDNs', click: 'Step moves origin → proxy → farm → CDN.' },
+        { id: 't22d', part: 'methods', stop: '22d', short: 'Methods & status', title: 'HTTP methods and status codes', click: 'Static.' },
+        { id: 't22e', part: 'http2', stop: '22e', short: 'HTTP/2 & HTTP/3', title: 'HTTP/2 and HTTP/3', click: 'Static.' },
+        { id: 't22f', part: 'p2p', stop: '22f', short: 'P2P', title: 'Peer-to-peer: BitTorrent', click: 'Static.' }
+      ],
       syllabus: 'WWW, Architecture, HTTP, Content Delivery, Server Farms, Web Proxies, Peer-to-Peer Networks',
       problem: 'Fetch a page made of dozens of objects from a server far away.',
       but: 'The web pulls. Mail must be pushed to someone who isn\'t online.',
@@ -636,6 +769,12 @@
     },
     {
       id: 't23', topic: 23, stop: '23', act: 8, short: 'E-mail', title: 'Electronic mail', target: 0,
+      subs: [
+        { id: 't23', part: 'path', stop: '23a', short: 'Mail path', title: 'Electronic mail: the path', click: 'Static.' },
+        { id: 't23b', part: 'smtp', stop: '23b', short: 'SMTP', title: 'SMTP dialogue', click: 'Step = one line.' },
+        { id: 't23c', part: 'parts', stop: '23c', short: 'Envelope & header', title: 'Envelope, header and body', click: 'Static.' },
+        { id: 't23d', part: 'mime', stop: '23d', short: 'MIME', title: 'MIME and base64', click: 'Static.' }
+      ],
       syllabus: 'E-mail',
       problem: 'Deliver a message to a user who is offline, on another system.',
       but: 'Every SMTP hop, router and Wi-Fi access point on the way can read the mail in plain text.',
@@ -657,6 +796,13 @@
     },
     {
       id: 't24', topic: 24, stop: '24', act: 8, hero: true, short: 'Classical ciphers', title: 'Cryptography: substitution & transposition', target: 0,
+      subs: [
+        { id: 't24', part: 'caesar', stop: '24a', short: 'Caesar', title: 'Substitution: Caesar cipher', click: 'Static.' },
+        { id: 't24b', part: 'mono', stop: '24b', short: 'Monoalphabetic', title: 'Substitution: monoalphabetic cipher', click: 'Static.' },
+        { id: 't24c', part: 'freq', stop: '24c', short: 'Frequency attack', title: 'Breaking it: letter frequencies', click: 'Static.' },
+        { id: 't24d', part: 'columnar', stop: '24d', short: 'Transposition', title: 'Columnar transposition', click: 'Static: key MEGABUCK.' },
+        { id: 't24e', part: 'symmetric', stop: '24e', short: 'DES → AES', title: 'Symmetric key: DES → AES', click: 'Static.' }
+      ],
       syllabus: 'Network Security, Introduction to Cryptography, Substitution Ciphers, Transposition Ciphers, Symmetric-Key Algorithms',
       problem: 'Anyone on the path can read \'Hi\'.',
       but: 'Both sides need the same secret key. How do they agree on it over the same insecure path?',
@@ -680,6 +826,13 @@
     },
     {
       id: 't25', topic: 25, stop: '25', act: 8, hero: true, short: 'RSA & public key', title: 'Public-key cryptography: RSA', target: 0,
+      subs: [
+        { id: 't25', part: 'keys', stop: '25a', short: 'RSA keys', title: 'RSA: key generation', click: 'Static: p 3, q 11, d 7.' },
+        { id: 't25b', part: 'encrypt', stop: '25b', short: 'RSA encrypt', title: 'RSA: encrypt and decrypt', click: 'Step = one letter of SUZANNE.' },
+        { id: 't25c', part: 'compare', stop: '25c', short: 'Symmetric vs public', title: 'Symmetric vs public key', click: 'Static.' },
+        { id: 't25d', part: 'firewall', stop: '25d', short: 'Firewall', title: 'Firewalls', click: 'Static.' },
+        { id: 't25e', part: 'ids', stop: '25e', short: 'IDS', title: 'Intrusion detection', click: 'Static.' }
+      ],
       syllabus: 'Public Key Algorithms, RSA, Firewalls, Intrusion Detection System',
       problem: 'Share a key with someone you\'ve never met, over a public channel.',
       but: 'Framed, checked, routed, delivered, named, fetched — and now private. \'Hi\' arrives.', butLabel: 'CLOSE',
@@ -709,6 +862,24 @@
       click: 'Hover a stop to show the problem it solves; click it to jump there. End returns here.'
     }
   ];
+
+  // SPEC-v5 sub-slides: an entry with subs becomes one screen per sub. Each sub inherits the
+  // entry (problem, notes, syllabus) and the entry's renderer; the first keeps the time
+  // target, only the last keeps the But….
+  screens = screens.reduce(function (out, e) {
+    if (!e.subs) { out.push(e); return out; }
+    e.subs.forEach(function (sub, i) {
+      var sc = {};
+      Object.keys(e).forEach(function (k) { if (k !== 'subs') sc[k] = e[k]; });
+      sc.screen = e.screen || e.id;
+      if (i > 0) sc.target = 0;
+      if (i < e.subs.length - 1) { delete sc.but; delete sc.butLabel; }
+      Object.keys(sub).forEach(function (k) { sc[k] = sub[k]; });
+      sc.subIndex = i; sc.base = e;   // the cheat sheet lists each original stop once
+      out.push(sc);
+    });
+    return out;
+  }, []);
 
   // Cumulative "ends by" per screen.
   var t = 0;

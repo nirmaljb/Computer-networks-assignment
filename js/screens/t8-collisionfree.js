@@ -2,94 +2,79 @@
   'use strict';
   var CN = window.CN, h = CN.h, s = CN.s, ui = CN.ui, X = CN.csma;
 
-  // part: 'turns' → S8 (bitmap, token, binary countdown) · 'wireless' → S9a (hidden/exposed, MACA) · none → both
-  CN.screens.t8 = function (root, sc) {
-    var body = ui.screen(root, { num: sc.stop, title: sc.title });
-    var part = sc.part || 'both';
-    var st = { addrs: ['0010', '0100', '1001', '1010'], k: 0, scen: 'hidden', maca: false };
+  // SPEC-v5: S8 = bitmap, token passing, binary countdown (one per sub-slide);
+  // S9a/9b = hidden and exposed terminal, Step adds MACA.
+  var ADDRS = ['0010', '0100', '1001', '1010'];
 
-    var top = h('div', { class: 'row nowrap', style: { alignItems: 'stretch', gap: '16px' } });
-    if (part !== 'wireless') body.appendChild(top);
-
-    // Bitmap + token (static)
-    var bm = s('svg', { width: 520, height: 250, viewBox: '0 0 520 250' });
-    (function () {
-      bm.appendChild(s('text', { x: 0, y: 22, 'font-size': 22, 'font-weight': 700 }, 'Bitmap: 8 reservation slots'));
-      var set = { 1: 1, 3: 1, 7: 1 };
-      for (var i = 0; i < 8; i++) {
-        bm.appendChild(s('rect', { x: i * 30, y: 36, width: 28, height: 36, fill: set[i] ? 'var(--blue-bg)' : 'var(--panel)', stroke: set[i] ? 'var(--blue)' : 'var(--line)', 'stroke-width': 2 }));
-        bm.appendChild(s('text', { x: i * 30 + 14, y: 62, 'text-anchor': 'middle', 'font-size': 20, 'font-weight': 700, fill: set[i] ? 'var(--blue)' : 'var(--muted)' }, set[i] ? '1' : '0'));
-        bm.appendChild(s('text', { x: i * 30 + 14, y: 92, 'text-anchor': 'middle', 'font-size': 16, fill: 'var(--muted)' }, String(i)));
-      }
-      [1, 3, 7].forEach(function (n, j) {
-        bm.appendChild(s('rect', { x: 250 + j * 88, y: 36, width: 84, height: 36, rx: 4, fill: 'var(--green-bg)', stroke: 'var(--green)', 'stroke-width': 2 }));
-        bm.appendChild(s('text', { x: 292 + j * 88, y: 62, 'text-anchor': 'middle', 'font-size': 20, 'font-weight': 700, fill: 'var(--green)' }, 'frame ' + n));
-      });
-      bm.appendChild(s('text', { x: 0, y: 124, 'font-size': 20 }, 'Efficiency d/(d+N) at low load, d/(d+1) at high load'));
-      bm.appendChild(s('text', { x: 0, y: 166, 'font-size': 22, 'font-weight': 700 }, 'Token passing'));
-      var cx = 440, cy = 196, r = 44;
-      bm.appendChild(s('circle', { cx: cx, cy: cy, r: r, fill: 'none', stroke: 'var(--muted)', 'stroke-width': 2.5, 'stroke-dasharray': '6 5' }));
-      for (var k = 0; k < 5; k++) {
-        var a = k / 5 * 2 * Math.PI - Math.PI / 2;
-        bm.appendChild(s('circle', { cx: cx + r * Math.cos(a), cy: cy + r * Math.sin(a), r: 9, fill: k === 0 ? 'var(--accent)' : 'var(--panel)', stroke: 'var(--ink)', 'stroke-width': 2 }));
-      }
-      bm.appendChild(s('text', { x: 0, y: 196, 'font-size': 20 }, 'Only the token holder sends; the token'));
-      bm.appendChild(s('text', { x: 0, y: 222, 'font-size': 20 }, 'circulates in order (802.5 ring, token bus)'));
-    })();
-    top.appendChild(h('div', { class: 'panel' }, bm));
-
-    // Binary countdown
-    var bc = h('div', { class: 'panel col grow', style: { gap: '8px' } });
-    top.appendChild(bc);
-    var bcBack = ui.backBtn(function () { if (st.k > 0) { st.k--; drawBC(); } });
-    var inputs = st.addrs.map(function (a, i) {
-      return ui.field(a, { width: 100, onInput: function (v) { st.addrs[i] = v.replace(/[^01]/g, ''); st.k = 0; drawBC(); } });
+  function bitmap(body) {
+    var bm = s('svg', { width: 1200, height: 260, viewBox: '0 0 600 130' });
+    var set = { 1: 1, 3: 1, 7: 1 };
+    for (var i = 0; i < 8; i++) {
+      bm.appendChild(s('rect', { x: i * 30, y: 20, width: 28, height: 36, fill: set[i] ? 'var(--blue-bg)' : 'var(--panel)', stroke: set[i] ? 'var(--blue)' : 'var(--line)', 'stroke-width': 2 }));
+      bm.appendChild(s('text', { x: i * 30 + 14, y: 46, 'text-anchor': 'middle', 'font-size': 20, 'font-weight': 700, fill: set[i] ? 'var(--blue)' : 'var(--muted)' }, set[i] ? '1' : '0'));
+      bm.appendChild(s('text', { x: i * 30 + 14, y: 76, 'text-anchor': 'middle', 'font-size': 16, fill: 'var(--muted)' }, String(i)));
+    }
+    bm.appendChild(s('text', { x: 0, y: 12, 'font-size': 14, fill: 'var(--muted)', 'font-weight': 700 }, '8 reservation slots'));
+    [1, 3, 7].forEach(function (n, j) {
+      bm.appendChild(s('rect', { x: 260 + j * 100, y: 20, width: 96, height: 36, rx: 4, fill: 'var(--green-bg)', stroke: 'var(--green)', 'stroke-width': 2 }));
+      bm.appendChild(s('text', { x: 308 + j * 100, y: 46, 'text-anchor': 'middle', 'font-size': 20, 'font-weight': 700, fill: 'var(--green)' }, 'frame ' + n));
     });
-    bc.appendChild(h('div', { class: 'row' }, h('b', { style: { fontSize: '24px' } }, 'Binary countdown'), inputs, bcBack, ui.btn('Step (S)', stepBC), ui.btn('Reset', function () { st.k = 0; drawBC(); })));
-    var bcOut = h('div');
-    bc.appendChild(bcOut);
-    function drawBC() {
-      CN.clear(bcOut);
-      bcBack.disabled = !st.k;
-      var ok = st.addrs.every(function (a) { return /^[01]{1,6}$/.test(a); });
-      if (!ok) { bcOut.appendChild(h('div', { class: 'errmsg' }, 'Addresses must be 1–6 bits')); return; }
-      var r = X.binaryCountdown(st.addrs), w = r.addrs[0].length;
-      var tbl = h('table', { class: 't' });
+    body.appendChild(h('div', { class: 'say' }, 'Each station sets its bit in the contention period; then the set stations send in order.'));
+    body.appendChild(h('div', { class: 'panel', style: { alignSelf: 'flex-start', marginTop: '20px' } }, bm));
+    return {};
+  }
+
+  function token(body) {
+    var svg = s('svg', { width: 520, height: 520, viewBox: '0 0 260 260' }), cx = 130, cy = 130, r = 90;
+    svg.appendChild(s('circle', { cx: cx, cy: cy, r: r, fill: 'none', stroke: 'var(--muted)', 'stroke-width': 2.5, 'stroke-dasharray': '6 5' }));
+    for (var k = 0; k < 5; k++) {
+      var a = k / 5 * 2 * Math.PI - Math.PI / 2;
+      svg.appendChild(s('circle', { cx: cx + r * Math.cos(a), cy: cy + r * Math.sin(a), r: 18, fill: k === 0 ? 'var(--accent)' : 'var(--panel)', stroke: 'var(--ink)', 'stroke-width': 2 }));
+    }
+    svg.appendChild(s('text', { x: cx, y: cy - r - 26, 'text-anchor': 'middle', 'font-size': 16, 'font-weight': 700, fill: 'var(--accent)' }, 'token holder'));
+    body.appendChild(h('div', { class: 'say' }, 'Only the token holder sends; the token circulates in order (802.5 ring, token bus).'));
+    body.appendChild(h('div', { class: 'panel', style: { alignSelf: 'center' } }, svg));
+    return {};
+  }
+
+  // Step reveals one bit time: every station sends its bit, the channel ORs them, losers drop out.
+  function countdown(body) {
+    var k = 0, out = h('div', { style: { marginTop: '20px' } }), r = X.binaryCountdown(ADDRS), w = r.addrs[0].length;
+    body.appendChild(h('div', { class: 'say' }, 'Stations send their address MSB first; the channel ORs the bits. Highest address wins.'));
+    body.appendChild(out);
+    function draw() {
+      CN.clear(out);
+      var tbl = h('table', { class: 't', style: { fontSize: '30px' } });
       tbl.appendChild(h('tr', null, h('th', null, 'Station'), r.addrs[0].split('').map(function (_, b) { return h('th', { class: 'c' }, 'bit ' + b); }), h('th', null, '')));
       r.addrs.forEach(function (a, i) {
         var outAt = -1;
         r.steps.forEach(function (stp, b) { if (outAt < 0 && stp.dropped.indexOf(i) >= 0) outAt = b; });
         tbl.appendChild(h('tr', null, h('td', { class: 'mono' }, a),
           a.split('').map(function (bit, b) {
-            var shown = b < st.k, gone = outAt >= 0 && b > outAt;
+            var shown = b < k, gone = outAt >= 0 && b > outAt;
             return h('td', { class: 'c mono', style: { opacity: shown ? (gone ? 0.25 : 1) : 0.15, fontWeight: 800, color: b === outAt && shown ? 'var(--red)' : null } }, gone && shown ? '–' : bit);
           }),
-          h('td', null, outAt >= 0 && outAt < st.k ? h('span', { class: 'bad' }, '✕ sent 0, saw 1 → out') :
-            (st.k >= w && i === r.winner ? h('b', { class: 'ok' }, '✓ wins') : ''))));
+          h('td', null, outAt >= 0 && outAt < k ? h('span', { class: 'bad' }, '✕ sent 0, saw 1 → out') :
+            (k >= w && i === r.winner ? h('b', { class: 'ok' }, '✓ wins') : ''))));
       });
       tbl.appendChild(h('tr', null, h('th', null, 'Channel (OR)'), r.steps.map(function (stp, b) {
-        return h('th', { class: 'c mono', style: { color: 'var(--accent)', fontSize: '22px' } }, b < st.k ? String(stp.or) : '');
+        return h('th', { class: 'c mono', style: { color: 'var(--accent)' } }, b < k ? String(stp.or) : '');
       }), h('th', null, '')));
-      bcOut.appendChild(tbl);
-      bcOut.appendChild(h('div', { class: 'small muted', style: { marginTop: '6px' } }, 'MSB first; highest address wins. Efficiency d/(d + log₂N). Not fair: rotate virtual station numbers.'));
+      out.appendChild(tbl);
     }
-    function stepBC() {
-      var w = Math.max.apply(null, st.addrs.map(function (a) { return a.length; }));
-      st.k = st.k >= w ? 0 : st.k + 1; drawBC();
-    }
-    drawBC();
+    draw();
+    function step() { if (k < w) { k++; draw(); return true; } return false; }
+    function reset() { k = 0; draw(); }
+    body.appendChild(ui.controls(step, reset));
+    return { step: step, reset: reset, prev: function () { if (k > 0) { k--; draw(); return true; } return false; } };
+  }
 
-    // Wireless: hidden and exposed terminals
-    var wl = h('div', { class: 'panel col', style: { gap: '6px' } });
-    if (part !== 'turns') body.appendChild(wl);
-    var scenSeg = ui.seg([['hidden', 'Hidden terminal'], ['exposed', 'Exposed terminal']], st.scen, function (v) { st.scen = v; drawW(); });
-    var macaBtn = ui.toggle('MACA (RTS / CTS)', st.maca, function (v) { st.maca = v; drawW(); });
-    wl.appendChild(h('div', { class: 'row' }, scenSeg, macaBtn,
-      h('span', { class: 'small muted' }, 'each station reaches only its neighbours; the collisions that matter happen at the receiver')));
-    var WW = 1500, wsvg = s('svg', { width: WW, height: 226, viewBox: '0 0 ' + WW + ' 226' });
-    var wtext = h('div', { style: { fontSize: '23px' } });
-    wl.appendChild(h('div', { class: 'row nowrap', style: { alignItems: 'flex-start' } }, wsvg));
-    wl.appendChild(wtext);
+  function terminals(body, scen) {
+    var st = { scen: scen, maca: false };
+    var WW = 1100, wsvg = s('svg', { width: 1460, height: 300, viewBox: '0 0 ' + WW + ' 226' });
+    var wtext = h('div', { style: { fontSize: '26px' } });
+    body.appendChild(h('div', { class: 'panel', style: { marginTop: '20px' } }, wsvg));
+    body.appendChild(wtext);
     var NX = { A: 160, B: 420, C: 680, D: 940 }, NY = 118;
 
     function arrow(a, b, label, color, dy, dashed) {
@@ -136,16 +121,19 @@
       lines.forEach(function (l) { wtext.appendChild(h('div', null, l)); });
     }
     drawW();
-    // S9a: S cycles hidden → hidden + MACA → exposed → exposed + MACA
-    function stepW() {
-      if (!st.maca) st.maca = true;
-      else { st.maca = false; st.scen = st.scen === 'hidden' ? 'exposed' : 'hidden'; }
-      scenSeg.set(st.scen); macaBtn.set(st.maca); drawW();
-    }
-    function resetW() { st.scen = 'hidden'; st.maca = false; scenSeg.set(st.scen); macaBtn.set(st.maca); drawW(); }
-    return {
-      step: part === 'wireless' ? stepW : stepBC,
-      reset: function () { st.k = 0; drawBC(); resetW(); }
-    };
+    function step() { if (st.maca) return false; st.maca = true; drawW(); return true; }
+    function reset() { st.maca = false; drawW(); }
+    body.appendChild(ui.controls(step, reset));
+    return { step: step, reset: reset };
+  }
+
+  var PARTS = {
+    bitmap: bitmap, token: token, countdown: countdown,
+    hidden: function (body) { return terminals(body, 'hidden'); },
+    exposed: function (body) { return terminals(body, 'exposed'); }
+  };
+
+  CN.screens.t8 = function (root, sc) {
+    return PARTS[sc.part](ui.screen(root, { num: sc.stop, title: sc.title }));
   };
 })();

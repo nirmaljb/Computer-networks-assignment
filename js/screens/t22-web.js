@@ -2,7 +2,8 @@
   'use strict';
   var CN = window.CN, h = CN.h, s = CN.s, ui = CN.ui;
 
-  // Page-load round trips (CN.http) for the three HTTP/1.x connection styles, then the scale strip.
+  // SPEC-v5: 22a URL + request (static), 22b page-load round trips for the three HTTP/1.x styles
+  // (CN.http, 1 HTML + 10 images, RTT 100 ms, static), 22c the scale strip (Step), then three static cards.
   var MODES = [['nonpersistent', 'Non-persistent', 'new connection per object'],
     ['persistent', 'Persistent', 'one connection, 1 request at a time'],
     ['pipelined', 'Persistent + pipelining', 'all image requests back to back']];
@@ -13,35 +14,70 @@
     ['CDN', 'Copies on edge nodes all over the world. DNS (stop 21) returns the nearest edge\'s address, so the RTT is short and the origin is rarely asked.']
   ];
 
-  CN.screens.t22 = function (root, sc) {
-    var body = ui.screen(root, { num: sc.stop, title: sc.title });
-    var st = { n: 10, rtt: 100, scale: 0 };
-    var W = 1000, LANE = 92;
+  function request(body) {
+    body.appendChild(h('div', { class: 'panel col', style: { gap: '14px', fontSize: '30px', padding: '30px', marginTop: '30px' } },
+      h('div', null, h('b', null, 'URL  '), h('span', { class: 'mono' }, 'http://www.example.com/index.html')),
+      h('div', { class: 'muted' }, 'scheme · host (→ DNS, stop 21) · path. TCP to port 80 (443 for HTTPS).'),
+      h('div', { class: 'mono', style: { marginTop: '16px' } }, 'GET /index.html HTTP/1.1'), h('div', { class: 'mono' }, 'Host: www.example.com'),
+      h('div', { class: 'mono ok', style: { marginTop: '12px' } }, 'HTTP/1.1 200 OK'), h('div', { class: 'mono' }, 'Content-Type: text/html')));
+    return {};
+  }
+
+  function roundTrips(body) {
+    var st = { n: 10, rtt: 100 }, W = 1300, LANE = 120;
     var svg = s('svg', { width: W, height: 3 * LANE + 50, viewBox: '0 0 ' + W + ' ' + (3 * LANE + 50) });
-    function numField(key, lo, hi) {
-      var f = ui.field(String(st[key]), { width: 90, onInput: function (v) {
-        var n = +v, ok = /^\d+$/.test(v.trim()) && n >= lo && n <= hi;
-        f.classList.toggle('invalid', !ok);
-        if (ok) { st[key] = n; draw(); }
-      } });
-      return f;
+    body.appendChild(h('div', { class: 'say' }, 'A page of 1 HTML + 10 images, RTT 100 ms; transmission time ignored (as in Kurose & Ross).'));
+    body.appendChild(h('div', { class: 'panel', style: { padding: '6px', alignSelf: 'flex-start' } }, svg));
+    function draw() {
+      CN.clear(svg);
+      var max = CN.http.rtts(st.n, 'nonpersistent'), x0 = 380, x1 = W - 150, u = (x1 - x0) / max;
+      MODES.forEach(function (m, k) {
+        var p = CN.http.plan(st.n, m[0]), y = 20 + k * LANE;
+        svg.appendChild(s('text', { x: 6, y: y + 22, 'font-size': 24, 'font-weight': 800 }, m[1]));
+        svg.appendChild(s('text', { x: 6, y: y + 44, 'font-size': 19, fill: 'var(--muted)' }, m[2]));
+        p.rows.forEach(function (r) {
+          if (r.conn) svg.appendChild(s('rect', { x: x0 + r.conn[0] * u + 1, y: y + 6, width: u - 2, height: 40, rx: 3, fill: 'var(--amber-bg)', stroke: 'var(--amber)', 'stroke-width': 1.5 }));
+          // pipelined images share one RTT: drawn as one block
+          if (m[0] === 'pipelined' && r.obj > 1) return;
+          var wReq = (r.req[1] - r.req[0]) * u;
+          svg.appendChild(s('rect', { x: x0 + r.req[0] * u + 1, y: y + 6, width: wReq - 2, height: 40, rx: 3, fill: 'var(--blue-bg)', stroke: 'var(--blue)', 'stroke-width': 1.5 }));
+          if (u > 22 || m[0] === 'pipelined') svg.appendChild(s('text', { x: x0 + r.req[0] * u + wReq / 2, y: y + 32, 'text-anchor': 'middle', 'font-size': 14, 'font-weight': 700, fill: 'var(--blue)' },
+            r.obj === 0 ? 'H' : m[0] === 'pipelined' ? 'all' : String(r.obj)));
+        });
+        svg.appendChild(s('text', { x: x0 + p.rtts * u + 10, y: y + 24, 'font-size': 22, 'font-weight': 800 }, p.rtts + ' RTT'));
+        svg.appendChild(s('text', { x: x0 + p.rtts * u + 10, y: y + 46, 'font-size': 16, fill: 'var(--muted)', class: 'mono' }, (p.rtts * st.rtt) + ' ms'));
+      });
+      var yl = 3 * LANE + 26;
+      svg.appendChild(s('rect', { x: x0, y: yl, width: 16, height: 14, fill: 'var(--amber-bg)', stroke: 'var(--amber)' }));
+      svg.appendChild(s('text', { x: x0 + 22, y: yl + 13, 'font-size': 18 }, 'TCP connect (1 RTT)'));
+      svg.appendChild(s('rect', { x: x0 + 200, y: yl, width: 16, height: 14, fill: 'var(--blue-bg)', stroke: 'var(--blue)' }));
+      svg.appendChild(s('text', { x: x0 + 222, y: yl + 13, 'font-size': 18 }, 'request → response (1 RTT) · H = the HTML'));
     }
-    var fN = numField('n', 0, 30), fR = numField('rtt', 1, 2000);
-    var scaleRow = h('div', { class: 'row nowrap', style: { gap: '8px' } });
-    var scaleText = h('div', { class: 'panel small', style: { minHeight: '62px' } });
-    var left = h('div', { class: 'col', style: { width: W + 20 + 'px', gap: '10px' } },
-      h('div', { class: 'row nowrap', style: { gap: '10px' } }, h('span', { class: 'label' }, 'Page: 1 HTML +'), fN, h('span', { class: 'label' }, 'images · RTT (ms)'), fR,
-        h('span', { class: 'small muted' }, 'transmission time ignored, counting as in Kurose & Ross')),
-      h('div', { class: 'panel', style: { padding: '6px' } }, svg),
-      h('div', { class: 'label' }, 'Bringing the page closer (click a box)'), scaleRow, scaleText);
-    var right = h('div', { class: 'col grow', style: { gap: '8px' } },
-      h('div', { class: 'panel small col', style: { gap: '4px' } },
-        h('div', null, h('b', null, 'URL '), h('span', { class: 'mono' }, 'http://www.example.com/index.html')),
-        h('div', null, 'scheme · host (→ DNS, stop 21) · path. TCP to port 80 (443 for HTTPS).')),
-      h('div', { class: 'panel small col', style: { gap: '2px' } },
-        h('div', { class: 'mono' }, 'GET /index.html HTTP/1.1'), h('div', { class: 'mono' }, 'Host: www.example.com'),
-        h('div', { class: 'mono ok', style: { marginTop: '4px' } }, 'HTTP/1.1 200 OK'), h('div', { class: 'mono' }, 'Content-Type: text/html')),
-      ui.cards([
+    draw();
+    return {};
+  }
+
+  function scale(body) {
+    var at = 0, row = h('div', { class: 'row nowrap', style: { gap: '10px', marginTop: '30px' } }), text = h('div', { class: 'panel', style: { fontSize: '30px', padding: '28px', minHeight: '150px' } });
+    body.appendChild(row);
+    body.appendChild(text);
+    function draw() {
+      CN.clear(row);
+      SCALE.forEach(function (b, i) {
+        if (i) row.appendChild(h('span', { style: { fontSize: '34px', color: 'var(--muted)' } }, '→'));
+        row.appendChild(h('div', { class: 'panel', style: { flex: '1', textAlign: 'center', fontSize: '28px', fontWeight: 700, padding: '18px',
+          borderColor: i === at ? 'var(--accent)' : null, background: i === at ? 'var(--accent-bg)' : null, opacity: i > at ? 0.35 : 1 } }, b[0]));
+      });
+      CN.clear(text).appendChild(h('span', null, h('b', null, SCALE[at][0] + ': '), SCALE[at][1]));
+    }
+    draw();
+    function step() { if (at >= SCALE.length - 1) return false; at++; draw(); return true; }
+    function reset() { at = 0; draw(); }
+    body.appendChild(ui.controls(step, reset));
+    return { step: step, reset: reset, prev: function () { if (at > 0) { at--; draw(); return true; } return false; } };
+  }
+
+  var CARDS = [
         ['Request / response', function () {
           var t = h('table', { class: 't' }, h('tr', null, h('th', null, 'Class'), h('th', null, 'Meaning'), h('th', null, 'Examples')));
           CN.http.STATUS.forEach(function (r) { t.appendChild(h('tr', null, h('td', null, h('b', null, r[0])), h('td', null, r[1]), h('td', null, r[2]))); });
@@ -62,48 +98,21 @@
             h('div', null, h('b', null, 'DHT: '), 'a distributed hash table spread over the peers can replace the tracker.'),
             h('div', { class: 'muted' }, 'The more people want a file, the more capacity there is to serve it.'));
         }]
-      ], body));
-    body.appendChild(h('div', { class: 'row nowrap', style: { alignItems: 'flex-start', gap: '18px' } }, left, right));
+  ];
 
-    SCALE.forEach(function (b, i) {
-      if (i) scaleRow.appendChild(h('span', { style: { fontSize: '26px', color: 'var(--muted)' } }, '→'));
-      var el = ui.btn(b[0], function () { st.scale = i; drawScale(); });
-      el.style.flex = '1'; el.dataset.i = i;
-      scaleRow.appendChild(el);
-    });
-    function drawScale() {
-      Array.prototype.forEach.call(scaleRow.querySelectorAll('.btn'), function (b) { b.classList.toggle('on', +b.dataset.i === st.scale); });
-      CN.clear(scaleText).appendChild(h('span', null, h('b', null, SCALE[st.scale][0] + ': '), SCALE[st.scale][1]));
-    }
-    function draw() {
-      CN.clear(svg);
-      var max = CN.http.rtts(st.n, 'nonpersistent'), x0 = 300, x1 = W - 120, u = (x1 - x0) / max;
-      MODES.forEach(function (m, k) {
-        var p = CN.http.plan(st.n, m[0]), y = 14 + k * LANE;
-        svg.appendChild(s('text', { x: 6, y: y + 22, 'font-size': 19, 'font-weight': 800 }, m[1]));
-        svg.appendChild(s('text', { x: 6, y: y + 44, 'font-size': 16, fill: 'var(--muted)' }, m[2]));
-        p.rows.forEach(function (r) {
-          if (r.conn) svg.appendChild(s('rect', { x: x0 + r.conn[0] * u + 1, y: y + 6, width: u - 2, height: 40, rx: 3, fill: 'var(--amber-bg)', stroke: 'var(--amber)', 'stroke-width': 1.5 }));
-          // pipelined images share one RTT: drawn as one block
-          if (m[0] === 'pipelined' && r.obj > 1) return;
-          var wReq = (r.req[1] - r.req[0]) * u;
-          svg.appendChild(s('rect', { x: x0 + r.req[0] * u + 1, y: y + 6, width: wReq - 2, height: 40, rx: 3, fill: 'var(--blue-bg)', stroke: 'var(--blue)', 'stroke-width': 1.5 }));
-          if (u > 22 || m[0] === 'pipelined') svg.appendChild(s('text', { x: x0 + r.req[0] * u + wReq / 2, y: y + 32, 'text-anchor': 'middle', 'font-size': 14, 'font-weight': 700, fill: 'var(--blue)' },
-            r.obj === 0 ? 'H' : m[0] === 'pipelined' ? 'all' : String(r.obj)));
-        });
-        svg.appendChild(s('text', { x: x0 + p.rtts * u + 10, y: y + 24, 'font-size': 22, 'font-weight': 800 }, p.rtts + ' RTT'));
-        svg.appendChild(s('text', { x: x0 + p.rtts * u + 10, y: y + 46, 'font-size': 16, fill: 'var(--muted)', class: 'mono' }, (p.rtts * st.rtt) + ' ms'));
-      });
-      var yl = 3 * LANE + 26;
-      svg.appendChild(s('rect', { x: x0, y: yl, width: 16, height: 14, fill: 'var(--amber-bg)', stroke: 'var(--amber)' }));
-      svg.appendChild(s('text', { x: x0 + 22, y: yl + 13, 'font-size': 15 }, 'TCP connect (1 RTT)'));
-      svg.appendChild(s('rect', { x: x0 + 200, y: yl, width: 16, height: 14, fill: 'var(--blue-bg)', stroke: 'var(--blue)' }));
-      svg.appendChild(s('text', { x: x0 + 222, y: yl + 13, 'font-size': 15 }, 'request → response (1 RTT) · H = the HTML'));
-    }
-    draw(); drawScale();
-    return {
-      step: function () { st.scale = (st.scale + 1) % SCALE.length; drawScale(); },
-      reset: function () { st.n = 10; st.rtt = 100; st.scale = 0; fN.value = '10'; fR.value = '100'; draw(); drawScale(); }
-    };
+  function cardSlide(body, i) {
+    body.appendChild(h('div', { class: 'panel col card-slide', style: { gap: '18px', fontSize: '28px', padding: '30px', marginTop: '20px' } }, CARDS[i][1]()));
+    return {};
+  }
+
+  var PARTS = {
+    request: request, rtts: roundTrips, scale: scale,
+    methods: function (body) { return cardSlide(body, 0); },
+    http2: function (body) { return cardSlide(body, 1); },
+    p2p: function (body) { return cardSlide(body, 2); }
+  };
+
+  CN.screens.t22 = function (root, sc) {
+    return PARTS[sc.part](ui.screen(root, { num: sc.stop, title: sc.title }));
   };
 })();

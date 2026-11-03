@@ -241,5 +241,12 @@
     return { bd: bd, w: 2 * bd + 1, util1: 1 / (1 + 2 * bd) };
   }
 
-  CN.arq = { create: create, scriptedDrop: scriptedDrop, safeMax: safeMax, windowMath: windowMath };
+  // SPEC-v5: one Step press = ticks until something happens (a send, an arrival, a loss, a timeout).
+  function stepToEvent(s) {
+    function sig() { return s.msgs.length + ':' + s.msgs.filter(function (m) { return m.handled || m.lost; }).length + ':' + s.log.length; }
+    var before = sig(), guard = 0;
+    do { s.step(); } while (!s.done && sig() === before && guard++ < 40);
+  }
+
+  CN.arq = { create: create, scriptedDrop: scriptedDrop, safeMax: safeMax, windowMath: windowMath, stepToEvent: stepToEvent };
 })(typeof window !== 'undefined' ? window : globalThis);

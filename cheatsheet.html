@@ -26,12 +26,14 @@
 </head>
 <body>
 <div class="page" id="p1"></div>
-<script src="js/content.js"></script>
+<script src="js/content.js?v=5"></script>
 <script>
 (function () {
   'use strict';
   // Units II–III only (SPEC-v4 §1): the stops of Units IV–V (topics 16–25) stay off the sheet.
-  var C = window.CN.content, S = C.screens.filter(function (s) { return !(s.topic > 15); });
+  // SPEC-v5 sub-slides: one entry per original stop (its first sub-slide), with the stop's own label.
+  var C = window.CN.content, S = C.screens.filter(function (s) { return !(s.topic > 15) && !s.subIndex; })
+    .map(function (s) { return s.base ? Object.assign({}, s.base, { endsBy: s.endsBy }) : s; });
   function el(tag, text, cls) { var e = document.createElement(tag); if (text != null) e.textContent = text; if (cls) e.className = cls; return e; }
 
   var p1 = document.getElementById('p1');
