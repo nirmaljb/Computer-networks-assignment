@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Cheat sheet · One Message, 15 Checkpoints</title>
+<style>
+  @page { size: A4; margin: 7mm; }
+  * { box-sizing: border-box; }
+  body { font: 6.0pt/1.2 -apple-system, "Segoe UI", system-ui, Arial, sans-serif; color: #111; margin: 0; background: #fff; }
+  .page { columns: 2; column-gap: 6mm; }
+  .page + .page { margin-top: 2mm; }
+  h1 { font-size: 12pt; margin: 0 0 2mm; column-span: all; }
+  h2 { font-size: 7.8pt; margin: 1.2mm 0 0.4mm; break-after: avoid; }
+  .topic { break-inside: avoid; margin-bottom: 1.1mm; }
+  ul { margin: 0; padding-left: 3.6mm; } li { margin: 0.2mm 0; }
+  .ex { font-family: ui-monospace, Menlo, monospace; font-size: 0.95em; background: #f1f1ef; padding: 0.6mm 1.2mm; margin-top: 0.6mm; }
+  table { border-collapse: collapse; width: 100%; font-size: 6.0pt; }
+  th, td { border: 0.3mm solid #bbb; padding: 0.1mm 1mm; text-align: left; vertical-align: top; }
+  th { background: #eee; }
+  .note { font-size: 1em; color: #444; }
+  ol.chain { margin: 0 0 1mm; padding-left: 4mm; list-style: none; }
+  ol.chain li { margin: 0.3mm 0; break-inside: avoid; }
+  ol.chain li.act { font-weight: 700; margin-top: 1mm; background: #eee; padding: 0.3mm 1mm; }
+  @media screen { body { max-width: 210mm; margin: 10mm auto; } }
+</style>
+</head>
+<body>
+<div class="page" id="p1"></div>
+<script src="js/content.js"></script>
+<script>
+(function () {
+  'use strict';
+  // Units II–III only (SPEC-v4 §1): the stops of Units IV–V (topics 16–25) stay off the sheet.
+  var C = window.CN.content, S = C.screens.filter(function (s) { return !(s.topic > 15); });
+  function el(tag, text, cls) { var e = document.createElement(tag); if (text != null) e.textContent = text; if (cls) e.className = cls; return e; }
+
+  var p1 = document.getElementById('p1');
+  p1.appendChild(el('h1', 'One Message, 15 Checkpoints · every fix creates the next problem (Tanenbaum 6e)'));
+
+  // v3 page 1: the story chain. Each But… is the next Problem.
+  p1.appendChild(el('h2', 'THE CHAIN · if you lose your place, read the next Problem line'));
+  var chain = el('ol', null, 'chain');
+  var lastAct = 0;
+  S.forEach(function (s) {
+    if (!s.stop) return;
+    if (s.act !== lastAct) {
+      lastAct = s.act;
+      chain.appendChild(el('li', 'Act ' + s.act + ' · ' + C.acts[s.act].name + ': ' + C.acts[s.act].q, 'act'));
+    }
+    var li = el('li');
+    li.appendChild(el('b', 'S' + s.stop + ' ' + s.short + (s.hero ? ' ★' : '') + '. '));
+    li.appendChild(document.createTextNode('P: ' + s.problem + ' '));
+    li.appendChild(el('i', (s.butLabel === 'CLOSE' ? 'Close: ' : 'But… ') + s.but));
+    chain.appendChild(li);
+  });
+  p1.appendChild(chain);
+
+  p1.appendChild(el('h2', 'MUST BE EXACT'));
+  S.forEach(function (s) {
+    if (!s.facts) return;
+    var d = el('div', null, 'topic');
+    d.appendChild(el('h2', 'S' + s.stop + ' · ' + s.title + (s.hero ? ' ★' : '')));
+    var ul = el('ul');
+    s.facts.forEach(function (f) { ul.appendChild(el('li', f)); });
+    d.appendChild(ul);
+    if (s.example) d.appendChild(el('div', s.example, 'ex'));
+    p1.appendChild(d);
+  });
+
+  var p2 = p1; // one continuous two-column flow across both A4 pages
+  p2.appendChild(el('h2', 'RUN OF SHOW · CHECKPOINTS · NOTATION TRAPS'));
+  var t = el('table');
+  t.innerHTML = '<tr><th>#</th><th>Screen</th><th>Target</th><th>Ends by</th></tr>';
+  S.forEach(function (s, i) {
+    var tr = el('tr');
+    [String(i), (s.stop ? 'S' + s.stop + ' ' : '') + s.title, C.fmt(s.target), C.fmt(s.endsBy)].forEach(function (x) { tr.appendChild(el('td', x)); });
+    t.appendChild(tr);
+  });
+  p2.appendChild(el('h2', 'Timing (deck only: each stop quiz adds ~3 min)'));
+  p2.appendChild(t);
+  p2.appendChild(el('h2', 'Quiz & pacing'));
+  var ul = el('ul');
+  C.cutRules.filter(function (r) { return r.at !== 'podium'; }).forEach(function (r) { ul.appendChild(el('li', r.text)); });
+  C.quizRules.forEach(function (t) { ul.appendChild(el('li', t)); });
+  ul.appendChild(el('li', 'Cards can shrink to 15 s, but never skip a But… line. Skipping a whole stop: say its But… and move on.'));
+  p2.appendChild(ul);
+  p2.appendChild(el('h2', 'History anchors (spoken; drop any you cannot defend)'));
+  var hl = el('ul');
+  var hist = [];
+  S.forEach(function (s) {
+    if (!s.history) return;
+    var prev = hist[hist.length - 1];
+    if (prev && prev.text === s.history) prev.stops.push(s.stop); else hist.push({ text: s.history, stops: [s.stop] });
+  });
+  hist.forEach(function (x) { hl.appendChild(el('li', 'S' + x.stops.join('–') + ': ' + x.text)); });
+  p2.appendChild(hl);
+  p2.appendChild(el('h2', 'Notation traps (default: "following our prescribed text")'));
+  var nt = el('table');
+  nt.innerHTML = '<tr><th>Topic</th><th>Tanenbaum</th><th>Forouzan</th><th>App</th></tr>';
+  C.traps.forEach(function (r) { var tr = el('tr'); r.forEach(function (x) { tr.appendChild(el('td', x)); }); nt.appendChild(tr); });
+  p2.appendChild(nt);
+  p2.appendChild(el('h2', 'Keys'));
+  p2.appendChild(el('div', '→/PageDown: first press reveals the But…, next press moves on · ←/PageUp hides the But…, then back · Home/End title/close · M map (click a stop) · P presenter · T theme · F fullscreen · S step · R reset. Quiz: J join sidebar (QR) · → at a stop\'s end: Y quiz / N skip · in a quiz Space/Enter reveal → next → standings → close · → ← off · Esc end · Z start this stop\'s quiz.', 'note'));
+  p2.appendChild(el('h2', 'Quiz go/no-go (before class, on the classroom Wi-Fi)'));
+  p2.appendChild(el('div', '1. node server/quiz-server.mjs (allow node through the firewall). 2. localhost:8765, J, scan the QR with your phone, mobile data off. 3. Join as "test", Z, answer the 5 questions with Space between them, check the leaderboard, then Reset. Any step fails → never open the sidebar; the quiz stays invisible. Plan: J on the Title (60–90 s to join); after each stop\'s But…, → gives the Y/N prompt. Any network: tailscale funnel --bg 8766, then PUBLIC_URL=https://taskrecorder.tail308459.ts.net node server/quiz-server.mjs; afterwards tailscale funnel --https=443 off.', 'note'));
+  p2.appendChild(el('h2', 'If asked about AI'));
+  p2.appendChild(el('div', '"I built it with an AI coding assistant; the content and the algorithms are mine to defend."', 'note'));
+})();
+</script>
+</body>
+</html>

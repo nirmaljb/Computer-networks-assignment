@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Presenter notes</title>
+<style>
+  :root { --bg: #f6f5f1; --panel: #fff; --ink: #1a1d21; --muted: #5a626d; --line: #d5d7db; --red: #c42323; --red-bg: #fde2e2; --green: #23772b; --green-bg: #dff1e0; --amber: #a35f00; --amber-bg: #ffeccb; --accent: #5a39c6; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 18px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--ink); }
+  header { display: flex; align-items: center; gap: 18px; padding: 10px 18px; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  #clock { font: 800 52px ui-monospace, Menlo, monospace; }
+  #delta { font-size: 24px; font-weight: 800; padding: 4px 12px; border-radius: 8px; }
+  #delta.ahead { background: var(--green-bg); color: var(--green); }
+  #delta.behind { background: var(--red-bg); color: var(--red); }
+  button { font: 600 16px inherit; padding: 6px 12px; border-radius: 8px; border: 2px solid var(--line); background: var(--panel); cursor: pointer; }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  main { display: grid; grid-template-columns: 1.1fr 1fr; gap: 16px; padding: 16px 18px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; }
+  h1 { font-size: 28px; margin: 0; }
+  h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin: 0 0 6px; }
+  .say { font-size: 22px; }
+  .q { font-weight: 700; margin-top: 8px; }
+  .a { margin: 2px 0 6px; }
+  .cut { background: var(--amber-bg); color: var(--amber); border: 2px solid var(--amber); border-radius: 10px; padding: 8px 12px; font-weight: 800; margin-bottom: 14px; }
+  ul { margin: 0; padding-left: 20px; } li { margin: 3px 0; }
+  .muted { color: var(--muted); }
+  #status { font-size: 14px; color: var(--muted); }
+  #story { padding: 12px 18px 0; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  #story .card { margin: 0; font-size: 26px; font-weight: 700; line-height: 1.25; }
+  #story .card.but.shown { border: 3px solid var(--accent); }
+  #story .tag { font-size: 14px; font-weight: 800; letter-spacing: 1px; color: var(--accent); }
+  #hist { padding: 8px 18px 0; font-size: 19px; }
+  #hist:empty { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <div id="clock">0:00</div>
+  <div id="delta"></div>
+  <div><div id="now" style="font-weight:800;font-size:20px"></div><div id="next" class="muted"></div></div>
+  <span style="flex:1"></span>
+  <button id="prev">← Prev</button>
+  <button id="nextBtn" class="primary">Next →</button>
+  <button id="start">Start timer</button>
+  <button id="reset">Reset timer</button>
+  <div id="status"></div>
+</header>
+<div id="story">
+  <div class="card"><div class="tag">PROBLEM (top strip)</div><div id="problem"></div></div>
+  <div class="card but" id="butCard"><div class="tag" id="butTag">BUT… (→ reveals)</div><div id="but"></div></div>
+</div>
+<div id="hist"></div>
+<main>
+  <section>
+    <div id="cut"></div>
+    <div class="card"><h2>Say</h2><div id="live" class="say"></div></div>
+    <div class="card"><h2>Click</h2><div id="click"></div></div>
+    <div class="card"><h2>Must be exact</h2><ul id="facts"></ul><div id="example" class="muted" style="margin-top:6px"></div></div>
+  </section>
+  <section>
+    <div class="card"><h2>Likely questions</h2><div id="qa"></div></div>
+  </section>
+</main>
+<script src="js/content.js"></script>
+<script>
+(function () {
+  'use strict';
+  var C = window.CN.content, screens = C.screens, idx = 0, talkStart = null, linked = false, butShown = false;
+  var $ = function (id) { return document.getElementById(id); };
+
+  function send(msg) {
+    if (window.opener && !window.opener.closed) { window.opener.postMessage(msg, '*'); return true; }
+    return false;
+  }
+  function render() {
+    var s = screens[idx], nx = screens[idx + 1];
+    // Units IV–V (topics 16–25) have no time budget (SPEC-v4 §1): no target line, just the stop
+    $('now').textContent = (idx + 1) + '. ' + (s.stop ? 'S' + s.stop + ' ' : '') + s.title + (s.topic > 15 ? '  ·  no time budget' : '  ·  target ' + C.fmt(s.target) + '  ·  ends by ' + C.fmt(s.endsBy));
+    $('next').textContent = nx ? 'Next: ' + C.label(nx) : 'Last screen';
+    $('problem').textContent = s.problem || (s.act ? '' : '—');
+    $('but').textContent = s.but || '—';
+    $('butTag').textContent = (s.butLabel || 'BUT…') + (s.but ? (butShown ? ' (shown, → next screen)' : ' (→ reveals)') : '');
+    $('butCard').classList.toggle('shown', !!s.but && butShown);
+    $('hist').textContent = s.history ? 'History anchor: ' + s.history : '';
+    $('live').textContent = s.live || '';
+    $('click').textContent = s.click || '';
+    var f = $('facts'); f.innerHTML = '';
+    (s.facts || []).forEach(function (t) { var li = document.createElement('li'); li.textContent = t; f.appendChild(li); });
+    $('example').textContent = s.example ? 'Default: ' + s.example : '';
+    var qa = $('qa'); qa.innerHTML = '';
+    (s.qa || []).forEach(function (p) {
+      var q = document.createElement('div'); q.className = 'q'; q.textContent = 'Q: ' + p[0];
+      var a = document.createElement('div'); a.className = 'a'; a.textContent = p[1];
+      qa.appendChild(q); qa.appendChild(a);
+    });
+    if (!(s.qa || []).length) qa.innerHTML = '<span class="muted">—</span>';
+    tick();
+  }
+  function tick() {
+    var s = screens[idx];
+    var el = talkStart ? (Date.now() - talkStart) / 1000 : 0;
+    $('clock').textContent = C.fmt(el);
+    var d = $('delta');
+    if (!talkStart) { d.textContent = 'timer not started'; d.className = ''; }
+    else if (s.topic > 15) { d.textContent = 'Units IV–V: untimed'; d.className = ''; }
+    else {
+      var diff = el - s.endsBy;
+      d.textContent = diff > 0 ? 'behind ' + C.fmt(diff) : 'ahead ' + C.fmt(-diff);
+      d.className = diff > 0 ? 'behind' : 'ahead';
+    }
+    var cut = $('cut'); cut.innerHTML = '';
+    C.cutRules.forEach(function (r) {
+      if (r.at === s.id && el > r.after) { var div = document.createElement('div'); div.className = 'cut'; div.textContent = r.text; cut.appendChild(div); }
+    });
+    $('status').textContent = linked ? 'linked to deck' : 'not linked: press P in the deck';
+  }
+  window.addEventListener('message', function (e) {
+    var m = e.data;
+    if (!m || m.type !== 'cn-state') return;
+    linked = true; idx = m.index; talkStart = m.talkStart; butShown = !!m.butShown; render();
+  });
+  function nav(dir) {
+    if (!send({ type: 'cn-nav', dir: dir })) { idx = Math.max(0, Math.min(screens.length - 1, idx + (dir === 'next' ? 1 : -1))); butShown = false; render(); }
+  }
+  $('prev').onclick = function () { nav('prev'); };
+  $('nextBtn').onclick = function () { nav('next'); };
+  $('start').onclick = function () { if (!send({ type: 'cn-timer', action: 'start' })) { talkStart = Date.now(); render(); } };
+  $('reset').onclick = function () { if (!send({ type: 'cn-timer', action: 'reset' })) { talkStart = null; render(); } };
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown') { nav('next'); e.preventDefault(); }
+    if (e.key === 'ArrowLeft' || e.key === 'PageUp') { nav('prev'); e.preventDefault(); }
+  });
+  send({ type: 'cn-hello' });
+  setInterval(tick, 250);
+  render();
+})();
+</script>
+</body>
+</html>
