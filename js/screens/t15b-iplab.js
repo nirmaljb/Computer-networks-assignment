@@ -7,8 +7,18 @@
   var CIDR = '192.168.10.77/26', SPLIT = 2, DEST = '194.24.17.4', V6 = '2001:0db8:0000:0000:0000:ff00:0042:8329';
   var ROUTES = [{ name: 'Cambridge', prefix: '194.24.0.0', len: 21 }, { name: 'Edinburgh', prefix: '194.24.8.0', len: 22 }, { name: 'Oxford', prefix: '194.24.16.0', len: 20 }];
 
+  // SPEC-v6: E on 15c takes any a.b.c.d/p (p 0–32). /31 and /32 have no broadcast and are spelled out.
   function address(body) {
-    var r = IP.subnet(CIDR);
+    var host = h('div', { style: { display: 'contents' } });
+    body.appendChild(host);
+    function load(cidr) { CN.clear(host); addressInto(host, cidr); }
+    load(CIDR);
+    return { input: ui.numbers({ label: 'An IPv4 address with its prefix: a.b.c.d/p', example: CIDR,
+      parse: function (t) { var p = IP.parseCIDR(t); return p.error ? p : /\//.test(t) ? { cidr: IP.str(p.ip) + '/' + p.len } : { error: 'Write the prefix as /p, e.g. /26' }; },
+      use: function (v) { load(v ? v.cidr : CIDR); } }) };
+  }
+  function addressInto(body, cidr) {
+    var r = IP.subnet(cidr);
     // one column per octet: its value above its 8 bits
     body.appendChild(h('div', { class: 'row nowrap', style: { gap: '8px', marginTop: '20px', alignItems: 'flex-start' } }, r.working.map(function (w, o) {
       return h('div', { class: 'col', style: { gap: '6px', alignItems: 'center' } }, h('div', { class: 'label' }, 'octet ' + (o + 1) + ' = ' + w.ip),
@@ -17,14 +27,16 @@
           return h('span', { class: 'bit ' + (net ? 'data' : 'check') }, b, net ? null : h('span', { class: 'tag' }, 'H'));
         })));
     })));
-    body.appendChild(h('div', { class: 'say' }, CIDR + ': ' + r.len + ' network bits (blue), ' + r.hostBits + ' host bits (amber, H).'));
+    body.appendChild(h('div', { class: 'say' }, cidr + ': ' + r.len + ' network bits (blue), ' + r.hostBits + ' host bits (amber, H).'));
     var kv = h('div', { class: 'kv', style: { fontSize: '28px' } });
-    [['Mask', r.maskStr], ['Network', r.networkStr + '  (address AND mask)'], ['Broadcast', r.broadcastStr + '  (all host bits 1)'],
-      ['First usable', r.firstStr], ['Last usable', r.lastStr], ['Usable hosts', '2^' + r.hostBits + ' − 2 = ' + r.usable]].forEach(function (x) {
+    var rows = [['Mask', r.maskStr], ['Network', r.networkStr + '  (address AND mask)']];
+    if (r.len <= 30) rows.push(['Broadcast', r.broadcastStr + '  (all host bits 1)'], ['First usable', r.firstStr], ['Last usable', r.lastStr], ['Usable hosts', '2^' + r.hostBits + ' − 2 = ' + r.usable]);
+    else if (r.len === 31) rows.push(['Usable', r.firstStr + ' and ' + r.lastStr + '  (/31 point-to-point: no broadcast, RFC 3021)']);
+    else rows.push(['Usable', r.firstStr + '  (/32: one host, no broadcast)']);
+    rows.forEach(function (x) {
       kv.appendChild(h('span', { class: 'k' }, x[0])); kv.appendChild(h('span', { class: 'v' }, x[1]));
     });
     body.appendChild(h('div', { class: 'panel', style: {} }, kv));
-    return {};
   }
 
   function subnetting(body) {

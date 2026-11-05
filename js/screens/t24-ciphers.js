@@ -5,7 +5,6 @@
   // SPEC-v5: fixed examples on CN.cipher, all static. 24a Caesar (ATTACK, k = 3), 24b monoalphabetic key,
   // 24c the frequency attack on a long English text, 24d columnar transposition (MEGABUCK), 24e DES → AES.
   var A = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  var LONG = 'the network layer moves packets between hosts while the transport layer gives each program a reliable stream and the application layer turns names into addresses fetches pages and delivers mail but anyone on the path can read every message unless it is encrypted';
   var SHORT = 'the network layer moves packets';
   var MEGA = 'pleasetransferonemilliondollarstomyswissbankaccountsixtwotwo';
 
@@ -39,23 +38,48 @@
     return {};
   }
 
+  // SPEC-v6 set piece: the frequency crack (CN.cipher.crack). Step 1 = pass 1, rank-matching letters, wrong ones
+  // red with the count right; each later Step fixes one letter, with the digram or trigram that justifies it.
   function frequency(body) {
-    var cipherText = C.mono(LONG, C.DEFAULT_KEY, false).text, f = C.freq(cipherText);
-    var eng = A.split('').sort(function (a, b) { return C.ENGLISH[b] - C.ENGLISH[a]; });
-    var cr = A.split('').sort(function (a, b) { return f.counts[b] - f.counts[a] || (a < b ? -1 : 1); });
-    var chart = s('svg', { width: 1460, height: 321, viewBox: '0 0 1500 220' }), bw = 52, maxE = C.ENGLISH.E, maxC = Math.max(1, f.counts[cr[0]]);
-    chart.appendChild(s('text', { x: 0, y: 16, 'font-size': 18, 'font-weight': 700, fill: 'var(--muted)' }, 'English, most common first'));
-    chart.appendChild(s('text', { x: 0, y: 214, 'font-size': 18, 'font-weight': 700, fill: 'var(--blue)' }, 'Ciphertext (' + f.total + ' letters), most common first'));
-    for (var i = 0; i < 26; i++) {
-      var x = 60 + i * bw, he = 70 * C.ENGLISH[eng[i]] / maxE, hc = 70 * f.counts[cr[i]] / maxC;
-      chart.appendChild(s('rect', { x: x, y: 94 - he, width: bw - 12, height: he, fill: 'var(--muted)', opacity: 0.5 }));
-      chart.appendChild(s('text', { x: x + (bw - 12) / 2, y: 112, 'text-anchor': 'middle', 'font-size': 18, 'font-weight': 800 }, eng[i]));
-      chart.appendChild(s('text', { x: x + (bw - 12) / 2, y: 132, 'text-anchor': 'middle', 'font-size': 18, 'font-weight': 800, fill: 'var(--blue)' }, f.counts[cr[i]] ? cr[i] : '·'));
-      chart.appendChild(s('rect', { x: x, y: 138, width: bw - 12, height: hc, fill: 'var(--blue)', opacity: 0.7 }));
+    var cipherText = C.mono(C.CRACK_TEXT, C.DEFAULT_KEY, false).text, r = C.crack(cipherText, C.DEFAULT_KEY), k = 0;
+    var why = h('div', { class: 'crack-why' }), map = h('div', { class: 'crack-map' }), text = h('div', { class: 'crack-text' });
+    body.appendChild(why);
+    body.appendChild(h('div', { class: 'panel col', style: { gap: '16px', padding: '14px 18px' } }, map, text));
+    function draw(fresh) {
+      var stp = k ? r.steps[k - 1] : null, g = stp ? stp.guess : {}, fix = stp && stp.fix, n = r.ranked.length;
+      if (!stp) why.textContent = 'A monoalphabetic ciphertext (' + C.freq(cipherText).total + ' letters). Step: match its letters to English by frequency.';
+      else if (!fix) why.textContent = 'Pass 1: the k-th most common letter here → the k-th most common in English. ' + stp.right + ' of ' + n + ' right.';
+      else why.textContent = 'Fix ' + (k - 1) + ': ' + fix.reason + '.  ' + stp.right + ' of ' + n + ' right' + (stp.right === n ? ': plaintext recovered.' : '.');
+      why.style.color = stp && stp.right === n ? 'var(--green)' : '';
+      CN.clear(map);
+      map.style.gridTemplateColumns = 'auto repeat(' + n + ', 56px)';
+      map.appendChild(h('div', { class: 'label', style: { alignSelf: 'center' } }, 'cipher'));
+      r.ranked.forEach(function (c) { map.appendChild(h('span', { class: 'bit data cm' }, c)); });
+      map.appendChild(h('div', { class: 'label', style: { alignSelf: 'center' } }, 'count'));
+      r.ranked.forEach(function (c) { map.appendChild(h('div', { class: 'cm-n' }, String(r.counts[c]))); });
+      map.appendChild(h('div', { class: 'label', style: { alignSelf: 'center' } }, stp ? 'reads as' : 'English'));
+      r.ranked.forEach(function (c, i) {
+        if (!stp) { map.appendChild(h('span', { class: 'bit cm flag' }, r.english[i].toLowerCase())); return; }
+        var ok = g[c] === r.truth[c];
+        map.appendChild(h('span', { class: 'bit cm ' + (ok ? 'fixed' : 'err') + (fresh && fix && fix.cipher === c ? ' fx-flash' : '') }, g[c]));
+      });
+      CN.clear(text);
+      cipherText.split(' ').forEach(function (w) {
+        var cw = h('span', { class: 'c' }), gw = h('span', { class: 'g' });
+        w.split('').forEach(function (ch) {
+          cw.appendChild(document.createTextNode(ch));
+          if (!/[A-Z]/.test(ch)) { gw.appendChild(document.createTextNode(ch)); return; }
+          if (!stp) { gw.appendChild(document.createTextNode('·')); return; }
+          gw.appendChild(h('span', { class: g[ch] === r.truth[ch] ? 'ok' : 'bad' }, g[ch]));
+        });
+        text.appendChild(h('span', { class: 'crack-word' }, cw, gw));
+      });
     }
-    body.appendChild(h('div', { class: 'say' }, 'The most common ciphertext letter ' + cr[0] + ' is probably e, the next ' + cr[1] + ' probably t… Here ' + cr[0] + ' really is ' + C.mono(cr[0], C.DEFAULT_KEY, true).text + '.'));
-    body.appendChild(h('div', { class: 'panel', style: { padding: '6px 10px', marginTop: '16px' } }, chart));
-    return {};
+    draw(false);
+    function step() { if (k >= r.steps.length) return false; k++; draw(true); return true; }
+    function reset() { k = 0; draw(false); }
+    body.appendChild(ui.controls());
+    return { step: step, reset: reset, prev: function () { if (k > 0) { k--; draw(false); return true; } return false; } };
   }
 
   function transposition(body) {

@@ -19,14 +19,16 @@
     return {};
   }
 
+  // SPEC-v6: E on 19b/19c takes 1–8 RTT samples in ms, '*' after a retransmitted one.
   function table(body, retx) {
-    var rows = CN.tcp.rtoTable(SAMPLES.map(function (r, i) { return { r: r, retx: !!retx[i] }; }), 'rfc'), shown = 1;
+    var def = SAMPLES.map(function (r, i) { return { r: r, retx: !!retx[i] }; }), samples = def, rows, shown = 1;
     var host = h('div', { style: { marginTop: '20px' } }), work = h('div', { class: 'working', style: { fontSize: '26px', minHeight: '130px' } });
     body.appendChild(host);
     body.appendChild(work);
     function working(i) {
       var r = rows[i], prev = rows.slice(0, i).filter(function (x) { return !x.ignored; }).pop();
-      if (r.ignored) return 'Karn: R = ' + fmt(r.r) + ' came from a retransmission → ignored\nRTO = 2 × ' + fmt(r.rto / 2) + ' = ' + fmt(r.rto);
+      if (r.ignored) return 'Karn: R = ' + fmt(r.r) + ' came from a retransmission → ignored\nRTO = 2 × ' + fmt(r.rto / 2) + ' = ' + fmt(r.rto) +
+        (i === 0 || rows[i - 1].rto == null ? '   (no estimate yet: RFC 6298\'s initial RTO is 1 s)' : '');
       if (!prev) return 'SRTT   = R = ' + fmt(r.r) + '\nRTTVAR = R/2 = ' + fmt(r.rttvar) + '\nRTO    = ' + fmt(r.srtt) + ' + 4·' + fmt(r.rttvar) + ' = ' + fmt(r.rto);
       return ['RTTVAR = ¾·' + fmt(prev.rttvar) + ' + ¼·|' + fmt(prev.srtt) + ' − ' + fmt(r.r) + '| = ' + fmt(r.rttvar),
         'SRTT   = ⅞·' + fmt(prev.srtt) + ' + ⅛·' + fmt(r.r) + ' = ' + fmt(r.srtt),
@@ -37,18 +39,21 @@
         h('tr', null, ['#', 'R (ms)', 'retx', '① RTTVAR', '② SRTT', 'RTO'].map(function (c) { return h('th', { class: 'c' }, c); })));
       rows.slice(0, shown).forEach(function (r, i) {
         t.appendChild(h('tr', { class: (r.ignored ? 'ign ' : '') + (i === shown - 1 ? 'win' : '') },
-          h('td', { class: 'keep' }, String(i + 1)), h('td', { class: 'keep' }, fmt(r.r)), h('td', { class: 'c keep' }, retx[i] ? '✓' : ''),
+          h('td', { class: 'keep' }, String(i + 1)), h('td', { class: 'keep' }, fmt(r.r)), h('td', { class: 'c keep' }, samples[i].retx ? '✓' : ''),
           h('td', null, fmt(r.rttvar)), h('td', null, fmt(r.srtt)),
           h('td', { class: 'keep', style: { fontWeight: 800 } }, fmt(r.rto) + (r.ignored ? ' ×2' : ''))));
       });
       CN.clear(host).appendChild(t);
       CN.clear(work).appendChild(document.createTextNode(working(shown - 1)));
     }
-    draw();
+    function load(list) { samples = list; rows = CN.tcp.rtoTable(samples, 'rfc'); shown = 1; draw(); }
+    load(def);
     function step() { if (shown >= rows.length) return false; shown++; draw(); return true; }
     function reset() { shown = 1; draw(); }
     body.appendChild(ui.controls());
-    return { step: step, reset: reset, prev: function () { if (shown > 1) { shown--; draw(); return true; } return false; } };
+    return { step: step, reset: reset, prev: function () { if (shown > 1) { shown--; draw(); return true; } return false; },
+      input: ui.numbers({ label: 'RTT samples in ms (1–8), * after a retransmitted one', example: def.map(function (x) { return x.r + (x.retx ? '*' : ''); }).join(' '),
+        parse: CN.tcp.parseSamples, use: function (v) { load(v ? v.samples : def); } }) };
   }
 
   var PARTS = {

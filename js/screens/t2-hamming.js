@@ -3,7 +3,11 @@
   var CN = window.CN, h = CN.h, ui = CN.ui, H = CN.hamming;
 
   // SPEC-v5: fixed data 'A' = 1000001, even parity. 2a builds the codeword, 2b catches and fixes one flip.
+  // SPEC-v6: E takes other data bits (1–16); Step's scripted flip is bit 5, or the last bit of a shorter code.
   var DATA = '1000001', PARITY = 'even', SCRIPTED_FLIP = 5;
+  function numbers(use) {
+    return ui.numbers({ label: 'Data bits: 1–16 bits of 0/1', example: DATA, parse: H.validate, use: function (v) { use(v ? v.bits : DATA); } });
+  }
 
   function sub(n) { return 'b' + n; }
   function bin(n, w) { var s = n.toString(2); while (s.length < w) s = '0' + s; return s; }
@@ -13,10 +17,15 @@
 
   // 2a: Step computes P1, P2, P4, P8 in turn and lights the bits each one covers.
   function encode(body) {
-    var enc = H.encode(DATA, PARITY), k = 0;
-    var out = h('div', { class: 'col', style: { gap: '16px', marginTop: '16px' } });
-    body.appendChild(h('div', { class: 'say' }, 'm = ' + enc.m + ' data bits → r = ' + enc.r + ' check bits, since ' + enc.m + ' + ' + enc.r + ' + 1 ≤ 2^' + enc.r + ' → (' + enc.n + ',' + enc.m + ') code'));
+    var enc, k = 0;
+    var out = h('div', { class: 'col', style: { gap: '16px', marginTop: '16px' } }), say = h('div', { class: 'say' });
+    body.appendChild(say);
     body.appendChild(out);
+    function load(data) {
+      enc = H.encode(data, PARITY); k = 0;
+      say.textContent = 'm = ' + enc.m + ' data bits → r = ' + enc.r + ' check bits, since ' + enc.m + ' + ' + enc.r + ' + 1 ≤ 2^' + enc.r + ' → (' + enc.n + ',' + enc.m + ') code';
+      draw();
+    }
     function draw() {
       CN.clear(out);
       var cur = k > 0 ? enc.checks[k - 1] : null, lit = {};
@@ -34,16 +43,16 @@
       });
       out.appendChild(work);
     }
-    draw();
+    load(DATA);
     function step() { if (k < enc.checks.length) { k++; draw(); return true; } return false; }
     function reset() { k = 0; draw(); }
     body.appendChild(ui.controls());
-    return { step: step, reset: reset, prev: function () { if (k > 0) { k--; draw(); return true; } return false; } };
+    return { step: step, reset: reset, prev: function () { if (k > 0) { k--; draw(); return true; } return false; }, input: numbers(load) };
   }
 
   // 2b: click a bit to flip it (or Step flips bit 5); the receiver's checks give the syndrome; Step corrects.
   function correct(body) {
-    var code = H.encode(DATA, PARITY).code, n = code.length, flips = [], corrected = false;
+    var code, n, flips = [], corrected = false;
     var out = h('div', { class: 'col', style: { gap: '16px', marginTop: '16px' } });
     body.appendChild(out);
     function draw() {
@@ -81,16 +90,17 @@
       else { cls = 'err'; msg = 'Bits ' + f.join(' and ') + ' flipped: Hamming corrects only ONE error, so this one is miscorrected or missed.'; }
       out.appendChild(h('div', { class: 'banner ' + cls, style: { fontSize: '24px' } }, msg));
     }
-    draw();
+    function load(data) { code = H.encode(data, PARITY).code; n = code.length; flips = []; corrected = false; draw(); }
+    load(DATA);
     function step() {
-      if (!flips.length) { flips = [SCRIPTED_FLIP]; draw(); return true; }
+      if (!flips.length) { flips = [Math.min(SCRIPTED_FLIP, n)]; draw(); return true; }
       var d = H.diagnose(code, H.flip(code, flips), PARITY);
       if (!corrected && d.syndrome > 0 && d.syndrome <= n) { corrected = true; draw(); return true; }
       return false;
     }
     function reset() { flips = []; corrected = false; draw(); }
     body.appendChild(ui.controls());
-    return { step: step, reset: reset, sub: function () { return flips.length ? 'flipped ' + flips.join(', ') : ''; } };
+    return { step: step, reset: reset, input: numbers(load), sub: function () { return flips.length ? 'flipped ' + flips.join(', ') : ''; } };
   }
 
   var PARTS = { encode: encode, correct: correct };

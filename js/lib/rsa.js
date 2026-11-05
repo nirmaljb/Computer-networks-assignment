@@ -47,6 +47,29 @@
     return { value: Number(r), bits: bits, steps: steps, full: full != null && full < 10n ** 20n ? full.toString() : null };
   }
 
+  // The same square-and-multiply as hops round a dial of n positions: start at b (the leading 1 bit),
+  // then for each later bit square, and on a 1 multiply by b. Ends at modpow(b, e, m).value.
+  function hops(b, e, m) {
+    var M = BigInt(m), x = BigInt(b) % M, r = x, bits = e.toString(2), out = [{ op: 'start', bit: 0, from: null, to: Number(r), label: 'start at ' + Number(r) }];
+    for (var i = 1; i < bits.length; i++) {
+      var sq = (r * r) % M;
+      out.push({ op: 'square', bit: i, from: Number(r), to: Number(sq), label: Number(r) + '² mod ' + m + ' = ' + Number(sq) });
+      r = sq;
+      if (bits[i] === '1') {
+        var mu = (r * x) % M;
+        out.push({ op: 'multiply', bit: i, from: Number(r), to: Number(mu), label: Number(r) + '·' + Number(x) + ' mod ' + m + ' = ' + Number(mu) });
+        r = mu;
+      }
+    }
+    return { bits: bits, hops: out, value: Number(r) };
+  }
+  // SPEC-v6 "your numbers" on S25: 'p q d', checked by keygen's rules.
+  function parseKey(input) {
+    var t = String(input == null ? '' : input).trim().split(/[\s,]+/).filter(Boolean);
+    if (t.length !== 3) return { error: 'Type three numbers: p q d (e.g. 3 11 7)' };
+    return keygen(t[0], t[1], t[2]);
+  }
+
   function letters(text) {
     var t = String(text).toUpperCase().replace(/[^A-Z]/g, '');
     return t.split('').map(function (c) { return c.charCodeAt(0) - 64; });
@@ -54,5 +77,5 @@
   function encrypt(nums, key) { return nums.map(function (P) { return modpow(P, key.e, key.n); }); }
   function decrypt(nums, key) { return nums.map(function (C) { return modpow(C, key.d, key.n); }); }
 
-  CN.rsa = { isPrime: isPrime, gcd: gcd, modInverse: modInverse, keygen: keygen, modpow: modpow, letters: letters, encrypt: encrypt, decrypt: decrypt };
+  CN.rsa = { isPrime: isPrime, gcd: gcd, modInverse: modInverse, keygen: keygen, parseKey: parseKey, modpow: modpow, hops: hops, DIAL_MAX: 150, letters: letters, encrypt: encrypt, decrypt: decrypt };
 })(typeof window !== 'undefined' ? window : globalThis);

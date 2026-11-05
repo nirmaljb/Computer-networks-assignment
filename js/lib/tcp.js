@@ -190,13 +190,16 @@
 
   /* ---------------- RTO (RFC 6298, Jacobson) + Karn ---------------- */
   // samples: [{ r, retx }] or numbers. order: 'rfc' (RTTVAR first, old SRTT) | 'srttFirst'.
+  // Before the first clean sample the RTO is RFC 6298's initial 1 s (§2.1), so a retransmitted first
+  // sample backs that off to 2 s.
+  var RTO_INITIAL = 1000;
   function rtoTable(samples, order) {
     var srtt = null, rttvar = null, rto = null, rows = [];
     samples.forEach(function (sm) {
       var r = typeof sm === 'number' ? sm : sm.r, retx = typeof sm === 'object' && !!sm.retx;
       if (retx) {
         // Karn: no sample from a retransmitted segment; the timeout that caused it doubled the RTO
-        rto = rto == null ? null : rto * 2;
+        rto = (rto == null ? RTO_INITIAL : rto) * 2;
         rows.push({ r: r, ignored: true, srtt: srtt, rttvar: rttvar, rto: rto });
         return;
       }
@@ -207,6 +210,20 @@
       rows.push({ r: r, ignored: false, srtt: srtt, rttvar: rttvar, rto: rto });
     });
     return rows;
+  }
+
+  // SPEC-v6 "your numbers" on S19: RTT samples in ms, '*' marks a retransmitted one: '100 120 80* 200'.
+  function parseSamples(input) {
+    var toks = String(input == null ? '' : input).trim().split(/[\s,;]+/).filter(Boolean), out = [];
+    if (toks.length < 1 || toks.length > 8) return { error: toks.length + ' samples: use 1–8' };
+    for (var i = 0; i < toks.length; i++) {
+      var m = /^(-?\d+(?:\.\d+)?)(\*?)$/.exec(toks[i]);
+      if (!m) return { error: '"' + toks[i] + '" is not a number of ms (add * for a retransmission)' };
+      var r = +m[1];
+      if (r <= 0) return { error: 'Sample ' + (i + 1) + ' is ' + r + ' ms: an RTT must be above 0' };
+      out.push({ r: r, retx: m[2] === '*' });
+    }
+    return { samples: out };
   }
 
   /* ---------------- congestion window (Tanenbaum's Tahoe figure, Reno) ---------------- */
@@ -245,6 +262,6 @@
   CN.tcp = {
     UDP: UDP, TCP: TCP, UDP_BYTES: UDP_BYTES, tcpHeaderBytes: tcpHeaderBytes, wrap: wrap, D: D, T: T,
     handshake: handshake, oldSyn: oldSyn, oldSynAck: oldSynAck, release: release, stateAt: stateAt,
-    flow: flow, rtoTable: rtoTable, cwndTrace: cwndTrace, road: road
+    flow: flow, rtoTable: rtoTable, parseSamples: parseSamples, RTO_INITIAL: RTO_INITIAL, cwndTrace: cwndTrace, road: road
   };
 })(typeof window !== 'undefined' ? window : globalThis);

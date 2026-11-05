@@ -41,7 +41,7 @@
     if (ip.error) return ip;
     if (m[2] == null) return { error: 'Add a prefix length (/26) or a mask (255.255.255.192)' };
     var p = m[2].trim(), len;
-    if (/^\d{1,2}$/.test(p)) {
+    if (/^\d+$/.test(p)) {
       len = +p;
       if (len > 32) return { error: 'Prefix /' + len + ' is out of range (0–32)' };
     } else {

@@ -67,6 +67,23 @@
       ui.btn('Run', function () { simRun(); }, 'ctl-run'),
       ui.btn('Reset (R)', function () { simReset(); }));
   };
+  // SPEC-v6 E: what a screen returns as ctrl.input. parse(text) → { error } or a value; use(value) restarts
+  // the sim with it, use(null) with the slide's own example. The input box itself lives in the shell.
+  ui.numbers = function (o) {
+    var cur = null;
+    return {
+      label: o.label,
+      value: function () { return cur != null ? cur : o.example; },
+      custom: function () { return cur != null; },
+      clear: function () { cur = null; o.use(null); },
+      apply: function (text) {
+        var v = o.parse(String(text));
+        if (!v || v.error) return { error: (v && v.error) || 'Not understood' };
+        cur = String(text).trim(); o.use(v);
+        return {};
+      }
+    };
+  };
   ui.store = {
     get: function (k, d) { try { var v = sessionStorage.getItem('cn.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
     set: function (k, v) { try { sessionStorage.setItem('cn.' + k, JSON.stringify(v)); } catch (e) { /* private mode */ } }
@@ -154,6 +171,7 @@
   var screens, idx = 0, ctrl = null, stage, main, problem, butBar, overlay, toastEl, toastTimer, presenter = null;
   var butShown = false;
   var talkStart = null;
+  var einBox, einField, einErr, einLabel, einTitle, predict = null, motion = true;
 
   CN.elapsed = function () { return talkStart ? (Date.now() - talkStart) / 1000 : 0; };
   CN.go = function (i) { go(i); };
@@ -211,12 +229,21 @@
   function stopRun() { clearInterval(runTimer); runTimer = null; ctlButtons(); }
   function move(kind) {
     var fn = ctrl && (kind === 'run' && ctrl.runStep ? ctrl.runStep : ctrl.step);
-    if (!fn || fn() === false) return false;
+    if (!fn || fn() === false) { predictCheck(true); return false; }
     trail.push(kind);
+    if (predictCheck(false) && kind === 'run') { stopRun(); return false; }
     return true;
   }
   function simStep() { stopRun(); move('step'); ctlButtons(); post(); }
-  function simReset() { stopRun(); if (ctrl && ctrl.reset) ctrl.reset(); trail = []; ctlButtons(); post(); }
+  // R also drops numbers typed with E (SPEC-v6): the slide goes back to its fixed example.
+  function simReset() {
+    stopRun();
+    if (ctrl && ctrl.input && ctrl.input.custom()) { ctrl.input.clear(); customTag(false); }
+    else if (ctrl && ctrl.reset) ctrl.reset();
+    trail = [];
+    if (predict) { predict.revealed = false; drawPredict(); }
+    ctlButtons(); post();
+  }
   function simBack() {
     stopRun();
     if (!trail.length) return false;
@@ -236,9 +263,121 @@
     ctlButtons();
   }
 
+  /* ---------------- SPEC-v6: E your numbers, ? predict, A motion ---------------- */
+  // E: one input, built here and not in the screens (the v5 guard on screens still holds). A screen that
+  // takes numbers gives ctrl.input = { label, value(), apply(text) → { error } | {}, custom(), clear() }.
+  // Enter applies (the sim restarts with them); a refusal shows its reason and changes nothing.
+  function buildInput() {
+    einTitle = h('div', { class: 'ein-title' });
+    einLabel = h('div', { class: 'ein-label' });
+    einField = h('input', { class: 'ein-field', type: 'text', spellcheck: 'false', autocomplete: 'off' });
+    einErr = h('div', { class: 'ein-err' });
+    einBox = h('div', { class: 'ein' }, h('div', { class: 'ein-box' }, einTitle, einLabel, einField, einErr,
+      h('div', { class: 'ein-hint' }, 'Enter uses them · Esc cancels · R or leaving the slide brings back the example')));
+    einField.addEventListener('keydown', function (e) {
+      e.stopPropagation();
+      if (e.key === 'Enter') { e.preventDefault(); applyInput(); }
+      else if (e.key === 'Escape') { e.preventDefault(); closeInput(); }
+    });
+    einField.addEventListener('input', function () { einErr.textContent = ''; });
+    return einBox;
+  }
+  function openInput() {
+    if (!ctrl || !ctrl.input) { CN.toast('No numbers to change on this slide'); return; }
+    stopRun();
+    einTitle.textContent = 'Your numbers · S' + screens[idx].stop;
+    einLabel.textContent = ctrl.input.label;
+    einField.value = ctrl.input.value();
+    einErr.textContent = '';
+    einBox.classList.add('open');
+    einField.focus(); einField.select();
+  }
+  function closeInput() { einBox.classList.remove('open'); einField.blur(); }
+  function inputOpen() { return einBox.classList.contains('open'); }
+  function applyInput() {
+    var r = ctrl.input.apply(einField.value) || {};
+    if (r.error) { einErr.textContent = '✕ ' + r.error; return; }
+    closeInput();
+    trail = [];
+    if (predict) endPredict();
+    customTag(ctrl.input.custom());
+    ctlButtons(); post();
+  }
+  function customTag(on) {
+    var head = main.querySelector('.scr-head'), tag = main.querySelector('.custom-tag');
+    if (tag) tag.remove();
+    if (on && head) head.appendChild(h('span', { class: 'custom-tag' }, 'your numbers'));
+  }
+
+  // ?: the slide's caption becomes one question (content.js `predict`); the answer shows, marked, when the
+  // sim reaches the point that settles it (ctrl.reached(), else the end of the run). Run pauses there.
+  function captionEl() { return main.querySelector('.scr-body > .say'); }
+  function startPredict() {
+    var p = screens[idx].predict;
+    if (!p) { CN.toast('No prediction on this slide'); return; }
+    if (predict) { endPredict(); return; }
+    simReset();
+    var cap = captionEl();
+    if (!cap) { cap = h('div', { class: 'say' }); main.querySelector('.scr-body').insertBefore(cap, main.querySelector('.scr-body').firstChild); }
+    predict = { q: p.q, a: p.a, revealed: false, cap: cap, old: Array.prototype.slice.call(cap.childNodes) };
+    drawPredict();
+  }
+  function drawPredict() {
+    var cap = predict.cap;
+    clear(cap);
+    cap.classList.add('predict');
+    cap.classList.toggle('answered', predict.revealed);
+    cap.appendChild(h('span', { class: 'pd-label' }, 'PREDICT'));
+    cap.appendChild(h('span', null, predict.q));
+    if (predict.revealed) cap.appendChild(h('span', { class: 'pd-answer' }, '✓ ' + predict.a));
+    else cap.appendChild(h('span', { class: 'pd-hint' }, ' · Run to see'));
+  }
+  function endPredict() {
+    if (!predict) return;
+    var cap = predict.cap;
+    clear(cap); cap.classList.remove('predict', 'answered');
+    append(cap, predict.old);
+    predict = null;
+  }
+  // After a move: true when this move revealed the answer. ended = the sim had nothing left to do.
+  function predictCheck(ended) {
+    if (!predict || predict.revealed) return false;
+    if (!(ctrl && ctrl.reached ? ctrl.reached() : ended)) return false;
+    predict.revealed = true;
+    drawPredict();
+    return true;
+  }
+
+  // A: motion on/off. Starts off when the OS asks for reduced motion. Only animation durations change:
+  // every screen draws the same state either way, and CN.motion() only picks a duration.
+  CN.motion = function () { return motion; };
+  function setMotion(on, quiet) {
+    motion = on;
+    document.documentElement.setAttribute('data-motion', on ? 'on' : 'off');
+    ui.store.set('motion', on);
+    if (!quiet) CN.toast(on ? 'Motion on' : 'Motion off');
+  }
+
+  // The But… text glides up into the next slide's Problem strip (it is the same problem, restated).
+  function morphBut(from) {
+    if (!motion || !from || !screens[idx].problem) return;
+    var ghost = h('div', { class: 'but-ghost' }, from.text);
+    stage.appendChild(ghost);
+    var a = ghost.animate([
+      { top: from.top + 'px', height: from.height + 'px', fontSize: '30px', opacity: 1 },
+      { top: '0px', height: '50px', fontSize: '26px', opacity: 0 }
+    ], { duration: 600, easing: 'ease-in-out' });
+    a.onfinish = function () { ghost.remove(); };
+    setTimeout(function () { ghost.remove(); }, 700);   // a throttled background tab may never finish it
+    var pt = problem.querySelector('.pb-text');
+    if (pt) pt.animate([{ opacity: 0 }, { opacity: 0 , offset: 0.5 }, { opacity: 1 }], { duration: 600 });
+  }
+
   function go(i) {
     i = Math.max(0, Math.min(screens.length - 1, i));
     stopRun(); trail = [];
+    if (einBox) closeInput();
+    predict = null;
     if (ctrl && ctrl.destroy) ctrl.destroy();
     ctrl = null;
     if (i > 0 && !talkStart) startTimer();
@@ -277,8 +416,10 @@
     if (screens[idx].but && !butShown) { setBut(true); return post(); }
     var j = CN.content.stepIndex(idx, 1, podiumOn()), t = screens[idx].topic;
     if (j === idx) return;
+    var from = butShown && screens[idx].but ? { text: screens[idx].but, top: butBar.offsetTop, height: butBar.offsetHeight } : null;
+    function on() { go(j); morphBut(from); }
     if (t && screens[j].topic !== t && CN.quiz && CN.quiz.offer(t, function () { go(j); })) return;
-    go(j);
+    on();
   }
   function prev() {
     if (quizBusy()) return;
@@ -352,6 +493,7 @@
       return;
     }
     if (isTyping(e.target)) return;
+    if (inputOpen()) { if (k === 'Escape') closeInput(); return; }
     // Units IV–V have no quiz (SPEC-v4 §1): Z only says so, whether or not the quiz server is up.
     if ((k === 'z' || k === 'Z') && !quizBusy() && screens[idx].topic > 15) { CN.toast('No quiz for this unit'); e.preventDefault(); return; }
     // Live quiz: J sidebar, Z quiz; while its prompt or overlay is up it takes every key (→ ← included).
@@ -369,6 +511,9 @@
       case 'f': case 'F': toggleFull(); break;
       case 's': case 'S': simStep(); break;
       case 'r': case 'R': simReset(); break;
+      case 'e': case 'E': openInput(); break;
+      case '?': startPredict(); break;
+      case 'a': case 'A': setMotion(!motion); break;
       case ' ': if (main.querySelector('.ctl-run')) simRun(); else handled = false; break;
       default: handled = false;
     }
@@ -383,9 +528,12 @@
     butBar = h('div', { id: 'but' });
     overlay = h('div', { id: 'overlay' });
     toastEl = h('div', { class: 'qz-toast' });
-    append(stage, [problem, main, butBar, overlay, toastEl]);
+    append(stage, [problem, main, butBar, overlay, toastEl, buildInput()]);
     document.title = CN.content.deckTitle;
     document.documentElement.setAttribute('data-theme', ui.store.get('theme', 'light'));
+    var mo = ui.store.get('motion', null);
+    if (mo == null) mo = !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    setMotion(mo, true);
     talkStart = ui.store.get('talkStart', null);
     window.addEventListener('resize', fit);
     document.addEventListener('keydown', onKey);

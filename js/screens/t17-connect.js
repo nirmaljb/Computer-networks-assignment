@@ -63,7 +63,8 @@
     }
     body.appendChild(ui.controls());
     reset();
-    return { step: step, reset: reset, prev: function () { if (st.tick > 0) { st.tick--; draw(); return true; } return false; } };
+    return { step: step, reset: reset, reached: function () { return st.tick >= st.sc.end; },
+      prev: function () { if (st.tick > 0) { st.tick--; draw(); return true; } return false; } };
   }
 
   function synFlood(body) {

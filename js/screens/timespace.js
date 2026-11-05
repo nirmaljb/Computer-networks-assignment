@@ -6,15 +6,36 @@
   'use strict';
   var CN = window.CN, s = CN.s;
 
+  // SPEC-v6 motion: a message in flight leaves a soft trail with a pulsing head; an ACK that arrived during
+  // the last Step glows once. Drawing only: the sim is the same with motion on or off.
+  function trail(g, x1, y1, x2, y2, color) {
+    g.appendChild(s('line', { x1: x1, y1: y1, x2: x2, y2: y2, stroke: color, 'stroke-width': 12, opacity: 0.14, 'stroke-linecap': 'round' }));
+    g.appendChild(s('circle', { cx: x2, cy: y2, r: 6, fill: color, class: 'fx-head' }));
+  }
+  // One tracker per diagram: an ACK glows the first time it is drawn as received. Going back or resetting
+  // (the clock runs backwards) marks everything already there as seen, so nothing glows on a rewind.
+  function glower() {
+    var seen = {}, last = 0, quiet = false;
+    return {
+      frame: function (now) { quiet = now < last; if (quiet) seen = {}; last = now; },
+      glow: function (m) {
+        if (m.kind !== 'ack' || !m.handled || m.fate !== 'ok' || seen[m.id]) return false;
+        seen[m.id] = true; return !quiet;
+      }
+    };
+  }
+  CN.ui.trail = trail; CN.ui.glower = glower;
+
   CN.ui.timeSpace = function (opts) {
     var W = opts.width, H = opts.height, visible = opts.visible || 26;
     var xs = 90, xr = W - (opts.rightPad || 90), y0 = 46;
     var th = (H - y0 - 12) / visible;
-    var svg = s('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H });
+    var svg = s('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H }), fx = glower();
 
     function draw(sim) {
       CN.clear(svg);
       var now = sim.tick, off = Math.max(0, now - visible + 2);
+      fx.frame(now);
       function y(t) { return y0 + (t - off) * th; }
       var names = opts.names || ['Sender', 'Receiver'];
       svg.appendChild(s('text', { x: xs, y: 26, 'text-anchor': 'middle', 'font-size': 22, 'font-weight': 700 }, names[0]));
@@ -53,6 +74,7 @@
         if (st.color) color = st.color;
         var inFlight = !m.lost && !m.handled && now < m.arriveAt;
         var g = s('g', { class: inFlight && opts.onKill ? 'clickable' : '' });
+        if (inFlight) trail(g, fromX, y1, x2, y2, color);
         g.appendChild(s('line', { x1: fromX, y1: y1, x2: x2, y2: y2, stroke: color, 'stroke-width': m.copy > 1 ? 3.5 : 2.5,
           'stroke-dasharray': st.dash || (m.kind === 'nak' ? '8 5' : null) }));
         // label near the start
@@ -71,7 +93,8 @@
           else if (m.fate === 'stale') { mark = '·'; }
           if (m.mark) { mark = m.mark; mc = m.markColor || mc; }
           var anchor = m.from === 'S' ? 'start' : 'end';
-          g.appendChild(s('text', { x: toX + (m.from === 'S' ? 8 : -8), y: y2 + 7, 'text-anchor': anchor, 'font-size': 19, 'font-weight': 800, fill: mc }, mark));
+          g.appendChild(s('text', { x: toX + (m.from === 'S' ? 8 : -8), y: y2 + 7, 'text-anchor': anchor, 'font-size': 19, 'font-weight': 800, fill: mc,
+            class: fx.glow(m) ? 'fx-glow' : null }, mark));
         }
         if (inFlight && opts.onKill) {
           g.appendChild(s('line', { x1: fromX, y1: y1, x2: x2, y2: y2, stroke: 'transparent', 'stroke-width': 22 }));
@@ -122,11 +145,12 @@
     var W = opts.width, H = opts.height, visible = opts.visible || 25;
     var x0 = 70, ys = 34, yr = H - 34;
     var tw = (W - x0 - 20) / visible;
-    var svg = s('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H });
+    var svg = s('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H }), fx = CN.ui.glower();
 
     function draw(sim) {
       CN.clear(svg);
       var now = sim.tick, off = Math.max(0, now - visible + 1);
+      fx.frame(now);
       function x(t) { return x0 + (t - off) * tw; }
       svg.appendChild(s('text', { x: 8, y: ys + 7, 'font-size': 20, 'font-weight': 700 }, 'S'));
       svg.appendChild(s('text', { x: 8, y: yr + 7, 'font-size': 20, 'font-weight': 700 }, 'R'));
@@ -151,6 +175,7 @@
         var color = m.kind === 'data' ? 'var(--blue)' : m.kind === 'ack' ? 'var(--green)' : 'var(--red)';
         var inFlight = !m.lost && !m.handled && now < m.arriveAt;
         var g = s('g', { class: inFlight && opts.onKill ? 'clickable' : '' });
+        if (inFlight) CN.ui.trail(g, x1, fromY, x2, y2, color);
         g.appendChild(s('line', { x1: x1, y1: fromY, x2: x2, y2: y2, stroke: color, 'stroke-width': m.copy > 1 ? 3.5 : 2.5, 'stroke-dasharray': m.kind === 'nak' ? '8 5' : null }));
         var lbl = opts.label ? opts.label(m) : String(m.seq);
         var ly = m.from === 'S' ? ys - 10 : (m.kind === 'nak' ? yr + 48 : yr + 26);
@@ -162,7 +187,8 @@
           else if (m.fate === 'ok') { mark = '✓'; mc = 'var(--green)'; }
           else if (m.fate === 'discard') { mark = '✕'; mc = 'var(--red)'; }
           else if (m.fate === 'buffer') { mark = 'B'; mc = 'var(--amber)'; }
-          if (mark) g.appendChild(s('text', { x: x(t2), y: m.from === 'S' ? yr - 10 : ys + 26, 'text-anchor': 'middle', 'font-size': 22, 'font-weight': 900, fill: mc }, mark));
+          if (mark) g.appendChild(s('text', { x: x(t2), y: m.from === 'S' ? yr - 10 : ys + 26, 'text-anchor': 'middle', 'font-size': 22, 'font-weight': 900, fill: mc,
+            class: fx.glow(m) ? 'fx-glow' : null }, mark));
         }
         if (inFlight && opts.onKill) {
           g.appendChild(s('line', { x1: x1, y1: fromY, x2: x2, y2: y2, stroke: 'transparent', 'stroke-width': 22 }));

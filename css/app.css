@@ -340,3 +340,52 @@ table.t.dv-table tr:first-child th:last-child { background-size: 50% 3px; backgr
 .scr-body { align-items: center; }
 .scr-body > .say { text-align: center; }
 .scr-body > .t20-stage { align-self: stretch; }
+
+/* ---------- SPEC-v6: E your numbers, ? predict, A motion, set pieces ---------- */
+.ein { position: absolute; inset: 0; display: none; align-items: flex-start; justify-content: center; padding-top: 150px; background: rgba(0, 0, 0, .28); z-index: 70; }
+.ein.open { display: flex; }
+.ein-box { width: 900px; background: var(--panel); border: 3px solid var(--accent); border-radius: 16px; padding: 26px 32px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 20px 60px rgba(0, 0, 0, .3); }
+.ein-title { font: 800 22px var(--sans); letter-spacing: 1.2px; color: var(--accent); text-transform: uppercase; }
+.ein-label { font-size: 26px; font-weight: 700; }
+.ein-field { font: 700 34px var(--mono); padding: 10px 14px; border: 2px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink); width: 100%; }
+.ein-field:focus { outline: none; border-color: var(--accent); }
+.ein-err { min-height: 32px; font-size: 24px; font-weight: 700; color: var(--red); }
+.ein-hint { font-size: 18px; color: var(--muted); }
+.custom-tag { font: 800 17px var(--sans); letter-spacing: 1px; text-transform: uppercase; color: var(--amber); border: 2px solid var(--amber); background: var(--amber-bg); border-radius: 999px; padding: 2px 12px; align-self: center; }
+
+.say.predict { font-style: normal; color: var(--ink); font-size: 26px; font-weight: 700; background: var(--accent-bg); border: 2px dashed var(--accent); border-radius: 10px; padding: 6px 16px; align-self: center; }
+.say.predict.answered { border-style: solid; }
+.pd-label { font: 800 18px var(--sans); letter-spacing: 1.5px; color: var(--accent); border: 2px solid var(--accent); border-radius: 6px; padding: 0 8px; margin-right: 12px; vertical-align: 3px; }
+.pd-hint { color: var(--muted); font-weight: 600; }
+.pd-answer { margin-left: 14px; color: var(--green); background: var(--green-bg); border-radius: 8px; padding: 1px 10px; animation: pd-pop .45s ease-out; }
+@keyframes pd-pop { from { transform: scale(1.35); } to { transform: scale(1); } }
+
+.but-ghost { position: absolute; left: 0; right: 0; display: flex; align-items: center; padding: 0 40px; font-weight: 700; color: var(--accent); background: var(--accent-bg); white-space: nowrap; overflow: hidden; z-index: 45; pointer-events: none; }
+
+/* motion pieces: the drawn state is the same with motion off; only the animation is skipped */
+.fx-burst { fill: none; stroke: var(--red); stroke-width: 4; opacity: 0; transform-box: fill-box; transform-origin: center; animation: fx-burst .7s ease-out; }
+@keyframes fx-burst { from { opacity: .9; transform: scale(.3); } to { opacity: 0; transform: scale(1.6); } }
+.fx-glow { animation: fx-glow 1s ease-out; }
+@keyframes fx-glow { from { filter: drop-shadow(0 0 10px var(--green)) drop-shadow(0 0 4px var(--green)); } to { filter: none; } }
+.fx-ripple { fill: none; stroke: var(--accent); stroke-width: 3; opacity: 0; transform-box: fill-box; transform-origin: center; animation: fx-ripple .9s ease-out; }
+@keyframes fx-ripple { from { opacity: .8; transform: scale(.6); } to { opacity: 0; transform: scale(2.2); } }
+.fx-pop { transform-box: fill-box; transform-origin: center; animation: pd-pop .45s ease-out; }
+.fx-draw { stroke-dasharray: 1; stroke-dashoffset: 0; animation: fx-draw .55s ease-out; }
+@keyframes fx-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+.fx-flash { animation: fx-flash .8s ease-out; }
+@keyframes fx-flash { from { background: var(--accent); color: #fff; } }
+.fx-head { animation: fx-pulse 1s ease-in-out infinite; }
+@keyframes fx-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+[data-motion="off"] #stage *, [data-motion="off"] #stage *::before, [data-motion="off"] #stage *::after { animation: none !important; transition: none !important; }
+
+/* S24c frequency crack */
+.crack-map { display: grid; gap: 4px; justify-content: center; }
+.crack-map .cm { min-width: 0; height: 44px; font-size: 24px; }
+.crack-map .cm-n { text-align: center; font: 600 16px var(--sans); color: var(--muted); }
+.crack-text { font: 700 23px/1.15 var(--mono); display: flex; flex-wrap: wrap; column-gap: 14px; row-gap: 8px; justify-content: center; }
+.crack-word { display: inline-flex; flex-direction: column; }
+.crack-word .c { color: var(--blue); }
+.crack-word .g { color: var(--muted); }
+.crack-word .g .ok { color: var(--green); }
+.crack-word .g .bad { color: var(--red); text-decoration: underline wavy; text-underline-offset: 3px; }
+.crack-why { font-size: 25px; font-weight: 700; min-height: 36px; text-align: center; }

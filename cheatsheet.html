@@ -26,7 +26,7 @@
 </head>
 <body>
 <div class="page" id="p1"></div>
-<script src="js/content.js?v=6"></script>
+<script src="js/content.js?v=7"></script>
 <script>
 (function () {
   'use strict';
@@ -102,7 +102,7 @@
   C.traps.forEach(function (r) { var tr = el('tr'); r.forEach(function (x) { tr.appendChild(el('td', x)); }); nt.appendChild(tr); });
   p2.appendChild(nt);
   p2.appendChild(el('h2', 'Keys'));
-  p2.appendChild(el('div', '→/PageDown: first press reveals the But…, next press moves on · ←/PageUp hides the But…, then back · Home/End title/close · M map (click a stop) · P presenter · T theme · F fullscreen · S step · R reset. Quiz: J join sidebar (QR) · → at a stop\'s end: Y quiz / N skip · in a quiz Space/Enter reveal → next → standings → close · → ← off · Esc end · Z start this stop\'s quiz.', 'note'));
+  p2.appendChild(el('div', '→/PageDown: first press reveals the But…, next press moves on · ←/PageUp hides the But…, then back · Home/End title/close · M map (click a stop) · P presenter · T theme · F fullscreen · S step · R reset · E your numbers · ? predict · A motion. Quiz: J join sidebar (QR) · → at a stop\'s end: Y quiz / N skip · in a quiz Space/Enter reveal → next → standings → close · → ← off · Esc end · Z start this stop\'s quiz.', 'note'));
   p2.appendChild(el('h2', 'Quiz go/no-go (before class, on the classroom Wi-Fi)'));
   p2.appendChild(el('div', '1. node server/quiz-server.mjs (allow node through the firewall). 2. localhost:8765, J, scan the QR with your phone, mobile data off. 3. Join as "test", Z, answer the 5 questions with Space between them, check the leaderboard, then Reset. Any step fails → never open the sidebar; the quiz stays invisible. Plan: J on the Title (60–90 s to join); after each stop\'s But…, → gives the Y/N prompt. Any network: tailscale funnel --bg 8766, then PUBLIC_URL=https://taskrecorder.tail308459.ts.net node server/quiz-server.mjs; afterwards tailscale funnel --https=443 off.', 'note'));
   p2.appendChild(el('h2', 'If asked about AI'));

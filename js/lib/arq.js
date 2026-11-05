@@ -230,6 +230,41 @@
     };
   }
 
+  // SPEC-v6 "your numbers" on S5: what to lose, e.g. 'frame 1, ack 3'. Each entry loses only the FIRST
+  // message of that kind for that frame number (a retransmission or a repeated ACK gets through), so every
+  // run ends. Frame numbers are 0..total−1 (the absolute frame, not the 3-bit sequence number).
+  function parseLoss(input, total) {
+    total = total || 8;
+    var t = String(input == null ? '' : input).trim(), list = [], seen = {};
+    if (!t) return { list: list };
+    var parts = t.split(/\s*[,;]\s*/);
+    for (var i = 0; i < parts.length; i++) {
+      var p = parts[i].trim().toLowerCase();
+      if (/^(w|n)\b/.test(p)) return { error: 'W and n stay fixed (n = 3, W = 4): only choose what to lose' };
+      var m = /^(frame|ack)\s*(\d+)$/.exec(p);
+      if (!m) return { error: '"' + parts[i].trim() + '": write frame k or ack k' };
+      var k = +m[2];
+      if (k >= total) return { error: m[1] + ' ' + k + ': frames are numbered 0–' + (total - 1) };
+      if (seen[m[1] + k]) return { error: m[1] + ' ' + k + ' is listed twice' };
+      seen[m[1] + k] = true;
+      list.push({ kind: m[1] === 'frame' ? 'data' : 'ack', abs: k });
+    }
+    return { list: list };
+  }
+  function firstCopyDrop(list) {
+    var used = {};
+    return function (m) {
+      for (var i = 0; i < list.length; i++) {
+        var r = list[i], key = r.kind + r.abs;
+        if (r.kind === m.kind && r.abs === m.abs && !used[key]) { used[key] = true; return true; }
+      }
+      return false;
+    };
+  }
+  function lossText(list) {
+    return list.map(function (r) { return (r.kind === 'data' ? 'frame ' : 'ack ') + r.abs; }).join(', ');
+  }
+
   function safeMax(proto, n) {
     var M = Math.pow(2, n);
     return proto === 'sr' ? M / 2 : M - 1;
@@ -248,5 +283,5 @@
     do { s.step(); } while (!s.done && sig() === before && guard++ < 40);
   }
 
-  CN.arq = { create: create, scriptedDrop: scriptedDrop, safeMax: safeMax, windowMath: windowMath, stepToEvent: stepToEvent };
+  CN.arq = { create: create, scriptedDrop: scriptedDrop, parseLoss: parseLoss, firstCopyDrop: firstCopyDrop, lossText: lossText, safeMax: safeMax, windowMath: windowMath, stepToEvent: stepToEvent };
 })(typeof window !== 'undefined' ? window : globalThis);

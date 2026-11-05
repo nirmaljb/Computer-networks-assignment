@@ -68,7 +68,10 @@
     function step() { if (st.round >= ROUNDS) return false; st.round++; draw(); return true; }
     function reset() { st.round = 0; draw(); }
     body.appendChild(ui.controls());
-    return { step: step, reset: reset, prev: function () { if (st.round > 0) { st.round--; draw(); return true; } return false; } };
+    // ? (SPEC-v6): settled on the round after the first loss, where the new cwnd shows
+    var lossRound = st.rows.filter(function (r) { return r.loss; })[0].round;
+    return { step: step, reset: reset, reached: function () { return st.round > lossRound; },
+      prev: function () { if (st.round > 0) { st.round--; draw(); return true; } return false; } };
   }
 
   function roadSlide(body, root) {

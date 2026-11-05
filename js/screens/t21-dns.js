@@ -6,18 +6,22 @@
   // 21c resource records (static). No real lookups; a fresh resolver each time, so no cache hits.
   var NAME = 'www.example.com';
 
+  // SPEC-v6 set piece: the walk drawn on the hierarchy itself (root → TLD → authoritative), with the phone and
+  // the resolver beside it. No map: root and TLD servers are anycast, so geography would be wrong.
+  // One message per Step; the newest one travels its arrow as a glowing dot (instant with motion off).
+  var COL = { query: 'var(--blue)', referral: 'var(--amber)', answer: 'var(--green)' };
   function walk(body, mode) {
-    var st = { cur: null, k: 0 };
-    var W = 900, H = 600;
-    var svg = s('svg', { width: 975, height: 650, viewBox: '0 0 ' + W + ' ' + H });
+    var st = { cur: null, k: 0 }, fresh = false;
+    var W = 1180, H = 600;
+    var svg = s('svg', { width: 1180, height: 600, viewBox: '0 0 ' + W + ' ' + H });
     body.appendChild(h('div', { class: 'say' }, mode === 'iterative'
       ? 'Iterative: the resolver asks each level itself; each server returns a referral or the answer.'
       : 'Recursive: each server asks the next one on the client\'s behalf and passes the answer back.'));
     body.appendChild(h('div', { class: 'panel', style: { padding: '4px' } }, svg));
-    // node positions: client, resolver, then the servers down a diagonal (root at the top)
+    var ROLE = ['root', 'TLD', 'authoritative', 'authoritative'];
     function nodes(zones) {
-      var n = { client: [90, 520, 'Phone (client)'], resolver: [300, 410, 'Local resolver'] };
-      zones.forEach(function (z, i) { n[i] = [470 + i * 125, 70 + i * 135, i === 0 ? 'Root' : (i === 1 ? z.label : z.zone), z.server]; });
+      var n = { client: [130, 470, 'phone', 'client'], resolver: [400, 300, 'resolver', 'local resolver'] };
+      zones.forEach(function (z, i) { n[i] = [800, 70 + i * 185, i === 0 ? 'root' : z.zone, z.server + ' · ' + ROLE[Math.min(i, 3)]]; });
       return n;
     }
     function draw() {
@@ -25,41 +29,54 @@
       var c = st.cur;
       if (!c) return;
       var N = nodes(c.zones), shown = c.steps.slice(0, st.k);
-      // tree edges
-      for (var i = 1; i < c.zones.length; i++) svg.appendChild(s('line', { x1: N[i - 1][0], y1: N[i - 1][1], x2: N[i][0], y2: N[i][1], stroke: 'var(--line)', 'stroke-width': 3 }));
-      // arrows so far: earlier faded, the newest bold with its text
+      var defs = s('defs');
+      ['query', 'referral', 'answer'].forEach(function (k) {
+        defs.appendChild(s('marker', { id: 'ah-' + k, viewBox: '0 0 10 10', refX: 8, refY: 5, markerWidth: 6, markerHeight: 6, orient: 'auto' },
+          s('path', { d: 'M 0 0 L 10 5 L 0 10 z', fill: COL[k] })));
+      });
+      svg.appendChild(defs);
+      // the hierarchy: the zones on this name's path, plus faded siblings that are never asked
+      var sib = [[990, 255, 'org'], [1110, 255, 'net'], [990, 440, '…']];
+      sib.forEach(function (x, i) {
+        var par = i < 2 ? N[0] : N[1];
+        svg.appendChild(s('line', { x1: par[0], y1: par[1], x2: x[0], y2: x[1], stroke: 'var(--line)', 'stroke-width': 2, 'stroke-dasharray': '5 5' }));
+        svg.appendChild(s('circle', { cx: x[0], cy: x[1], r: 34, fill: 'var(--panel)', stroke: 'var(--line)', 'stroke-width': 2 }));
+        svg.appendChild(s('text', { x: x[0], y: x[1] + 6, 'text-anchor': 'middle', 'font-size': 18, fill: 'var(--muted)' }, x[2]));
+      });
+      for (var i = 1; i < c.zones.length; i++) svg.appendChild(s('line', { x1: N[i - 1][0], y1: N[i - 1][1], x2: N[i][0], y2: N[i][1], stroke: 'var(--ink)', 'stroke-width': 3 }));
+      // messages so far: earlier ones faded and numbered, the newest bold
       shown.forEach(function (m, j) {
         var a = N[m.from], b = N[m.to], newest = j === shown.length - 1;
-        var dx = b[0] - a[0], dy = b[1] - a[1], L = Math.sqrt(dx * dx + dy * dy) || 1, nx = -dy / L * 9, ny = dx / L * 9;
-        var sx = a[0] + dx / L * 52 + nx, sy = a[1] + dy / L * 52 + ny, ex = b[0] - dx / L * 52 + nx, ey = b[1] - dy / L * 52 + ny;
-        var col = m.kind === 'query' ? 'var(--blue)' : m.kind === 'referral' ? 'var(--amber)' : 'var(--green)';
-        svg.appendChild(s('line', { x1: sx, y1: sy, x2: ex, y2: ey, stroke: col, 'stroke-width': newest ? 4 : 2, opacity: newest ? 1 : 0.4, 'marker-end': 'url(#ah-' + m.kind + ')' }));
-        var mx = (sx + ex) / 2 + nx * 1.6, my = (sy + ey) / 2 + ny * 1.6;
-        svg.appendChild(s('circle', { cx: mx, cy: my, r: 13, fill: col, opacity: newest ? 1 : 0.6 }));
+        var dx = b[0] - a[0], dy = b[1] - a[1], L = Math.sqrt(dx * dx + dy * dy) || 1, nx = -dy / L * 10, ny = dx / L * 10;
+        var sx = a[0] + dx / L * 50 + nx, sy = a[1] + dy / L * 50 + ny, ex = b[0] - dx / L * 50 + nx, ey = b[1] - dy / L * 50 + ny;
+        svg.appendChild(s('line', { x1: sx, y1: sy, x2: ex, y2: ey, stroke: COL[m.kind], 'stroke-width': newest ? 4 : 2, opacity: newest ? 1 : 0.35, 'marker-end': 'url(#ah-' + m.kind + ')' }));
+        var mx = (sx + ex) / 2 + nx * 1.7, my = (sy + ey) / 2 + ny * 1.7;
+        svg.appendChild(s('circle', { cx: mx, cy: my, r: 13, fill: COL[m.kind], opacity: newest ? 1 : 0.55 }));
         svg.appendChild(s('text', { x: mx, y: my + 6, 'text-anchor': 'middle', 'font-size': 16, 'font-weight': 800, fill: '#fff' }, String(j + 1)));
+        if (newest) {
+          var dot = s('circle', { cx: ex, cy: ey, r: 10, fill: COL[m.kind], style: 'filter: drop-shadow(0 0 7px ' + COL[m.kind] + ') drop-shadow(0 0 3px ' + COL[m.kind] + ')' });
+          if (fresh && CN.motion()) {
+            dot.appendChild(s('animate', { attributeName: 'cx', from: sx, to: ex, dur: '0.7s', fill: 'freeze' }));
+            dot.appendChild(s('animate', { attributeName: 'cy', from: sy, to: ey, dur: '0.7s', fill: 'freeze' }));
+          }
+          svg.appendChild(dot);
+        }
       });
-      var defs = s('defs');
-      [['query', 'var(--blue)'], ['referral', 'var(--amber)'], ['answer', 'var(--green)']].forEach(function (d) {
-        defs.appendChild(s('marker', { id: 'ah-' + d[0], viewBox: '0 0 10 10', refX: 8, refY: 5, markerWidth: 6, markerHeight: 6, orient: 'auto' },
-          s('path', { d: 'M 0 0 L 10 5 L 0 10 z', fill: d[1] })));
-      });
-      svg.insertBefore(defs, svg.firstChild);
-      // nodes on top
+      // nodes on top; the one that just received a message is lit
       Object.keys(N).forEach(function (k) {
-        var p = N[k], busy = shown.length && (shown[shown.length - 1].to === (isNaN(k) ? k : +k));
+        var p = N[k], busy = shown.length && String(shown[shown.length - 1].to) === k;
         svg.appendChild(s('circle', { cx: p[0], cy: p[1], r: 44, fill: busy ? 'var(--accent-bg)' : 'var(--panel)', stroke: busy ? 'var(--accent)' : 'var(--ink)', 'stroke-width': 3 }));
-        svg.appendChild(s('text', { x: p[0], y: p[1] + 6, 'text-anchor': 'middle', 'font-size': 17, 'font-weight': 800 }, k === 'client' ? 'phone' : k === 'resolver' ? 'resolver' : p[2]));
-        svg.appendChild(s('text', { x: p[0], y: p[1] + 64, 'text-anchor': 'middle', 'font-size': 15, fill: 'var(--muted)', class: 'halo' }, p[3] || p[2]));
+        svg.appendChild(s('text', { x: p[0], y: p[1] + 6, 'text-anchor': 'middle', 'font-size': p[2].length > 9 ? 15 : 18, 'font-weight': 800 }, p[2]));
+        svg.appendChild(s('text', { x: p[0], y: p[1] + 66, 'text-anchor': 'middle', 'font-size': 16, fill: 'var(--muted)', class: 'halo' }, p[3]));
       });
-      // newest message text, big
       if (shown.length) {
         var m = shown[shown.length - 1];
-        svg.appendChild(s('text', { x: 20, y: 34, 'font-size': 22, 'font-weight': 800, class: 'mono halo', fill: m.kind === 'query' ? 'var(--blue)' : m.kind === 'referral' ? 'var(--amber)' : 'var(--green)' },
-          shown.length + '. ' + m.text));
+        svg.appendChild(s('text', { x: 20, y: 34, 'font-size': 22, 'font-weight': 800, class: 'mono halo', fill: COL[m.kind] }, shown.length + '. ' + m.text));
       } else svg.appendChild(s('text', { x: 20, y: 34, 'font-size': 22, fill: 'var(--muted)' }, 'Step: the phone asks for ' + c.name));
+      fresh = false;
     }
-    function reset() { st.cur = CN.dns.resolver(30).lookup(NAME, mode, 0); st.k = 0; draw(); }
-    function step() { if (st.k >= st.cur.steps.length) return false; st.k++; draw(); return true; }
+    function reset() { st.cur = CN.dns.resolver(30).lookup(NAME, mode, 0); st.k = 0; fresh = false; draw(); }
+    function step() { if (st.k >= st.cur.steps.length) return false; st.k++; fresh = true; draw(); return true; }
     body.appendChild(ui.controls());
     reset();
     return { step: step, reset: reset, prev: function () { if (st.k > 0) { st.k--; draw(); return true; } return false; } };

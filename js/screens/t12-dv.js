@@ -64,7 +64,8 @@
     }
     body.appendChild(ui.controls());
     reset();
-    return { step: step, reset: reset };
+    // ? (SPEC-v6): settled once every router reads ∞ = 16 for A
+    return { step: step, reset: reset, reached: function () { return D.column(net, DEST, OTHERS).every(function (v) { return v >= INF; }); } };
   }
 
   CN.screens.t12 = function (root, sc) {

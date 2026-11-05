@@ -16,26 +16,33 @@
     '5 · Run Dijkstra locally on the full map: B\'s sink tree.'
   ];
 
+  // SPEC-v6: stage 5 is a Dijkstra wavefront from B on this graph. Each Step makes the next label permanent
+  // (the node locks in) and ripples its relaxed neighbours' new labels; the last Step draws the sink tree.
   function steps(body) {
-    var st = { k: 0, sel: 'B', round: 0 };
+    var st = { k: 0, sel: 'B', round: 0, dj: 0 }, fresh = false;
     var stage = h('div', { style: { fontSize: '28px', fontWeight: 700, minHeight: '40px' } });
     var svg = s('svg', { width: 1400, height: 520, viewBox: '0 0 1100 410' });
     body.appendChild(stage);
     body.appendChild(h('div', { class: 'panel', style: { padding: '4px' } }, svg));
 
     function floodRounds() { return Gr.flood(NODES, EDGES, st.sel, 99, true); }
+    function dj() { return Gr.dijkstra(NODES, EDGES, st.sel); }
     function step() {
+      fresh = true;
       if (st.k === 4 && st.round < floodRounds().length) { st.round++; draw(); return true; }
+      if (st.k === 5 && st.dj < dj().steps.length - 1) { st.dj++; draw(); return true; }
       if (st.k === STAGES.length - 1) return false;
-      st.k++; st.round = 0; draw(); return true;
+      st.k++; st.round = 0; st.dj = 0; draw(); return true;
     }
     function prev() {
+      fresh = false;
       if (st.k === 4 && st.round > 0) st.round--;
+      else if (st.k === 5 && st.dj > 0) st.dj--;
       else if (st.k > 0) { st.k--; st.round = st.k === 4 ? floodRounds().length : 0; }
       else return false;
       draw(); return true;
     }
-    function reset() { st.k = 0; st.round = 0; draw(); }
+    function reset() { st.k = 0; st.round = 0; st.dj = 0; fresh = false; draw(); }
     function lspBox() {
       var nb = EDGES.filter(function (e) { return e[0] === st.sel || e[1] === st.sel; }).map(function (e) { return [e[0] === st.sel ? e[1] : e[0], e[2]]; });
       var rows = [['Seq', '23'], ['Age', '60']].concat(nb.map(function (x) { return [x[0], String(x[1])]; }));
@@ -54,10 +61,16 @@
       var has = {};
       has[st.sel] = true;
       if (st.k === 4) rounds.slice(0, st.round).forEach(function (r) { r.fresh.forEach(function (n) { has[n] = true; }); });
-      var tree = {};
+      var tree = {}, wave = null;
       if (st.k === 5) {
-        var r = Gr.dijkstra(NODES, EDGES, st.sel);
-        NODES.forEach(function (n) { if (r.pred[n]) tree[n + r.pred[n]] = tree[r.pred[n] + n] = true; });
+        var r = dj(), last = st.dj === r.steps.length - 1;
+        wave = r.steps[st.dj];
+        // the tree so far: each permanent node's link to its predecessor (the whole sink tree at the end)
+        NODES.forEach(function (n) { var L = wave.labels[n]; if (L.perm && L.pred) tree[n + L.pred] = tree[L.pred + n] = true; });
+        stage.textContent = st.dj === 0 ? '5 · Dijkstra from B, on its own copy of the map: B\'s label is 0, the rest ∞ (dashed = tentative).'
+          : last ? '5 · Every label is permanent: B\'s sink tree (purple), computed locally from the flooded LSPs.'
+            : '5 · ' + wave.perm + ' locks in at ' + wave.labels[wave.perm].dist + (wave.labels[wave.perm].pred ? ' via ' + wave.labels[wave.perm].pred : ' (the source)') +
+              (wave.relaxed.length ? '; new labels for ' + wave.relaxed.join(', ') : '; no label improves');
       }
       EDGES.forEach(function (e) {
         var a = POS[e[0]], b = POS[e[1]];
@@ -82,12 +95,25 @@
       });
       NODES.forEach(function (n) {
         var p = POS[n], isSel = n === st.sel;
+        if (wave) {
+          // wavefront: permanent = filled and locked; tentative = outlined with its (distance, predecessor) label
+          var L = wave.labels[n], perm = L.perm, justLocked = wave.perm === n, relaxed = wave.relaxed.indexOf(n) >= 0;
+          if (fresh && justLocked) svg.appendChild(s('circle', { cx: p[0], cy: p[1], r: 30, class: 'fx-ripple' }));
+          svg.appendChild(s('circle', { cx: p[0], cy: p[1], r: 30, fill: perm ? 'var(--accent)' : 'var(--panel)', stroke: perm ? 'var(--accent)' : 'var(--ink)', 'stroke-width': 3,
+            'stroke-dasharray': perm ? null : '6 5' }));
+          svg.appendChild(s('text', { x: p[0], y: p[1] + 9, 'text-anchor': 'middle', 'font-size': 26, 'font-weight': 800, fill: perm ? '#fff' : 'var(--ink)' }, n));
+          var lab = L.dist === Infinity ? '(∞, –)' : '(' + L.dist + ', ' + (L.pred || '–') + ')';
+          svg.appendChild(s('text', { x: p[0], y: p[1] + (p[1] < 200 ? -42 : 56), 'text-anchor': 'middle', 'font-size': 22, 'font-weight': 800, class: 'halo' + (fresh && relaxed ? ' fx-pop' : ''),
+            fill: perm ? 'var(--accent)' : relaxed ? 'var(--blue)' : 'var(--muted)' }, lab));
+          return;
+        }
         var fill = st.k === 4 && has[n] ? 'var(--blue-bg)' : isSel && st.k >= 3 ? 'var(--accent)' : 'var(--panel)';
         var g = s('g', null,
           s('circle', { cx: p[0], cy: p[1], r: 30, fill: fill, stroke: 'var(--ink)', 'stroke-width': 3 }),
           s('text', { x: p[0], y: p[1] + 9, 'text-anchor': 'middle', 'font-size': 26, 'font-weight': 800, fill: isSel && st.k >= 3 && st.k !== 4 ? '#fff' : 'var(--ink)' }, n));
         svg.appendChild(g);
       });
+      fresh = false;
 
       if (st.k === 3 || st.k === 4) lspBox();
     }

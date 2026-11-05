@@ -48,6 +48,15 @@
       draw(); return true;
     }
 
+    // positions on the cable (0…tau, step 0.1) where two or more signals are on it at once
+    function overlap(segs) {
+      var hot = [];
+      for (var u = 0; u <= bus.tau + 1e-9; u += 0.1) {
+        if (segs.filter(function (sg) { return u >= sg.lo - 1e-9 && u <= sg.hi + 1e-9; }).length >= 2) hot.push(u);
+      }
+      return hot;
+    }
+    var drawn = { t: 0, hot: false };   // what the last frame showed, so the burst fires once per collision
     function draw() {
       var b = bus, t = b.t;
       CN.clear(svg);
@@ -66,16 +75,15 @@
       // --- the channel: one cable, coloured where a station's signal is on it now ---
       svg.appendChild(s('rect', { x: X0 - 50, y: CY, width: X1 - X0 + 100, height: CH, rx: CH / 2, fill: 'var(--panel2)', stroke: 'var(--ink)', 'stroke-width': 2.5 }));
       svg.appendChild(s('text', { x: X0 - 56, y: CY + CH / 2 + 5, 'text-anchor': 'end', 'font-size': 14, 'font-weight': 800, fill: 'var(--ink)' }, 'channel'));
-      var segs = b.segments(t), hot = [];
+      var segs = b.segments(t), hot = overlap(segs);
       segs.forEach(function (sg) {
         svg.appendChild(s('rect', { x: xOf(sg.lo), y: CY + 3, width: Math.max(3, xOf(sg.hi) - xOf(sg.lo)), height: CH - 6, rx: 6, fill: COLORS[sg.tx.st], opacity: 0.55 }));
       });
-      for (var u = 0; u <= b.tau + 1e-9; u += 0.1) {
-        if (segs.filter(function (sg) { return u >= sg.lo - 1e-9 && u <= sg.hi + 1e-9; }).length >= 2) hot.push(u);
-      }
       if (hot.length) {
         var hx0 = xOf(hot[0]), hx1 = xOf(hot[hot.length - 1]);
         svg.appendChild(s('rect', { x: hx0 - 3, y: CY - 3, width: hx1 - hx0 + 6, height: CH + 6, rx: 8, fill: 'none', stroke: 'var(--red)', 'stroke-width': 3.5 }));
+        // SPEC-v6 motion: a burst where the signals first meet (drawing only; nothing in the sim changes)
+        if (!drawn.hot && t > drawn.t) svg.appendChild(s('circle', { cx: (hx0 + hx1) / 2, cy: CY + CH / 2, r: 46, class: 'fx-burst' }));
         svg.appendChild(s('text', { x: (hx0 + hx1) / 2, y: CY + CH + 22, 'text-anchor': 'middle', 'font-size': 17, 'font-weight': 800, fill: 'var(--red)' }, '✕ collision: two signals overlap'));
       } else {
         svg.appendChild(s('text', { x: W / 2, y: CY + CH + 22, 'text-anchor': 'middle', 'font-size': 16, 'font-weight': 700, fill: 'var(--muted)' },
@@ -112,6 +120,7 @@
       var last = b.log[b.log.length - 1];
       event.textContent = last ? 't=' + last.t + ' · ' + last.text : 't=0 · nobody has a frame yet';
       event.style.color = !last ? 'var(--muted)' : last.cls === 'err' ? 'var(--red)' : last.cls === 'ok' ? 'var(--green)' : last.cls === 'warn' ? 'var(--amber)' : 'var(--ink)';
+      drawn = { t: t, hot: hot.length > 0 };
     }
     body.appendChild(ui.controls());
     reset();

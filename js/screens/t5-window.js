@@ -14,8 +14,9 @@
       say: 'SR with n = 3 and W = 7, every early ACK lost. Safe maximum is 2ⁿ⁻¹ = 4.' }
   };
 
+  // SPEC-v6: E on 5a/5b chooses what to lose ('frame 1, ack 3'); each named message is lost once, its first copy.
   function arqSlide(body, run) {
-    var sim, M = Math.pow(2, N);
+    var sim, M = Math.pow(2, N), loss = null;
     body.appendChild(h('div', { class: 'say' }, run.say));
     var sStrip = CN.ui.windowStrip({ total: TOTAL, title: 'Sender', box: 46 });
     var rStrip = CN.ui.windowStrip({ total: TOTAL, title: 'Receiver', box: 46 });
@@ -42,7 +43,8 @@
       else if (sim.done) banner.appendChild(h('div', { class: 'banner ok' }, 'All ' + TOTAL + ' frames delivered in order with ' + sim.stats.retx + ' retransmission' + (sim.stats.retx === 1 ? '' : 's') + '.'));
     }
     function reset() {
-      sim = A.create({ proto: run.proto, n: N, W: run.W, total: TOTAL, delay: 3, timeout: 8, drop: A.scriptedDrop(run.script, run.blackout) });
+      var drop = loss ? A.firstCopyDrop(loss) : A.scriptedDrop(run.script, run.blackout);
+      sim = A.create({ proto: run.proto, n: N, W: run.W, total: TOTAL, delay: 3, timeout: 8, drop: drop });
       draw();
     }
     function step() {
@@ -52,7 +54,10 @@
     }
     body.appendChild(ui.controls());
     reset();
-    return { step: step, reset: reset, runMs: 600 };
+    var ctl = { step: step, reset: reset, runMs: 600, reached: function () { return sim.done; } };
+    if (!run.blackout) ctl.input = ui.numbers({ label: 'What to lose, e.g. frame 1, ack 3 (n = 3 and W = 4 stay fixed)', example: 'frame 1',
+      parse: function (t) { return A.parseLoss(t, TOTAL); }, use: function (v) { loss = v ? v.list : null; reset(); } });
+    return ctl;
   }
 
   CN.screens.t5 = function (root, sc) {

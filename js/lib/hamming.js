@@ -21,7 +21,9 @@
 
   function validate(data) {
     var d = String(data == null ? '' : data).replace(/\s+/g, '');
-    if (!/^[01]{1,16}$/.test(d)) return { error: 'Enter 1–16 bits (0 or 1)' };
+    if (!d) return { error: 'Enter 1–16 data bits (0 or 1)' };
+    if (!/^[01]+$/.test(d)) return { error: 'Data bits must be 0 or 1' };
+    if (d.length > 16) return { error: d.length + ' bits: use 1–16' };
     return { bits: d };
   }
 

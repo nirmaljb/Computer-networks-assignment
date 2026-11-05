@@ -89,6 +89,72 @@
     return { key: k, rows: rows, rank: ko.rank, order: ko.order, plain: rows.map(function (r3) { return r3.join(''); }).join('') };
   }
 
-  CN.cipher = { caesar: caesar, mono: mono, DEFAULT_KEY: DEFAULT_KEY, validKey: validKey, shuffleKey: shuffleKey,
+  /* SPEC-v6 S24c: breaking the monoalphabetic cipher by hand.
+     Pass 1 maps the k-th most common ciphertext letter to the k-th most common English letter.
+     Pass 2 fixes one letter per step, each from a digram or trigram counted in the ciphertext:
+     the pattern's other letters are already right, or it is the most common trigram read as "the".
+     `key` is the presenter's answer sheet: it marks guesses right or wrong and picks which wrong
+     letter to fix next; it never supplies a reason. Patterns are counted inside words. */
+  var CRACK_TEXT = 'a router holds no state on a connection. the internet has no central router. the host at the other end acts on the data. ' +
+    'it is not certain that the data is there. a cache holds the latest result. a hidden station collides. loss is a hint that the net is too loaded. ' +
+    'hosts and routers share one standard header. a router can handle each one alone.';
+  var PATTERNS = ['the', 'ing', 'and', 'ion', 'th', 'in', 'er', 're', 'an'];
+  function englishOrder() {
+    return A.split('').sort(function (a, b) { return ENGLISH[b] - ENGLISH[a] || (a < b ? -1 : 1); });
+  }
+  function grams(text, k) {
+    var g = {};
+    String(text).split(/[^A-Za-z]+/).forEach(function (w) {
+      for (var i = 0; i + k <= w.length; i++) { var x = w.slice(i, i + k); g[x] = (g[x] || 0) + 1; }
+    });
+    return g;
+  }
+  function crack(cipherText, key) {
+    var f = freq(cipherText), eng = englishOrder();
+    var ranked = A.split('').filter(function (l) { return f.counts[l]; })
+      .sort(function (a, b) { return f.counts[b] - f.counts[a] || (a < b ? -1 : 1); });
+    var truth = {}, enc = {};
+    ranked.forEach(function (c) { truth[c] = A[key.indexOf(c)].toLowerCase(); enc[truth[c]] = c; });
+    var guess = {};
+    ranked.forEach(function (c, i) { guess[c] = eng[i].toLowerCase(); });
+    function snap() { var o = {}; ranked.forEach(function (c) { o[c] = guess[c]; }); return o; }
+    function right() { return ranked.filter(function (c) { return guess[c] === truth[c]; }).length; }
+    var tri = grams(cipherText, 3), di = grams(cipherText, 2);
+    var top = Object.keys(tri).sort(function (a, b) { return tri[b] - tri[a] || (a < b ? -1 : 1); });
+    var steps = [{ fix: null, guess: snap(), right: right() }];
+    for (var guard = 0; guard < 26 && right() < ranked.length; guard++) {
+      var done = false;
+      for (var pi = 0; pi < PATTERNS.length && !done; pi++) {
+        var pat = PATTERNS[pi], cpat = pat.split('').map(function (p) { return enc[p] || '?'; }).join('');
+        var count = (pat.length === 3 ? tri : di)[cpat] || 0;
+        if (!count) continue;
+        var isTop = pat === 'the' && top[0] === cpat && tri[top[1]] < count;
+        for (var j = 0; j < pat.length && !done; j++) {
+          var c = cpat[j], p = pat[j];
+          if (guess[c] === p) continue;
+          var others = cpat.split('').filter(function (x) { return x !== c; });
+          var known = others.every(function (x) { return guess[x] === truth[x]; });
+          if (!known && !isTop) continue;
+          var bumped = null;
+          ranked.forEach(function (q) { if (guess[q] === p) { guess[q] = '?'; bumped = q; } });
+          var was = guess[c];
+          guess[c] = p;
+          var why = isTop ? cpat + ' is the most common trigram here (' + count + '×): read it as "the"'
+            : cpat + ' occurs ' + count + '× and ' + others.map(function (x) { return x + ' = ' + truth[x]; }).join(' and ') + (others.length > 1 ? ' are' : ' is') + ' known: "' + pat + '"';
+          steps.push({ fix: { cipher: c, from: was, to: p, pattern: pat, cpattern: cpat, count: count, top: isTop, bumped: bumped, reason: why + ', so ' + c + ' = ' + p },
+            guess: snap(), right: right() });
+          done = true;
+        }
+      }
+      if (!done) break;
+    }
+    return { cipher: cipherText, ranked: ranked, counts: f.counts, english: eng.slice(0, ranked.length), truth: truth, steps: steps,
+      solved: right() === ranked.length };
+  }
+  function decode(text, guess) {
+    return String(text).replace(/[A-Z]/g, function (c) { return guess[c] || '?'; });
+  }
+
+  CN.cipher = { CRACK_TEXT: CRACK_TEXT, PATTERNS: PATTERNS, crack: crack, decode: decode, englishOrder: englishOrder, grams: grams, caesar: caesar, mono: mono, DEFAULT_KEY: DEFAULT_KEY, validKey: validKey, shuffleKey: shuffleKey,
     ENGLISH: ENGLISH, freq: freq, keyOrder: keyOrder, transpose: transpose, untranspose: untranspose };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -125,7 +125,30 @@
     return { frame: xor(frame, e), error: e };
   }
 
+  // SPEC-v6 "your numbers": 'message / generator', message 1–16 bits, generator degree 1–8 with its
+  // top and bottom bits 1 (so the division and the burst guarantee on the slide still hold).
+  function parseCustom(input) {
+    var parts = String(input == null ? '' : input).split('/');
+    if (parts.length !== 2) return { error: 'Type message / generator, e.g. 1101011111 / 10011' };
+    var msg = parts[0].replace(/\s+/g, '');
+    if (!msg) return { error: 'The message is empty' };
+    if (!/^[01]+$/.test(msg)) return { error: 'Message bits must be 0 or 1' };
+    if (msg.length > 16) return { error: 'Message has ' + msg.length + ' bits: at most 16' };
+    var gs = parts[1].trim();
+    if (!gs) return { error: 'The generator is empty' };
+    var bits;
+    if (/x/i.test(gs)) { var p = parsePoly(gs); if (p.error) return p; bits = p.bits; }
+    else {
+      bits = gs.replace(/\s+/g, '');
+      if (!/^[01]+$/.test(bits)) return { error: 'Generator bits must be 0 or 1' };
+    }
+    if (bits[0] !== '1' || bits[bits.length - 1] !== '1') return { error: 'Generator ' + bits + ': its top and bottom bits must be 1' };
+    if (bits.length < 2 || bits.length > 9) return { error: 'Generator ' + bits + ' has degree ' + (bits.length - 1) + ': use degree 1–8' };
+    return { data: msg, gen: bits };
+  }
+
   CN.crc = {
+    parseCustom: parseCustom,
     xor: xor, zeros: zeros, parseGenerator: parseGenerator, parseData: parseData,
     polyString: polyString, divide: divide, encode: encode, check: check,
     undetectable: undetectable, burst: burst
