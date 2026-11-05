@@ -16,11 +16,11 @@
 
   // SPEC-v6: E on 5a/5b chooses what to lose ('frame 1, ack 3'); each named message is lost once, its first copy.
   function arqSlide(body, run) {
-    var sim, M = Math.pow(2, N), loss = null;
+    var sim, M = Math.pow(2, N), loss = null, steps = 0, killed = false;
     body.appendChild(h('div', { class: 'say' }, run.say));
     var sStrip = CN.ui.windowStrip({ total: TOTAL, title: 'Sender', box: 46 });
     var rStrip = CN.ui.windowStrip({ total: TOTAL, title: 'Receiver', box: 46 });
-    var tl = CN.ui.timeLine({ width: 1470, height: 260, visible: 25, onKill: function (id) { sim.kill(id); draw(); } });
+    var tl = CN.ui.timeLine({ width: 1470, height: 260, visible: 25, onKill: function (id) { if (sim.kill(id)) killed = true; draw(); } });
     var banner = h('div', { style: { minHeight: '50px' } });
     body.appendChild(h('div', { class: 'row nowrap', style: { gap: '40px' } }, sStrip, rStrip));
     body.appendChild(h('div', { class: 'panel', style: { padding: '6px' } }, tl.el));
@@ -45,16 +45,18 @@
     function reset() {
       var drop = loss ? A.firstCopyDrop(loss) : A.scriptedDrop(run.script, run.blackout);
       sim = A.create({ proto: run.proto, n: N, W: run.W, total: TOTAL, delay: 3, timeout: 8, drop: drop });
+      steps = 0; killed = false;
       draw();
     }
     function step() {
       if (sim.done || (run.stopAt && sim.tick >= run.stopAt)) return false;
-      CN.arq.stepToEvent(sim);
+      CN.arq.stepToEvent(sim); steps++;
       draw(); return true;
     }
     body.appendChild(ui.controls());
     reset();
-    var ctl = { step: step, reset: reset, runMs: 600, reached: function () { return sim.done; } };
+    // learnStep: Steps since Reset (one learn row each); a message killed by hand leaves the script (null)
+    var ctl = { step: step, reset: reset, runMs: 600, reached: function () { return sim.done; }, learnStep: function () { return killed ? null : steps; } };
     if (!run.blackout) ctl.input = ui.numbers({ label: 'What to lose, e.g. frame 1, ack 3 (n = 3 and W = 4 stay fixed)', example: 'frame 1',
       parse: function (t) { return A.parseLoss(t, TOTAL); }, use: function (v) { loss = v ? v.list : null; reset(); } });
     return ctl;

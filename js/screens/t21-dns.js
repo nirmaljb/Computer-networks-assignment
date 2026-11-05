@@ -79,7 +79,7 @@
     function step() { if (st.k >= st.cur.steps.length) return false; st.k++; fresh = true; draw(); return true; }
     body.appendChild(ui.controls());
     reset();
-    return { step: step, reset: reset, prev: function () { if (st.k > 0) { st.k--; draw(); return true; } return false; } };
+    return { step: step, reset: reset, prev: function () { if (st.k > 0) { st.k--; draw(); return true; } return false; }, learnStep: function () { return st.k; } };
   }
 
   function records(body) {

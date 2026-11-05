@@ -47,7 +47,9 @@
     function step() { if (k < enc.checks.length) { k++; draw(); return true; } return false; }
     function reset() { k = 0; draw(); }
     body.appendChild(ui.controls());
-    return { step: step, reset: reset, prev: function () { if (k > 0) { k--; draw(); return true; } return false; }, input: numbers(load) };
+    // SPEC-v7 learnStep: the check bits computed so far (the learn pane lights that row)
+    return { step: step, reset: reset, prev: function () { if (k > 0) { k--; draw(); return true; } return false; }, input: numbers(load),
+      learnStep: function () { return k; } };
   }
 
   // 2b: click a bit to flip it (or Step flips bit 5); the receiver's checks give the syndrome; Step corrects.
@@ -100,7 +102,12 @@
     }
     function reset() { flips = []; corrected = false; draw(); }
     body.appendChild(ui.controls());
-    return { step: step, reset: reset, input: numbers(load), sub: function () { return flips.length ? 'flipped ' + flips.join(', ') : ''; } };
+    // learnStep: 0 clean, 1 the scripted flip, 2 corrected; a hand-picked flip matches no learn row (null)
+    function learnStep() {
+      if (!flips.length) return 0;
+      return flips.length === 1 && flips[0] === Math.min(SCRIPTED_FLIP, n) ? (corrected ? 2 : 1) : null;
+    }
+    return { step: step, reset: reset, input: numbers(load), learnStep: learnStep, sub: function () { return flips.length ? 'flipped ' + flips.join(', ') : ''; } };
   }
 
   var PARTS = { encode: encode, correct: correct };

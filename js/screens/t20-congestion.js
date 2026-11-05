@@ -70,7 +70,7 @@
     body.appendChild(ui.controls());
     // ? (SPEC-v6): settled on the round after the first loss, where the new cwnd shows
     var lossRound = st.rows.filter(function (r) { return r.loss; })[0].round;
-    return { step: step, reset: reset, reached: function () { return st.round > lossRound; },
+    return { step: step, reset: reset, reached: function () { return st.round > lossRound; }, learnStep: function () { return st.round; },
       prev: function () { if (st.round > 0) { st.round--; draw(); return true; } return false; } };
   }
 
@@ -102,7 +102,7 @@
       if (!r) { stage.insertBefore(h('div', { class: 'banner warn' }, 'The 3D road needs WebGL (' + err + ').'), stage.firstChild); return; }
       road = r;
     });
-    return { step: step, reset: reset, runMs: CN.road.PERIOD * 1000,
+    return { step: step, reset: reset, runMs: CN.road.PERIOD * 1000, learnStep: function () { return round; },
       prev: function () { if (!round) return false; round--; if (road) road.clear(); draw(); return true; },
       destroy: function () { if (road) road.destroy(); } };
   }

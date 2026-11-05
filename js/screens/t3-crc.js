@@ -77,7 +77,8 @@
     function step() { if (shown < total) { shown++; draw(); return true; } return false; }
     function reset() { shown = 0; draw(); }
     body.appendChild(ui.controls());
-    return { step: step, reset: reset, prev: function () { if (shown > 0) { shown--; draw(); return true; } return false; }, input: numbers(load) };
+    return { step: step, reset: reset, prev: function () { if (shown > 0) { shown--; draw(); return true; } return false; }, input: numbers(load),
+      learnStep: function () { return shown; } };
   }
 
   // Click bits to flip them, or Step sends a 3-bit burst. The receiver divides by G again.
@@ -120,7 +121,9 @@
     function step() { if (flips.length) return false; flips = burst.slice(); draw(); return true; }
     function reset() { flips = []; draw(); }
     body.appendChild(ui.controls());
-    return { step: step, reset: reset, input: numbers(load) };
+    // learnStep: 0 clean, 1 Step's burst; hand-flipped bits match no learn row (null)
+    function learnStep() { return !flips.length ? 0 : flips.join() === burst.join() ? 1 : null; }
+    return { step: step, reset: reset, input: numbers(load), learnStep: learnStep };
   }
 
   var PARTS = { divide: divide, check: check };

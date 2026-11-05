@@ -1,5 +1,5 @@
 /* Deck shell: DOM helpers, stage scaling, navigation, keys, theme,
-   journey map, presenter sync. Screens register in CN.screens[id] as
+   journey map, presenter sync, the learn pane (L) and its search (/). Screens register in CN.screens[id] as
    function (root) → controller { step, reset, next, prev, key, destroy }. */
 (function () {
   'use strict';
@@ -186,9 +186,12 @@
     toastTimer = setTimeout(function () { toastEl.classList.remove('shown'); }, 2200);
   };
 
+  // With L on, the slide fits the window left of the learn pane.
   function fit() {
-    var sc = Math.min(window.innerWidth / 1600, window.innerHeight / 900);
-    stage.style.transform = 'translate(' + (window.innerWidth - 1600 * sc) / 2 + 'px,' + (window.innerHeight - 900 * sc) / 2 + 'px) scale(' + sc + ')';
+    var pw = learn.on ? lnPaneWidth() : 0, W = window.innerWidth - pw;
+    if (lnPane) lnPane.style.width = pw + 'px';
+    var sc = Math.min(W / 1600, window.innerHeight / 900);
+    stage.style.transform = 'translate(' + (W - 1600 * sc) / 2 + 'px,' + (window.innerHeight - 900 * sc) / 2 + 'px) scale(' + sc + ')';
   }
 
   // Problem strip (top) and But… banner (bottom, hidden until → reveals it).
@@ -358,6 +361,275 @@
     if (!quiet) CN.toast(on ? 'Motion on' : 'Motion off');
   }
 
+  /* ---------------- SPEC-v7: L learn pane, / search ---------------- */
+  // L splits the window: the slide (scaled, still live) on the left, the learn page of the current stop on the
+  // right (CN.learn, built from LEARN.md by tools/learn-build.mjs). The pane follows → ←, opens at the sub-slide's
+  // section, lights the row for a ★ sim's learnStep(), and on an E slide swaps in tables built from the typed
+  // numbers (CN.learnGen). It only reads the screen's controller: the sims run the same with L on or off.
+  var learn = { on: false, page: -1, primer: null, hit: null, hlKey: null, genKey: null, size: 18 };
+  var lnPane, lnHead, lnNote, lnScroll, lnFind, lnFindField, lnFindList, lnFound = [], lnSel = 0;
+  var LN_MIN = 13, LN_MAX = 30;
+
+  function lnStore(k, v) {
+    try { if (arguments.length > 1) localStorage.setItem('cn.' + k, JSON.stringify(v)); else return JSON.parse(localStorage.getItem('cn.' + k)); }
+    catch (e) { return null; }
+  }
+  // [tag, attrs | 0, ...children] → DOM (the build never emits HTML strings)
+  function lnNode(n) {
+    if (typeof n === 'string') return document.createTextNode(n);
+    var el = h(n[0], n[1] || null);
+    for (var i = 2; i < n.length; i++) el.appendChild(lnNode(n[i]));
+    return el;
+  }
+  function lnSubOf(sc) { return sc.stop || sc.id; }
+  function lnPaneWidth() { return Math.round(Math.min(Math.max(380, window.innerWidth * 0.4), window.innerWidth - 320)); }
+
+  function buildLearn() {
+    lnHead = h('div', { class: 'ln-head' });
+    lnNote = h('div', { class: 'ln-note' });
+    lnScroll = h('div', { class: 'ln-scroll' });
+    lnFindField = h('input', { class: 'ln-find-field', type: 'text', spellcheck: 'false', autocomplete: 'off', placeholder: 'Search every stop, primer and Q&A' });
+    lnFindList = h('div', { class: 'ln-find-list' });
+    lnFind = h('div', { class: 'ln-find' }, lnFindField, lnFindList,
+      h('div', { class: 'ln-find-hint' }, '↑ ↓ choose · Enter shows it here (the slide stays) · Esc closes'));
+    lnFindField.addEventListener('keydown', function (e) {
+      e.stopPropagation();
+      if (e.key === 'Escape') { e.preventDefault(); closeFind(); }
+      else if (e.key === 'Enter') { e.preventDefault(); if (lnFound[lnSel]) showHit(lnFound[lnSel]); }
+      else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); lnSel = Math.max(0, Math.min(lnFound.length - 1, lnSel + (e.key === 'ArrowDown' ? 1 : -1))); drawFind(); }
+    });
+    lnFindField.addEventListener('input', function () { lnSel = 0; drawFind(); });
+    lnPane = h('aside', { id: 'learn', 'aria-label': 'Learn' }, lnHead, lnFind, lnNote, lnScroll);
+    lnPane.addEventListener('click', function (e) {
+      var t = e.target && e.target.closest ? e.target.closest('[data-act]') : null;
+      if (!t) return;
+      var act = t.getAttribute('data-act');
+      if (act === 'back') { learn.hit = null; learn.primer = null; showSlide(true); }
+      else if (act === 'goto') gotoHit();
+      else if (act === 'chip') toggleChip(t);
+    });
+    var sz = lnStore('learnSize');
+    learn.size = typeof sz === 'number' && sz >= LN_MIN && sz <= LN_MAX ? sz : 18;
+    lnPane.style.setProperty('--ln-size', learn.size + 'px');
+    return lnPane;
+  }
+
+  function toggleLearn() {
+    if (quizBusy()) return;
+    if (!CN.learn) { CN.toast('The learn pages are not built (node tools/learn-build.mjs)'); return; }
+    learn.on = !learn.on;
+    if (learn.on && CN.quiz && CN.quiz.closeSide) CN.quiz.closeSide();
+    document.body.classList.toggle('learn-on', learn.on);
+    if (!learn.on) closeFind();
+    learn.hit = null; learn.primer = null; learn.page = -1;
+    fit();
+    if (learn.on) showSlide(false);
+  }
+  CN.learnOn = function () { return learn.on; };
+
+  // The pane follows the deck: the current stop's page, scrolled to this sub-slide's section.
+  function showSlide(smooth) {
+    if (!learn.on) return;
+    var at = CN.learn.subs[lnSubOf(screens[idx])];
+    learn.hit = null; learn.primer = null;
+    if (!at) { renderEmpty(); return; }
+    var same = learn.page === at.page;
+    if (!same) renderPage(at.page);
+    drawHead();
+    learn.hlKey = null; learn.genKey = null;
+    learnRefresh();
+    scrollToAnchor(at.anchor, smooth && same);
+  }
+  function scrollToAnchor(id, smooth) {
+    var el = id && lnScroll.querySelector('#' + id);
+    if (!el) return;
+    // measured, not offsetTop: a table row's offsetParent is its table
+    var top = lnScroll.scrollTop + el.getBoundingClientRect().top - lnScroll.getBoundingClientRect().top - 8;
+    if (smooth && lnScroll.scrollTo) lnScroll.scrollTo({ top: top, behavior: 'smooth' });
+    else lnScroll.scrollTop = top;
+  }
+  function renderEmpty() {
+    learn.page = -1;
+    clear(lnScroll).appendChild(h('p', { class: 'ln-empty' }, 'No learn page for this slide.'));
+    drawHead();
+  }
+  function renderPage(p) {
+    var pg = CN.learn.pages[p];
+    learn.page = p;
+    clear(lnScroll);
+    lnScroll.appendChild(h('h2', { class: 'ln-title' }, pg.topic ? 'Stop ' + pg.topic + ' · ' + pg.title : pg.title));
+    if (pg.needs.length) {
+      lnScroll.appendChild(h('div', { class: 'ln-needs' }, h('span', { class: 'ln-needs-label' }, 'You\'ll need:'),
+        pg.needs.map(function (id) {
+          var pr = CN.learn.primers[id];
+          return h('button', { class: 'ln-chip', 'data-act': 'chip', 'data-primer': id }, pr ? pr.title : id);
+        })));
+      lnScroll.appendChild(h('div', { class: 'ln-primers' }));
+    }
+    pg.body.forEach(function (n) { lnScroll.appendChild(lnNode(n)); });
+    lnScroll.scrollTop = 0;
+  }
+  // A chip opens its primer in place, under the chips; a second click closes it.
+  function toggleChip(chip) {
+    var id = chip.getAttribute('data-primer'), box = lnScroll.querySelector('.ln-primers'), open = box.querySelector('[data-primer="' + id + '"]');
+    if (open) { open.remove(); chip.classList.remove('on'); return; }
+    var pr = CN.learn.primers[id];
+    if (!pr) return;
+    var card = h('div', { class: 'ln-primer', 'data-primer': id }, h('div', { class: 'ln-primer-title' }, pr.title));
+    pr.body.forEach(function (n) { card.appendChild(lnNode(n)); });
+    box.appendChild(card);
+    chip.classList.add('on');
+  }
+  function drawHead() {
+    clear(lnHead);
+    var sc = screens[idx], here = sc.stop ? 'S' + sc.stop : sc.title;
+    if (learn.hit) {
+      var e = learn.hit, label = e.kind === 'primer' ? 'Basics' : lnPageLabel(e.page);
+      lnHead.appendChild(h('div', { class: 'ln-kicker' }, 'FOUND · ' + label));
+      lnHead.appendChild(h('div', { class: 'ln-actions' },
+        e.kind === 'primer' ? null : h('button', { class: 'ln-act', 'data-act': 'goto' }, 'Go to slide'),
+        h('button', { class: 'ln-act', 'data-act': 'back' }, 'Back to ' + here)));
+    } else lnHead.appendChild(h('div', { class: 'ln-kicker' }, 'LEARN · ' + here));
+    lnHead.appendChild(h('div', { class: 'ln-keys' }, '↑ ↓ scroll · = − size · / search · L close'));
+  }
+  function lnPageLabel(p) { var pg = CN.learn.pages[p]; return pg ? (pg.topic ? 'S' + pg.topic : pg.title) : ''; }
+
+  // After every move (post): light the rows for the sim's learnStep(), swap E tables, show the E note.
+  function learnRefresh() {
+    if (!learn.on || learn.hit || learn.page < 0) return;
+    var sub = lnSubOf(screens[idx]);
+    var step = ctrl && ctrl.learnStep ? ctrl.learnStep() : null;
+    var custom = ctrl && ctrl.input && ctrl.input.custom() ? ctrl.input.value() : null;
+    var gk = sub + '|' + (custom == null ? '' : custom);
+    if (gk !== learn.genKey) { learn.genKey = gk; swapGen(sub, custom); learn.hlKey = null; }
+    clear(lnNote);
+    lnNote.classList.toggle('shown', custom != null);
+    if (custom != null) lnNote.appendChild(document.createTextNode('Your numbers (E): ' + custom + '. Tables marked ✎ use them; the text still describes the slide\'s own example.'));
+    var key = step == null ? null : sub + ':' + step;
+    if (key === learn.hlKey) return;
+    learn.hlKey = key;
+    var first = null;
+    Array.prototype.forEach.call(lnScroll.querySelectorAll('[data-hl]'), function (el) {
+      var on = key != null && (' ' + el.getAttribute('data-hl') + ' ').indexOf(' ' + key + ' ') >= 0;
+      el.classList.toggle('ln-hl', on);
+      if (on && !first) first = el;
+    });
+    if (first) reveal(lnScroll, first, motion);
+  }
+  // Scroll box (vertically only) so el is in view; scrollIntoView would also move the page and scroll sideways.
+  function reveal(box, el, smooth) {
+    var b = box.getBoundingClientRect(), r = el.getBoundingClientRect();
+    if (r.top >= b.top && r.bottom <= b.bottom) return;
+    var top = box.scrollTop + r.top - b.top - (box === lnScroll ? b.height / 3 : 8);
+    if (smooth && box.scrollTo) box.scrollTo({ top: top, behavior: 'smooth' });
+    else box.scrollTop = top;
+  }
+  function swapGen(sub, custom) {
+    Array.prototype.forEach.call(lnScroll.querySelectorAll('.ln-gen'), function (box) {
+      if (!box.orig) box.orig = Array.prototype.slice.call(box.childNodes);
+      clear(box);
+      box.classList.remove('custom');
+      if (custom == null || box.getAttribute('data-sub') !== sub) { append(box, box.orig); return; }
+      var t = CN.learnGen(box.getAttribute('data-gen'), custom);
+      box.classList.add('custom');
+      if (t.error) { box.appendChild(h('div', { class: 'ln-gen-tag' }, '✎ your numbers: ' + t.error)); return; }
+      box.appendChild(h('div', { class: 'ln-gen-tag' }, '✎ your numbers: ' + custom));
+      box.appendChild(h('div', { class: 'ln-tw' }, h('table', { class: 'ln-table' },
+        h('thead', null, h('tr', null, t.head.map(function (c) { return h('th', null, c); }))),
+        h('tbody', null, t.rows.map(function (r) {
+          return h('tr', r.step == null ? null : { 'data-hl': sub + ':' + r.step }, r.cells.map(function (c) { return h('td', null, c); }));
+        })))));
+    });
+  }
+
+  function scrollLearn(dir) {
+    var dy = dir * Math.round(lnScroll.clientHeight * 0.3 || 200);
+    if (lnScroll.scrollBy) lnScroll.scrollBy({ top: dy, behavior: motion ? 'smooth' : 'auto' });
+    else lnScroll.scrollTop += dy;
+  }
+  function sizeLearn(d) {
+    learn.size = Math.max(LN_MIN, Math.min(LN_MAX, learn.size + d));
+    lnPane.style.setProperty('--ln-size', learn.size + 'px');
+    lnStore('learnSize', learn.size);
+    CN.toast('Learn text ' + learn.size + ' px');
+  }
+
+  // / search: every section, primer and Q&A row of every page. Every word must appear; title hits rank first.
+  CN.learnFind = function (q) {
+    var words = String(q || '').toLowerCase().split(/\s+/).filter(Boolean);
+    if (!words.length || !CN.learn) return [];
+    var out = [];
+    CN.learn.index.forEach(function (e, i) {
+      var title = e.title.toLowerCase(), hay = title + ' ' + e.text.toLowerCase(), score = 0;
+      for (var k = 0; k < words.length; k++) {
+        if (hay.indexOf(words[k]) < 0) return;
+        score += title.indexOf(words[k]) >= 0 ? 10 : 1;
+      }
+      out.push({ e: e, score: score + (e.kind === 'qa' ? 2 : 0), i: i });
+    });
+    out.sort(function (a, b) { return b.score - a.score || a.i - b.i; });
+    return out.slice(0, 30).map(function (x) { return x.e; });
+  };
+  function openFind() {
+    if (quizBusy()) return;
+    if (!learn.on) toggleLearn();
+    if (!learn.on) return;
+    lnFind.classList.add('open');
+    lnFindField.focus(); lnFindField.select();
+    drawFind();
+  }
+  function closeFind() { lnFind.classList.remove('open'); lnFindField.blur(); }
+  function findOpen() { return lnFind && lnFind.classList.contains('open'); }
+  function drawFind() {
+    lnFound = CN.learnFind(lnFindField.value);
+    clear(lnFindList);
+    if (lnFindField.value.trim() && !lnFound.length) lnFindList.appendChild(h('div', { class: 'ln-find-none' }, 'Nothing matches every word.'));
+    lnFound.forEach(function (e, i) {
+      var words = lnFindField.value.toLowerCase().split(/\s+/).filter(Boolean), at = -1;
+      words.some(function (w) { at = e.text.toLowerCase().indexOf(w); return at >= 0; });
+      var snip = at < 0 ? e.text.slice(0, 110) : (at > 40 ? '…' : '') + e.text.slice(Math.max(0, at - 40), at + 80);
+      var item = h('div', { class: 'ln-find-item' + (i === lnSel ? ' sel' : '') },
+        h('span', { class: 'ln-find-kind' }, e.kind === 'qa' ? 'Q&A' : e.kind === 'primer' ? 'Basics' : 'Section'),
+        h('span', { class: 'ln-find-where' }, e.kind === 'primer' ? '' : lnPageLabel(e.page)),
+        h('div', { class: 'ln-find-title' }, e.title), h('div', { class: 'ln-find-snip' }, snip));
+      item.addEventListener('click', function () { showHit(e); });
+      lnFindList.appendChild(item);
+    });
+    var sel = lnFindList.querySelector('.sel');
+    if (sel) reveal(lnFindList, sel, false);
+  }
+  // Enter: show the hit in the pane. The deck stays where it is; "Go to slide" moves it too.
+  function showHit(e) {
+    closeFind();
+    learn.hit = e; learn.hlKey = null; learn.genKey = null;
+    clear(lnNote); lnNote.classList.remove('shown');
+    if (e.kind === 'primer') {
+      var pr = CN.learn.primers[e.primer];
+      learn.page = -1; learn.primer = e.primer;
+      clear(lnScroll).appendChild(h('h2', { class: 'ln-title' }, pr.title));
+      pr.body.forEach(function (n) { lnScroll.appendChild(lnNode(n)); });
+      lnScroll.scrollTop = 0;
+    } else {
+      if (learn.page !== e.page) renderPage(e.page);
+      Array.prototype.forEach.call(lnScroll.querySelectorAll('.ln-hl'), function (el) { el.classList.remove('ln-hl'); });
+      scrollToAnchor(e.anchor, false);
+      var el = lnScroll.querySelector('#' + e.anchor);
+      if (el) { el.classList.remove('ln-flash'); void el.offsetWidth; el.classList.add('ln-flash'); }
+    }
+    drawHead();
+  }
+  function gotoHit() {
+    var e = learn.hit;
+    if (!e || e.kind === 'primer' || quizBusy()) return;
+    var pg = CN.learn.pages[e.page], target = -1;
+    screens.forEach(function (sc, i) { if (target < 0 && e.sub && lnSubOf(sc) === e.sub) target = i; });
+    if (target < 0) screens.forEach(function (sc, i) { if (target < 0 && pg.topic && sc.topic === pg.topic) target = i; });
+    if (target < 0) return;
+    var anchor = e.anchor;
+    go(target);
+    scrollToAnchor(anchor, false);
+  }
+
   // The But… text glides up into the next slide's Problem strip (it is the same problem, restated).
   function morphBut(from) {
     if (!motion || !from || !screens[idx].problem) return;
@@ -399,6 +671,7 @@
     }
     drawStory();
     ctlButtons();
+    if (learn.on) showSlide(true);
     try { history.replaceState(null, '', '#' + sc.id); } catch (e) { /* file:// in some browsers */ }
     ui.store.set('idx', i);
     post();
@@ -438,6 +711,7 @@
     setTimeout(post, 400);
   }
   function post() {
+    learnRefresh();
     if (!presenter || presenter.closed) return;
     try {
       presenter.postMessage({ type: 'cn-state', index: idx, talkStart: talkStart, butShown: butShown, sub: ctrl && ctrl.sub ? ctrl.sub() : '' }, '*');
@@ -494,6 +768,7 @@
     }
     if (isTyping(e.target)) return;
     if (inputOpen()) { if (k === 'Escape') closeInput(); return; }
+    if (findOpen() && k === 'Escape') { closeFind(); e.preventDefault(); return; }
     // Units IV–V have no quiz (SPEC-v4 §1): Z only says so, whether or not the quiz server is up.
     if ((k === 'z' || k === 'Z') && !quizBusy() && screens[idx].topic > 15) { CN.toast('No quiz for this unit'); e.preventDefault(); return; }
     // Live quiz: J sidebar, Z quiz; while its prompt or overlay is up it takes every key (→ ← included).
@@ -514,6 +789,11 @@
       case 'e': case 'E': openInput(); break;
       case '?': startPredict(); break;
       case 'a': case 'A': setMotion(!motion); break;
+      case 'l': case 'L': toggleLearn(); break;
+      case '/': openFind(); break;
+      case 'ArrowUp': case 'ArrowDown': if (learn.on) scrollLearn(k === 'ArrowUp' ? -1 : 1); else handled = false; break;
+      case '=': case '+': if (learn.on) sizeLearn(1); else handled = false; break;
+      case '-': case '_': case '−': if (learn.on) sizeLearn(-1); else handled = false; break;
       case ' ': if (main.querySelector('.ctl-run')) simRun(); else handled = false; break;
       default: handled = false;
     }
@@ -529,6 +809,9 @@
     overlay = h('div', { id: 'overlay' });
     toastEl = h('div', { class: 'qz-toast' });
     append(stage, [problem, main, butBar, overlay, toastEl, buildInput()]);
+    document.body.appendChild(buildLearn());
+    // click-to-break changes a sim without a move: refresh the learn highlight after any click on the slide
+    main.addEventListener('click', function () { if (learn.on) setTimeout(learnRefresh, 0); });
     document.title = CN.content.deckTitle;
     document.documentElement.setAttribute('data-theme', ui.store.get('theme', 'light'));
     var mo = ui.store.get('motion', null);

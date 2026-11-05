@@ -35,7 +35,7 @@
     function load(k) {
       CN.clear(host);
       var c = k.n <= R.DIAL_MAX ? dial(host, k) : table(host, k);
-      ['step', 'reset', 'prev', 'runMs'].forEach(function (f) { ctl[f] = c[f]; });
+      ['step', 'reset', 'prev', 'runMs', 'learnStep'].forEach(function (f) { ctl[f] = c[f]; });
     }
     load(KEY);
     body.appendChild(ui.controls());
@@ -58,7 +58,8 @@
     draw();
     function step() { if (shown >= P.length) return false; shown++; draw(); return true; }
     function reset() { shown = 0; draw(); }
-    return { step: step, reset: reset, prev: function () { if (shown > 0) { shown--; draw(); return true; } return false; } };
+    // learnStep: the letter in the newest row
+    return { step: step, reset: reset, prev: function () { if (shown > 0) { shown--; draw(); return true; } return false; }, learnStep: function () { return shown; } };
   }
 
   /* The mod-n dial: positions 0…n−1 round a circle. Each letter is encrypted by square-and-multiply
@@ -138,7 +139,9 @@
     draw(false);
     function step() { if (k >= seq.length) return false; k++; draw(true); return true; }
     function reset() { k = 0; draw(false); }
-    return { step: step, reset: reset, runMs: 650, prev: function () { if (k > 0) { k--; draw(false); return true; } return false; } };
+    // learnStep: the letter being worked (1-based), as in the table
+    return { step: step, reset: reset, runMs: 650, prev: function () { if (k > 0) { k--; draw(false); return true; } return false; },
+      learnStep: function () { return k ? seq[k - 1].i + 1 : 0; } };
   }
 
   function compare(body) {

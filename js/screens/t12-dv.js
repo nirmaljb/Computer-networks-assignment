@@ -13,7 +13,7 @@
   };
 
   function dvSlide(body, kind) {
-    var run = RUNS[kind], net, hist, stable;
+    var run = RUNS[kind], net, hist, stable, touched;
     body.appendChild(h('div', { class: 'say' }, run.say));
     var tableHost = h('div', { style: { marginTop: '16px' } }), banner = h('div', { style: { minHeight: '56px' } });
     body.appendChild(tableHost);
@@ -25,10 +25,11 @@
       net = D.reset(D.create(NODES, LINKS, { inf: INF, poison: run.poison }));
       if (kind === 'good') { D.setRouter(net, 'A', false); D.converge(net); D.setRouter(net, 'A', true); }
       else { D.converge(net); D.setRouter(net, 'A', false); }
-      hist = [snapshot()]; stable = false;
+      hist = [snapshot()]; stable = false; touched = false;
       draw();
     }
     function toggle(n) {
+      touched = true;
       D.setRouter(net, n, !net.routerUp[n]);
       hist = [snapshot()]; stable = false; net.round = 0;
       draw();
@@ -65,7 +66,9 @@
     body.appendChild(ui.controls());
     reset();
     // ? (SPEC-v6): settled once every router reads ∞ = 16 for A
-    return { step: step, reset: reset, reached: function () { return D.column(net, DEST, OTHERS).every(function (v) { return v >= INF; }); } };
+    // learnStep: exchanges that changed a table; a router toggled by hand leaves the script (null)
+    return { step: step, reset: reset, reached: function () { return D.column(net, DEST, OTHERS).every(function (v) { return v >= INF; }); },
+      learnStep: function () { return touched ? null : hist.length - 1; } };
   }
 
   CN.screens.t12 = function (root, sc) {

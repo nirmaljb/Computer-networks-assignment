@@ -79,7 +79,7 @@
     function step() { if (k >= r.steps.length) return false; k++; draw(true); return true; }
     function reset() { k = 0; draw(false); }
     body.appendChild(ui.controls());
-    return { step: step, reset: reset, prev: function () { if (k > 0) { k--; draw(false); return true; } return false; } };
+    return { step: step, reset: reset, prev: function () { if (k > 0) { k--; draw(false); return true; } return false; }, learnStep: function () { return k; } };
   }
 
   function transposition(body) {

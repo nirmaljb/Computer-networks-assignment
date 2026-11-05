@@ -330,7 +330,7 @@
 
   function podiumOn() { return on && !!st && st.players.some(function (p) { return p.score > 0; }); }
 
-  CN.quiz = { key: key, offer: offer, busy: busy, podiumOn: podiumOn, get on() { return on; } };
+  CN.quiz = { key: key, offer: offer, busy: busy, podiumOn: podiumOn, closeSide: closeSide, get on() { return on; } };
 
   /* ---------------- podium screen ---------------- */
   CN.screens.podium = function (root) {

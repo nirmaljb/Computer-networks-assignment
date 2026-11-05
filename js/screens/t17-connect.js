@@ -63,7 +63,9 @@
     }
     body.appendChild(ui.controls());
     reset();
-    return { step: step, reset: reset, reached: function () { return st.tick >= st.sc.end; },
+    // learnStep: segments sent so far (one learn row each); an arrow lost by hand leaves the script (null)
+    function learnStep() { return st.lose != null ? null : st.sc.msgs.filter(function (m) { return m.sentAt < st.tick; }).length; }
+    return { step: step, reset: reset, reached: function () { return st.tick >= st.sc.end; }, learnStep: learnStep,
       prev: function () { if (st.tick > 0) { st.tick--; draw(); return true; } return false; } };
   }
 

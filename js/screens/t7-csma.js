@@ -124,7 +124,8 @@
     }
     body.appendChild(ui.controls());
     reset();
-    return { step: step, reset: reset, runStep: tick, runMs: 220 };
+    // learnStep: events logged so far, so Step and Run (tick by tick) light the same learn rows
+    return { step: step, reset: reset, runStep: tick, runMs: 220, learnStep: function () { return bus.log.length; } };
   }
 
   CN.screens.t7 = function (root, sc) {
