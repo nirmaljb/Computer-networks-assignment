@@ -1,7 +1,8 @@
 /* Shared time-space diagram for the ARQ screens (T4, T5) and the handshake (T17).
    Sender on the left, receiver on the right, time flowing down.
    Messages still in flight can be clicked to destroy them.
-   Optional: names [left, right]; style(m) → { color, dash } overrides the kind colours. */
+   Optional: names [left, right]; style(m) → { color, dash } overrides the kind colours.
+   SPEC-v8: tap(m, inFlight) → may it be tapped, with onTap(m); states() → [left, right] shown under the names. */
 (function () {
   'use strict';
   var CN = window.CN, s = CN.s;
@@ -28,7 +29,7 @@
 
   CN.ui.timeSpace = function (opts) {
     var W = opts.width, H = opts.height, visible = opts.visible || 26;
-    var xs = 90, xr = W - (opts.rightPad || 90), y0 = 46;
+    var xs = 90, xr = W - (opts.rightPad || 90), y0 = opts.states ? 66 : 46;
     var th = (H - y0 - 12) / visible;
     var svg = s('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H }), fx = glower();
 
@@ -40,6 +41,9 @@
       var names = opts.names || ['Sender', 'Receiver'];
       svg.appendChild(s('text', { x: xs, y: 26, 'text-anchor': 'middle', 'font-size': 22, 'font-weight': 700 }, names[0]));
       svg.appendChild(s('text', { x: xr, y: 26, 'text-anchor': 'middle', 'font-size': 22, 'font-weight': 700 }, names[1]));
+      if (opts.states) opts.states().forEach(function (st, i) {
+        svg.appendChild(s('text', { x: i ? xr : xs, y: 48, 'text-anchor': 'middle', 'font-size': 17, 'font-weight': 700, fill: st === 'ESTABLISHED' ? 'var(--green)' : 'var(--accent)', class: 'mono' }, st));
+      });
       svg.appendChild(s('line', { x1: xs, y1: y0 - 6, x2: xs, y2: H - 4, stroke: 'var(--ink)', 'stroke-width': 3 }));
       svg.appendChild(s('line', { x1: xr, y1: y0 - 6, x2: xr, y2: H - 4, stroke: 'var(--ink)', 'stroke-width': 3 }));
       // current time
@@ -72,8 +76,8 @@
         var color = m.kind === 'data' ? 'var(--blue)' : m.kind === 'ack' ? 'var(--green)' : 'var(--red)';
         var st = opts.style ? opts.style(m) || {} : {};
         if (st.color) color = st.color;
-        var inFlight = !m.lost && !m.handled && now < m.arriveAt;
-        var g = s('g', { class: inFlight && opts.onKill ? 'clickable' : '' });
+        var inFlight = !m.lost && !m.handled && now < m.arriveAt, tappable = opts.tap ? opts.tap(m, inFlight) : inFlight && opts.onKill;
+        var g = s('g', { class: tappable ? 'clickable' : '' });
         if (inFlight) trail(g, fromX, y1, x2, y2, color);
         g.appendChild(s('line', { x1: fromX, y1: y1, x2: x2, y2: y2, stroke: color, 'stroke-width': m.copy > 1 ? 3.5 : 2.5,
           'stroke-dasharray': st.dash || (m.kind === 'nak' ? '8 5' : null) }));
@@ -96,14 +100,14 @@
           g.appendChild(s('text', { x: toX + (m.from === 'S' ? 8 : -8), y: y2 + 7, 'text-anchor': anchor, 'font-size': 19, 'font-weight': 800, fill: mc,
             class: fx.glow(m) ? 'fx-glow' : null }, mark));
         }
-        if (inFlight && opts.onKill) {
+        if (tappable) {
           g.appendChild(s('line', { x1: fromX, y1: y1, x2: x2, y2: y2, stroke: 'transparent', 'stroke-width': 22 }));
-          g.addEventListener('click', function () { opts.onKill(m.id); });
+          g.addEventListener('click', function () { if (opts.onTap) opts.onTap(m); else opts.onKill(m.id); });
         }
         svg.appendChild(g);
       });
     }
-    return { el: svg, draw: draw };
+    return { el: svg, draw: draw, y0: y0 };
   };
 
   // Strip of frames 0..total-1 labelled by sequence number with a window bracket.
@@ -136,7 +140,8 @@
   };
 })();
 
-/* Horizontal variant (T5): time runs left → right, sender on top, receiver below. */
+/* Horizontal variant (T5): time runs left → right, sender on top, receiver below.
+   SPEC-v8: opts.tap(m) → may this message be tapped (in flight, or lost and tappable back); opts.onTap(m). */
 (function () {
   'use strict';
   var CN = window.CN, s = CN.s;
@@ -173,8 +178,8 @@
         var f = (endT - t1) / (t2 - t1);
         var x1 = x(t1), x2 = x(endT), y2 = fromY + (toY - fromY) * f;
         var color = m.kind === 'data' ? 'var(--blue)' : m.kind === 'ack' ? 'var(--green)' : 'var(--red)';
-        var inFlight = !m.lost && !m.handled && now < m.arriveAt;
-        var g = s('g', { class: inFlight && opts.onKill ? 'clickable' : '' });
+        var inFlight = !m.lost && !m.handled && now < m.arriveAt, tappable = opts.tap ? opts.tap(m, inFlight) : inFlight && opts.onKill;
+        var g = s('g', { class: tappable ? 'clickable' : '' });
         if (inFlight) CN.ui.trail(g, x1, fromY, x2, y2, color);
         g.appendChild(s('line', { x1: x1, y1: fromY, x2: x2, y2: y2, stroke: color, 'stroke-width': m.copy > 1 ? 3.5 : 2.5, 'stroke-dasharray': m.kind === 'nak' ? '8 5' : null }));
         var lbl = opts.label ? opts.label(m) : String(m.seq);
@@ -190,9 +195,9 @@
           if (mark) g.appendChild(s('text', { x: x(t2), y: m.from === 'S' ? yr - 10 : ys + 26, 'text-anchor': 'middle', 'font-size': 22, 'font-weight': 900, fill: mc,
             class: fx.glow(m) ? 'fx-glow' : null }, mark));
         }
-        if (inFlight && opts.onKill) {
+        if (tappable) {
           g.appendChild(s('line', { x1: x1, y1: fromY, x2: x2, y2: y2, stroke: 'transparent', 'stroke-width': 22 }));
-          g.addEventListener('click', function () { opts.onKill(m.id); });
+          g.addEventListener('click', function () { if (opts.onTap) opts.onTap(m); else opts.onKill(m.id); });
         }
         svg.appendChild(g);
       });

@@ -10,6 +10,19 @@
   function row(cells, step) { return { cells: cells.map(String), step: step == null ? null : step }; }
   function num(v) { return v == null ? '—' : String(Math.round(v * 1e9) / 1e9); }
   function bin(n, w) { var s = n.toString(2); while (s.length < w) s = '0' + s; return s; }
+  // SPEC-v8: handle values ride after a '|', e.g. 'frame 1 | W 6' or 'routers 6' (alone, for tables with no E numbers).
+  // cfg(text, keys) → { e: the E numbers, k: { key: value } } for the keys this table knows.
+  function cfg(text, keys) {
+    var o = { e: [], k: {} };
+    String(text == null ? '' : text).split('|').forEach(function (part) {
+      var t = part.trim(), m = /^(\S+)\s*(.*)$/.exec(t);
+      if (m && keys.indexOf(m[1]) >= 0) o.k[m[1]] = m[2].trim();
+      else if (t) o.e.push(t);
+    });
+    o.e = o.e.join(' | ');
+    return o;
+  }
+  function ints(t) { return String(t || '').split(/[\s,]+/).filter(Boolean).map(Number); }
 
   /* ---------- Hamming (2a, 2b): data bits, even parity, Tanenbaum's layout ---------- */
   function hammingEncode(text) {
@@ -21,23 +34,28 @@
     rows.push(row(['Codeword', 'positions 1–' + enc.n, '', enc.code], enc.checks.length));
     return table(['Check bit', 'Data positions it covers', 'Their bits, XORed', 'Value'], rows);
   }
-  // 2b's Step flips bit 5 (or the last bit of a shorter codeword), then corrects it.
+  // 2b's Step flips bit 5 (or the last bit of a shorter codeword), then corrects it. With flips tapped on the
+  // figure ('… | flips 1 2') they are there from the start (step 0) and Step 1 corrects (or, for two, miscorrects).
   function hammingCorrect(text) {
-    var v = CN.hamming.validate(text); if (v.error) return v;
-    var code = CN.hamming.encode(v.bits, 'even').code, at = Math.min(5, code.length);
-    var rx = CN.hamming.flip(code, [at]), d = CN.hamming.diagnose(code, rx, 'even');
-    var rows = [row(['Received', 'bit ' + at + ' flipped', '', rx], 1)];
+    var c0 = cfg(text, ['flips']), v = CN.hamming.validate(c0.e); if (v.error) return v;
+    var code = CN.hamming.encode(v.bits, 'even').code, chosen = 'flips' in c0.k ? ints(c0.k.flips) : null;
+    var at = chosen || [Math.min(5, code.length)], s0 = chosen ? 0 : 1;
+    if (at.some(function (p) { return !(p >= 1 && p <= code.length); })) return { error: 'flips must be positions 1–' + code.length };
+    var rx = CN.hamming.flip(code, at), d = CN.hamming.diagnose(code, rx, 'even');
+    var rows = [row(['Received', 'bit' + (at.length > 1 ? 's ' : ' ') + at.join(' and ') + ' flipped', '', rx], s0)];
     d.checks.forEach(function (c) {
-      rows.push(row(['C' + c.pos, c.covers.join(', '), c.values.join('⊕') + ' = ' + c.parity, c.ok ? '✓ passes' : '✕ fails'], 1));
+      rows.push(row(['C' + c.pos, c.covers.join(', '), c.values.join('⊕') + ' = ' + c.parity, c.ok ? '✓ passes' : '✕ fails'], s0));
     });
     var failing = d.checks.filter(function (c) { return !c.ok; }).map(function (c) { return c.pos; });
-    rows.push(row(['Syndrome', 'sum of the failing checks', failing.join(' + '), bin(d.syndrome, d.checks.length) + '₂ = ' + d.syndrome], 1));
-    rows.push(row(['Corrected', 'bit ' + d.syndrome + ' flipped back', '', d.corrected], 2));
+    rows.push(row(['Syndrome', 'sum of the failing checks', failing.join(' + '), bin(d.syndrome, d.checks.length) + '₂ = ' + d.syndrome], s0));
+    if (d.syndrome > code.length) rows.push(row(['Verdict', 'no bit ' + d.syndrome + ' in a ' + code.length + '-bit code', '', 'detected, not correctable'], s0));
+    else if (d.syndrome > 0) rows.push(row([at.length > 1 ? 'Miscorrected' : 'Corrected', 'bit ' + d.syndrome + ' flipped' + (at.length > 1 ? ', which nobody flipped' : ' back'), '',
+      CN.hamming.flip(rx, [d.syndrome])], s0 + 1));
     return table(['Check', 'Positions (itself included)', 'Received bits, XORed', 'Result'], rows);
   }
 
   /* ---------- CRC (3a, 3b): 'message / generator' ---------- */
-  function crcParse(text) { var p = CN.crc.parseCustom(text); return p.error ? p : CN.crc.encode(p.data, p.gen); }
+  function crcParse(text) { var p = CN.crc.parseCustom(cfg(text, ['burst']).e); return p.error ? p : CN.crc.encode(p.data, p.gen); }
   function crcDivide(text) {
     var enc = crcParse(text); if (enc.error) return enc;
     var rows = enc.steps.map(function (s, i) {
@@ -47,14 +65,19 @@
     rows.push(row(['Frame sent', '', '', '', enc.frame], enc.steps.length));
     return table(['Step', 'Bits under G', 'Quotient bit', 'XOR with', 'Result'], rows);
   }
-  // 3b's Step flips a burst of min(3, r) bits from bit 3 (0-based, as the screen does).
+  // 3b's Step flips a burst of min(3, r) bits from bit 3 (0-based, as the screen does); '… | burst start len' moves
+  // it. Length r + 1 is the taught break: the error pattern is G itself, shifted (CN.crc.gBurst), so remainder 0.
   function crcCheck(text) {
     var enc = crcParse(text); if (enc.error) return enc;
-    var len = Math.min(3, enc.r), at = Math.min(3, enc.frame.length - len);
-    var b = CN.crc.burst(enc.frame, at, len).frame, ok = CN.crc.check(enc.frame, enc.gen), bad = CN.crc.check(b, enc.gen);
+    var c0 = cfg(text, ['burst']), bs = c0.k.burst ? ints(c0.k.burst) : null;
+    var len = bs ? bs[1] : Math.min(3, enc.r), at = bs ? bs[0] : Math.min(3, enc.frame.length - len);
+    if (!(len >= 1 && len <= enc.r + 1 && at >= 0 && at + len <= enc.frame.length)) return { error: 'burst must fit the frame, length 1–' + (enc.r + 1) };
+    var g = len === enc.r + 1, b = g ? CN.crc.gBurst(enc.frame, enc.gen, at).frame : CN.crc.burst(enc.frame, at, len).frame;
+    var ok = CN.crc.check(enc.frame, enc.gen), bad = CN.crc.check(b, enc.gen);
+    var what = g ? 'G shifted (bits ' + (at + 1) + '–' + (at + len) + ')' : 'burst of ' + len + ' (bits ' + (at + 1) + '–' + (at + len) + ' from the left)';
     return table(['Received frame', 'Remainder after ÷ G', 'Verdict'], [
       row([enc.frame, ok.remainder, 'remainder 0: accepted'], 0),
-      row([b, bad.remainder, bad.ok ? 'remainder 0: slips through' : 'burst of ' + len + ' (bits ' + (at + 1) + '–' + (at + len) + ' from the left): detected'], 1)
+      row([b, bad.remainder, bad.ok ? what + ': remainder 0, slips through' : what + ': detected'], 1)
     ]);
   }
 
@@ -84,10 +107,14 @@
     }
     return { rows: rows, sim: s };
   }
+  // '… | W 6' sets the window. One past the safe maximum (GBN 8, SR 5) is the taught break: it runs the break script,
+  // every ACK sent before tick 11 lost, and the losses typed or tapped are set aside (as the screen does).
   function arqTable(proto) {
     return function (text) {
-      var p = CN.arq.parseLoss(text, 8); if (p.error) return p;
-      var r = arqRun(proto, 4, CN.arq.firstCopyDrop(p.list));
+      var c0 = cfg(text, ['W']), p = CN.arq.parseLoss(c0.e, 8); if (p.error) return p;
+      var W = c0.k.W ? +c0.k.W : 4, max = CN.arq.safeMax(proto, 3);
+      if (!(W >= 1 && W <= max + 1)) return { error: 'W must be 1–' + (max + 1) };
+      var r = arqRun(proto, W, W > max ? CN.arq.scriptedDrop([], 11) : CN.arq.firstCopyDrop(p.list));
       return table(['Step', 't', 'What happens'], r.rows);
     };
   }
@@ -107,9 +134,13 @@
 
   /* ---------- CSMA (7a–7d): seed 42; one row per log line, step = the log length after that tick ---------- */
   var WAIT = [{ at: 0, st: 1 }, { at: 4, st: 0 }, { at: 4, st: 2 }], FAR = [{ at: 0, st: 0 }, { at: 0, st: 3 }];
+  // '| B 5' (7a–7c) or '| D 3' (7d) moves that station along the cable (positions in propagation ticks from A).
   function csmaTable(mode, cd, schedule) {
-    return function () {
-      var b = CN.csma.createBus({ mode: mode, p: 0.5, cd: cd, seed: 42, schedule: schedule.map(function (e) { return Object.assign({}, e); }) });
+    return function (text) {
+      var c0 = cfg(text, ['B', 'D']), pos = [0, 2, 4, 6];
+      if (c0.k.B) pos[1] = +c0.k.B;
+      if (c0.k.D) pos[3] = +c0.k.D;
+      var b = CN.csma.createBus({ mode: mode, p: 0.5, cd: cd, seed: 42, positions: pos, schedule: schedule.map(function (e) { return Object.assign({}, e); }) });
       var rows = [], guard = 0;
       while (!b.done && guard++ < 2000) {
         var n = b.log.length;
@@ -121,28 +152,36 @@
   }
 
   /* ---------- Distance vector (12a–12c): Tanenbaum's chain A–B–C–D–E, distances to A ---------- */
-  var DV_NODES = ['A', 'B', 'C', 'D', 'E'], DV_LINKS = [['A', 'B', 1], ['B', 'C', 1], ['C', 'D', 1], ['D', 'E', 1]];
+  // '| routers 6': the chain's length (3–6 routers, A first).
+  function dvChain(n) {
+    var nodes = 'ABCDEF'.slice(0, n).split(''), links = [];
+    for (var i = 1; i < n; i++) links.push([nodes[i - 1], nodes[i], 1]);
+    return { nodes: nodes, links: links };
+  }
   function dvTable(kind) {
-    return function () {
-      var D = CN.dv, poison = kind === 'poison', net = D.reset(D.create(DV_NODES, DV_LINKS, { inf: 16, poison: poison }));
+    return function (text) {
+      var n = +(cfg(text, ['routers']).k.routers || 5), ch = dvChain(n), others = ch.nodes.slice(1);
+      var D = CN.dv, poison = kind === 'poison', net = D.reset(D.create(ch.nodes, ch.links, { inf: 16, poison: poison }));
       if (kind === 'good') { D.setRouter(net, 'A', false); D.converge(net); D.setRouter(net, 'A', true); }
       else { D.converge(net); D.setRouter(net, 'A', false); }
       function fmt(v) { return v >= 16 ? (poison ? '16' : '∞') : String(v); }
-      var rows = [], k = 0, cols = D.column(net, 'A', ['B', 'C', 'D', 'E']);
+      var rows = [], k = 0, cols = D.column(net, 'A', others);
       rows.push(row(['Initially'].concat(cols.map(fmt)), 0));
       while (k < 40) {
         if (D.exchange(net).length === 0) break;
         k++;
-        rows.push(row(['After ' + k + ' exchange' + (k > 1 ? 's' : '')].concat(D.column(net, 'A', ['B', 'C', 'D', 'E']).map(fmt)), k));
+        rows.push(row(['After ' + k + ' exchange' + (k > 1 ? 's' : '')].concat(D.column(net, 'A', others).map(fmt)), k));
       }
-      return table(['', 'B', 'C', 'D', 'E'], rows);
+      return table([''].concat(others), rows);
     };
   }
 
   /* ---------- TCP connection scenarios (17a–17d): x 1000, y 5000, old x' 700, old ACK z 4000 ---------- */
+  // '| lose syn' (or synack, ack) on the handshake: the segment tapped away on 17a.
   function tcpScenario(build) {
-    return function () {
-      var sc = CN.tcp[build]({ x: 1000, y: 5000, xOld: 700, z: 4000 });
+    return function (text) {
+      var lose = { syn: 0, synack: 1, ack: 2 }[cfg(text, ['lose']).k.lose];
+      var sc = CN.tcp[build]({ x: 1000, y: 5000, xOld: 700, z: 4000, lose: lose == null ? null : lose });
       return table(['#', 'Sent at t', 'Direction', 'Segment', 'On arrival'], sc.msgs.map(function (m, i) {
         return row([i + 1, m.sentAt, m.from === 'C' ? 'client → server' : 'server → client', m.label, m.note], i + 1);
       }));
@@ -159,9 +198,11 @@
   }
 
   /* ---------- TCP congestion (20a, 20b): ssthresh 32, capacity 39, loss by 3 duplicate ACKs ---------- */
+  // '| capacity 50 | ssthresh 32' (the 20a/b handles)
   function cwndTable(variant) {
-    return function () {
-      var rows = CN.tcp.cwndTrace({ ssthresh: 32, capacity: 39, variant: variant, loss: 'dupack', rounds: 24 });
+    return function (text) {
+      var k = cfg(text, ['capacity', 'ssthresh']).k;
+      var rows = CN.tcp.cwndTrace({ ssthresh: k.ssthresh ? +k.ssthresh : 32, capacity: k.capacity ? +k.capacity : 39, variant: variant, loss: 'dupack', rounds: 24 });
       return table(['Round', 'cwnd', 'ssthresh', 'Phase or event'], rows.map(function (r) {
         return row([r.round, r.cwnd, r.ssthresh, r.loss ? 'loss: ' + r.event : r.phase], r.round);
       }));
@@ -169,9 +210,10 @@
   }
 
   /* ---------- DNS (21a, 21b): www.example.com, a fresh resolver ---------- */
+  // '| cache com example.com': records the resolver already holds (the 21a/b handle)
   function dnsTable(mode) {
-    return function () {
-      var w = CN.dns.resolver(30).lookup('www.example.com', mode, 0);
+    return function (text) {
+      var c = cfg(text, ['cache']).k.cache, w = c ? CN.dns.walk('www.example.com', mode, c.split(/\s+/).filter(Boolean)) : CN.dns.resolver(30).lookup('www.example.com', mode, 0);
       function who(x) { return x === 'client' ? 'phone' : x === 'resolver' ? 'local resolver' : w.zones[x].server; }
       return table(['#', 'From', 'To', 'Message'], w.steps.map(function (m, i) {
         return row([i + 1, who(m.from), who(m.to), m.text], i + 1);
@@ -284,20 +326,25 @@
       return row([i + 1, f.start + '–' + (f.start + f.dataBytes - 1), f.totalLength, f.offset + ' (' + f.start + ' ÷ 8)', f.mf ? 1 : 0]);
     }));
   }
-  function splitTable() {
-    var sp = CN.ip.split('192.168.10.64/26', 2);
+  // '| subnets 8' (the 15d chips: 2, 4 or 8 equal subnets)
+  function splitTable(text) {
+    var n = +(cfg(text, ['subnets']).k.subnets || 4), sp = CN.ip.split('192.168.10.64/26', Math.round(Math.log2(n)));
     return table(['Subnet', 'Network', 'Broadcast', 'Usable hosts'], sp.subnets.map(function (x, i) {
       var r = CN.ip.subnet(x.str);
       return row([i + 1, x.str, r.broadcastStr, r.firstStr + ' – ' + r.lastStr + ' (' + r.usable + ')']);
     }));
   }
-  function lpmTable() {
+  // '| dest 194.24.12.9' (the 15e destination). No match at all → the default route.
+  function lpmTable(text) {
     var routes = [{ name: 'Cambridge', prefix: '194.24.0.0', len: 21 }, { name: 'Edinburgh', prefix: '194.24.8.0', len: 22 }, { name: 'Oxford', prefix: '194.24.16.0', len: 20 }];
-    var r = CN.ip.lpm('194.24.17.4', routes);
-    return table(['Route', 'Prefix', '194.24.17.4 AND mask', 'Match?'], routes.map(function (x, i) {
-      var m = CN.ip.subnet('194.24.17.4/' + x.len).networkStr;
+    var dest = cfg(text, ['dest']).k.dest || '194.24.17.4', r = CN.ip.lpm(dest, routes);
+    if (r.error) return r;
+    var rows = routes.map(function (x, i) {
+      var m = CN.ip.subnet(dest + '/' + x.len).networkStr;
       return row([x.name, x.prefix + '/' + x.len, m, m === x.prefix ? (r.best === i ? 'yes, longest → chosen' : 'yes') : 'no']);
-    }));
+    });
+    if (r.best < 0) rows.push(row(['Default route', '0.0.0.0/0', '0.0.0.0', 'yes, the only match → chosen']));
+    return table(['Route', 'Prefix', dest + ' AND mask', 'Match?'], rows);
   }
   function v6Table() {
     return table(['Full address', 'Shortest form'], ['2001:0db8:0000:0000:0000:ff00:0042:8329', '8000:0000:0000:0000:0123:4567:89AB:CDEF'].map(function (a) {
@@ -322,8 +369,10 @@
       return row([m[1], n, (n * 100 / 1000) + ' s']);
     }));
   }
-  function caesarTable() {
-    return table(['Plaintext', 'Key', 'Ciphertext'], [row(['ATTACK', 'k = 3', CN.cipher.caesar('ATTACK', 3, false)]), row(['HELLO', 'k = 3', CN.cipher.caesar('HELLO', 3, false)])]);
+  // '| k 7' (the 24a dial)
+  function caesarTable(text) {
+    var k = +(cfg(text, ['k']).k.k || 3);
+    return table(['Plaintext', 'Key', 'Ciphertext'], ['ATTACK', 'HELLO'].map(function (p) { return row([p, 'k = ' + k, CN.cipher.caesar(p, k, false)]); }));
   }
   function monoTable() {
     var C = CN.cipher, p = 'the network layer moves packets';

@@ -5,18 +5,50 @@
   // SPEC-v5: Tanenbaum's example, p 3, q 11, d 7, "SUZANNE" (A = 1 … Z = 26). 25a key generation,
   // 25b encrypt + decrypt (one letter per Step), then static: symmetric vs public key, firewall, IDS.
   // SPEC-v6: E on 25a/25b takes 'p q d' (rsa.js rules). 25b is the mod-n dial while n ≤ 150, else the table.
+  // SPEC-v8: p, q, d are handles. On 25a they are chips (primes with 26 < n ≤ 150, p ≠ q) and a slider over the
+  // valid d (coprime to z) with one notch below them, d = 2: z is always even, so gcd(2, z) = 2 and no e exists (the
+  // taught break). 25b keeps p, q, d (from E) and adds a tap: a letter of the message, to run only its hops.
   var KEY = R.keygen('3', '11', '7'), MSG = 'SUZANNE', s = CN.s;
-  function numbers(use) {
-    return ui.numbers({ label: 'p q d: two primes and d coprime to z = (p−1)(q−1)', example: KEY.p + ' ' + KEY.q + ' ' + KEY.d,
-      parse: R.parseKey, use: function (v) { use(v || KEY); } });
+  var PRIMES = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73];
+  function keyHandles(chips) {
+    var hs = {};
+    function okN(p, q) { return p !== q && p * q > 26 && p * q <= R.DIAL_MAX; }
+    hs.p = ui.handle({ key: 'p', label: 'p', kind: chips ? 'chips' : 'tap', value: KEY.p, values: PRIMES, disabled: function (v) { return hs.q && !okN(v, hs.q.value()); } });
+    hs.q = ui.handle({ key: 'q', label: 'q', kind: chips ? 'chips' : 'tap', value: KEY.q, values: PRIMES, disabled: function (v) { return !okN(hs.p.value(), v); } });
+    hs.d = ui.handle({ key: 'd', label: 'd', kind: chips ? 'slider' : 'tap', value: KEY.d, width: 520, breaks: { 2: 'gcd(2, z) ≠ 1: no e' },
+      values: function () {
+        var z = (hs.p.value() - 1) * (hs.q.value() - 1), v = [2];
+        for (var d = 3; d < z; d++) if (R.gcd(d, z) === 1) v.push(d);
+        return v;
+      } });
+    hs.p.draw();
+    hs.key = function () { return R.keygen(hs.p.value(), hs.q.value(), hs.d.value()); };
+    hs.text = function () { return hs.p.value() + ' ' + hs.q.value() + ' ' + hs.d.value(); };
+    return hs;
+  }
+  function numbers(hs) {
+    return ui.numbers({ label: 'p q d: two primes and d coprime to z = (p−1)(q−1)', example: KEY.p + ' ' + KEY.q + ' ' + KEY.d, parse: R.parseKey,
+      read: hs.text, write: function (v) { hs.p.set(v.p, true); hs.q.set(v.q, true); hs.d.set(v.d, true); } });
   }
 
   function keys(body) {
-    var host = h('div', { style: { display: 'contents' } });
+    var hs = keyHandles(true), host = h('div', { style: { display: 'contents' } });
     body.appendChild(host);
-    function load(k) { CN.clear(host); keysInto(host, k); }
-    load(KEY);
-    return { input: numbers(load) };
+    body.appendChild(h('div', { class: 'col', style: { gap: '12px', alignItems: 'center' } }, ui.handleRow(hs.p), ui.handleRow(hs.q), ui.handleRow(hs.d)));
+    function reset() {
+      hs.p.draw(); hs.q.draw(); hs.d.fit();
+      var k = hs.key();
+      CN.clear(host);
+      if (!k.error) keysInto(host, k);
+      else {
+        var z = (hs.p.value() - 1) * (hs.q.value() - 1);
+        host.appendChild(h('div', { class: 'panel col', style: { gap: '18px', fontSize: '30px', padding: '28px', marginTop: '20px' } },
+          h('div', { class: 'mono' }, 'n = ' + hs.p.value() + '·' + hs.q.value() + ' = ' + hs.p.value() * hs.q.value() + '     z = ' + z),
+          h('div', { class: 'banner err' }, 'd = ' + hs.d.value() + ': gcd(' + hs.d.value() + ', ' + z + ') = ' + R.gcd(hs.d.value(), z) + ' ≠ 1, so e·d ≡ 1 (mod z) has no solution: no e.')));
+      }
+    }
+    reset();
+    return { reset: reset, input: numbers(hs) };
   }
   function keysInto(body, k) {
     body.appendChild(h('div', { class: 'panel col', style: { gap: '22px', fontSize: '32px', padding: '32px', marginTop: '30px' } },
@@ -29,17 +61,20 @@
 
   // 25b: one key, one message. The dial (n ≤ 150) or, for a bigger n, the table; Step = one hop / one letter.
   function encrypt(body) {
-    var host = h('div', { style: { display: 'contents' } }), ctl = {};
+    var host = h('div', { style: { display: 'contents' } }), ctl = {}, hs = keyHandles(false), cur = null;
+    var hL = ui.handle({ key: 'letter', kind: 'tap', value: null });
     body.appendChild(h('div', { class: 'say' }, 'Encrypt with the public key: C = Pᵉ mod n. Decrypt with the private key: P = Cᵈ mod n.'));
     body.appendChild(host);
-    function load(k) {
+    // a new key (E) rebuilds the figure; the letter tap only restarts the dial on that letter
+    ctl.reset = function () {
+      var k = hs.key();
       CN.clear(host);
-      var c = k.n <= R.DIAL_MAX ? dial(host, k) : table(host, k);
-      ['step', 'reset', 'prev', 'runMs', 'learnStep'].forEach(function (f) { ctl[f] = c[f]; });
-    }
-    load(KEY);
+      cur = k.n <= R.DIAL_MAX ? dial(host, k, hL) : table(host, k);
+      ['step', 'prev', 'runMs', 'learnStep'].forEach(function (f) { ctl[f] = cur[f]; });
+    };
+    ctl.reset();
     body.appendChild(ui.controls());
-    ctl.input = numbers(load);
+    ctl.input = numbers(hs);
     return ctl;
   }
 
@@ -66,9 +101,10 @@
      (R.hops, the same loop as R.modpow) as hops round the dial from P to C, then decrypted from C back
      to P. Step = one hop. The strip on the right fills in as each letter finishes. */
   function sup(n) { return String(n).split('').map(function (c) { return '⁰¹²³⁴⁵⁶⁷⁸⁹'[+c]; }).join(''); }
-  function dial(host, KEY) {
-    var P = R.letters(MSG), seq = [];
+  function dial(host, KEY, hL) {
+    var P = R.letters(MSG), seq = [], only = hL.value();
     P.forEach(function (p, i) {
+      if (only != null && i !== only) return;
       var e = R.hops(p, KEY.e, KEY.n), d = R.hops(e.value, KEY.d, KEY.n);
       e.hops.forEach(function (x) { seq.push({ i: i, phase: 'enc', hop: x, key: e }); });
       d.hops.forEach(function (x) { seq.push({ i: i, phase: 'dec', hop: x, key: d }); });
@@ -121,13 +157,16 @@
       P.forEach(function (p, i) {
         var done = seq.slice(0, k).filter(function (x) { return x.i === i; }), encDone = done.filter(function (x) { return x.phase === 'enc'; }).length === R.hops(p, KEY.e, n).hops.length;
         var decAll = R.hops(R.modpow(p, KEY.e, n).value, KEY.d, n).hops.length, decDone = done.filter(function (x) { return x.phase === 'dec'; }).length === decAll;
-        strip.appendChild(h('tr', { class: cur && cur.i === i ? 'win' : '' }, h('td', { class: 'c' }, String.fromCharCode(64 + p)), h('td', null, String(p)),
+        var letter = h('span', { class: 'bit tap' + (only === i ? ' data' : ''), style: { minWidth: '40px', height: '40px', fontSize: '22px' }, title: only === i ? 'Tap for every letter again' : 'Tap to run only this letter' }, String.fromCharCode(64 + p));
+        letter.addEventListener('click', function () { hL.set(only === i ? null : i); });
+        strip.appendChild(h('tr', { class: cur && cur.i === i ? 'win' : '' }, h('td', { class: 'c' }, letter), h('td', null, String(p)),
           h('td', null, encDone ? h('b', null, String(R.modpow(p, KEY.e, n).value)) : ''),
           h('td', null, decDone ? String(R.modpow(R.modpow(p, KEY.e, n).value, KEY.d, n).value) + ' = ' + String.fromCharCode(64 + R.modpow(R.modpow(p, KEY.e, n).value, KEY.d, n).value) : '')));
       });
       side.appendChild(strip);
       var w = h('div', { class: 'working', style: { fontSize: '22px' } });
-      if (!cur) w.appendChild(document.createTextNode('Step: encrypt S (P = ' + P[0] + ') with e = ' + KEY.e + ' = ' + KEY.e.toString(2) + '₂ by square-and-multiply.'));
+      var at = only == null ? 0 : only;
+      if (!cur) w.appendChild(document.createTextNode('Step: encrypt ' + String.fromCharCode(64 + P[at]) + ' (P = ' + P[at] + ') with e = ' + KEY.e + ' = ' + KEY.e.toString(2) + '₂ by square-and-multiply.'));
       else {
         var x = cur.key;
         w.appendChild(h('div', { class: 'label' }, (cur.phase === 'enc' ? 'Encrypt ' + String.fromCharCode(64 + P[cur.i]) + ': ' + P[cur.i] + sup(KEY.e) : 'Decrypt: ' + x.hops[0].to + sup(KEY.d)) +

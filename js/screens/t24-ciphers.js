@@ -22,12 +22,34 @@
       h('div', { class: 'blue' }, h('span', { class: 'label', style: { fontFamily: 'var(--sans)', marginRight: '12px' } }, 'Ciphertext'), cipher));
   }
 
+  // SPEC-v8: the key is a dial, 0–25. The challenge (C) shows an intercepted ciphertext instead of ATTACK: dial until
+  // it decrypts to English. It was made with k = 7, so the slide's own k = 3 does not solve it.
+  var INTERCEPT = { plain: 'packets', k: 7 };
   function caesar(body) {
-    var k = 3, row = A.split('').map(function (_, i) { return A[(i + k) % 26]; }).join('');
-    body.appendChild(h('div', { class: 'say' }, 'Shift every letter by k = 3. Only 25 useful keys: try them all and read which one makes sense.'));
-    body.appendChild(mapping(row));
-    body.appendChild(result('ATTACK', C.caesar('ATTACK', k, false)));
-    return {};
+    var ks = []; for (var i = 0; i < 26; i++) ks.push(i);
+    var hK = ui.handle({ key: 'k', label: 'Shift', kind: 'dial', value: 3, values: ks, radius: 110, fmt: function (v) { return 'k = ' + v; } });
+    var ct = C.caesar(INTERCEPT.plain, INTERCEPT.k, false), cracking = false;
+    var say = h('div', { class: 'say' }, 'Shift every letter by k. Only 25 useful keys: try them all and read which one makes sense.');
+    var map = h('div'), res = h('div', { class: 'grow' });
+    body.appendChild(say);
+    body.appendChild(map);
+    body.appendChild(h('div', { class: 'row nowrap', style: { gap: '40px', alignItems: 'center', alignSelf: 'stretch', justifyContent: 'center' } }, res, hK.el));
+    function reset() {
+      var k = hK.value();
+      CN.clear(map).appendChild(mapping(A.split('').map(function (_, i) { return A[(i + k) % 26]; }).join('')));
+      CN.clear(res).appendChild(cracking
+        ? h('div', { class: 'panel col', style: { gap: '8px', fontFamily: 'var(--mono)', fontSize: '28px', fontWeight: 700 } },
+          h('div', { class: 'blue' }, h('span', { class: 'label', style: { fontFamily: 'var(--sans)', marginRight: '12px' } }, 'Intercepted'), ct),
+          h('div', null, h('span', { class: 'label', style: { fontFamily: 'var(--sans)', marginRight: '12px' } }, 'Shifted back by ' + k), C.caesar(ct, k, true)))
+        : result('ATTACK', C.caesar('ATTACK', k, false)));
+    }
+    reset();
+    return { reset: reset, genText: function () { return 'k ' + hK.value(); },
+      challenge: { goal: 'Dial k until the intercepted ' + ct + ' reads as English',
+        why: 'k = ' + INTERCEPT.k + ': every letter moves back ' + INTERCEPT.k + '. With 25 keys, trying them all takes seconds.',
+        holds: function () { return C.caesar(ct, hK.value(), true) === INTERCEPT.plain; },
+        answer: function () { return { k: INTERCEPT.k }; },
+        start: function () { cracking = true; reset(); }, end: function () { cracking = false; reset(); } } };
   }
 
   function mono(body) {
@@ -40,17 +62,27 @@
 
   // SPEC-v6 set piece: the frequency crack (CN.cipher.crack). Step 1 = pass 1, rank-matching letters, wrong ones
   // red with the count right; each later Step fixes one letter, with the digram or trigram that justifies it.
+  // SPEC-v8 handle: tap a cipher letter to try the next plaintext letter for it (a guess, on top of the Step's map).
   function frequency(body) {
     var cipherText = C.mono(C.CRACK_TEXT, C.DEFAULT_KEY, false).text, r = C.crack(cipherText, C.DEFAULT_KEY), k = 0;
+    var hG = ui.handle({ key: 'guess', kind: 'tap', value: {}, floor: 1 });
+    function guessOf(stp) {
+      var g = {}, o = hG.value();
+      Object.keys(stp.guess).forEach(function (c) { g[c] = stp.guess[c]; });
+      Object.keys(o).forEach(function (c) { g[c] = o[c]; });
+      return g;
+    }
     var why = h('div', { class: 'crack-why' }), map = h('div', { class: 'crack-map' }), text = h('div', { class: 'crack-text' });
     body.appendChild(why);
     body.appendChild(h('div', { class: 'panel col', style: { gap: '16px', padding: '14px 18px' } }, map, text));
     function draw(fresh) {
-      var stp = k ? r.steps[k - 1] : null, g = stp ? stp.guess : {}, fix = stp && stp.fix, n = r.ranked.length;
+      var stp = k ? r.steps[k - 1] : null, g = stp ? guessOf(stp) : {}, fix = stp && stp.fix, n = r.ranked.length;
+      var right = stp ? r.ranked.filter(function (c) { return g[c] === r.truth[c]; }).length : 0, mine = Object.keys(hG.value()).length;
       if (!stp) why.textContent = 'A monoalphabetic ciphertext (' + C.freq(cipherText).total + ' letters). Step: match its letters to English by frequency.';
+      else if (mine) why.textContent = 'Your guess' + (mine > 1 ? 'es' : '') + ' on top of step ' + k + ': ' + right + ' of ' + n + ' right' + (right === n ? ': plaintext recovered.' : '. Tap a letter to try the next one.');
       else if (!fix) why.textContent = 'Pass 1: the k-th most common letter here → the k-th most common in English. ' + stp.right + ' of ' + n + ' right.';
       else why.textContent = 'Fix ' + (k - 1) + ': ' + fix.reason + '.  ' + stp.right + ' of ' + n + ' right' + (stp.right === n ? ': plaintext recovered.' : '.');
-      why.style.color = stp && stp.right === n ? 'var(--green)' : '';
+      why.style.color = stp && right === n ? 'var(--green)' : '';
       CN.clear(map);
       map.style.gridTemplateColumns = 'auto repeat(' + n + ', 56px)';
       map.appendChild(h('div', { class: 'label', style: { alignSelf: 'center' } }, 'cipher'));
@@ -61,7 +93,14 @@
       r.ranked.forEach(function (c, i) {
         if (!stp) { map.appendChild(h('span', { class: 'bit cm flag' }, r.english[i].toLowerCase())); return; }
         var ok = g[c] === r.truth[c];
-        map.appendChild(h('span', { class: 'bit cm ' + (ok ? 'fixed' : 'err') + (fresh && fix && fix.cipher === c ? ' fx-flash' : '') }, g[c]));
+        var cell = h('span', { class: 'bit click cm ' + (ok ? 'fixed' : 'err') + (fresh && fix && fix.cipher === c ? ' fx-flash' : ''), title: 'Tap to try the next letter for ' + c }, g[c]);
+        cell.addEventListener('click', function () {
+          var o = {}, cur = g[c], nx = cur === '?' ? 'a' : String.fromCharCode((cur.charCodeAt(0) - 97 + 1) % 26 + 97);
+          Object.keys(hG.value()).forEach(function (x) { o[x] = hG.value()[x]; });
+          if (nx === stp.guess[c]) delete o[c]; else o[c] = nx;
+          hG.set(o);
+        });
+        map.appendChild(cell);
       });
       CN.clear(text);
       cipherText.split(' ').forEach(function (w) {
@@ -79,7 +118,9 @@
     function step() { if (k >= r.steps.length) return false; k++; draw(true); return true; }
     function reset() { k = 0; draw(false); }
     body.appendChild(ui.controls());
-    return { step: step, reset: reset, prev: function () { if (k > 0) { k--; draw(false); return true; } return false; }, learnStep: function () { return k; } };
+    // learnStep: the Step; with guesses of your own on top, no learn row matches (null)
+    return { step: step, reset: reset, prev: function () { if (k > 0) { k--; draw(false); return true; } return false; },
+      learnStep: function () { return Object.keys(hG.value()).length ? null : k; } };
   }
 
   function transposition(body) {

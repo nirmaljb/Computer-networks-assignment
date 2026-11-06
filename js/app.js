@@ -45,18 +45,49 @@
 
   /* ---------------- UI kit ---------------- */
   var ui = CN.ui = {};
+  // SPEC-v8: titles, labels and buttons are set in the bundled Space Grotesk (latin subset). ui.text(t) returns
+  // nodes for t: characters the font has stay text; arrows, ≤, ✓ … become small inline SVG glyphs in the text
+  // colour; superscripts (2ⁿ⁻¹) become a <sup> of ordinary characters. ui.inFont(ch) is what the tests check
+  // against the font file itself (tools/font-chars.mjs).
+  var GROT = /[\x20-\x7e\xa0-\xffıŒœ–—‘’‚“”„•…′″‹›⁄€™↑↓−∕]/;
+  var SUP = { '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9', 'ⁿ': 'n', '⁻': '−' };
+  var GLYPH = {
+    '→': 'M2 8 H14 M9.5 3.5 L14 8 L9.5 12.5', '←': 'M14 8 H2 M6.5 3.5 L2 8 L6.5 12.5',
+    '≤': 'M12 2.5 L4 6.5 L12 10.5 M4 13.5 H12', '≥': 'M4 2.5 L12 6.5 L4 10.5 M4 13.5 H12',
+    '✓': 'M2.5 8.5 L6.5 12.5 L13.5 3.5', '✕': 'M3.5 3.5 L12.5 12.5 M12.5 3.5 L3.5 12.5',
+    '∞': 'M8 8 C6 4.5 2 4.5 2 8 C2 11.5 6 11.5 8 8 C10 4.5 14 4.5 14 8 C14 11.5 10 11.5 8 8',
+    '◀': '*M12.5 2.5 L3 8 L12.5 13.5 Z', '▶': '*M3.5 2.5 L13 8 L3.5 13.5 Z'
+  };
+  ui.inFont = function (ch) { return GROT.test(ch) && !SUP[ch]; };
+  ui.text = function (text) {
+    var out = [], run = '', sup = '';
+    function flush() { if (run) out.push(run); run = ''; if (sup) out.push(h('sup', null, sup)); sup = ''; }
+    Array.from(String(text)).forEach(function (ch) {
+      if (SUP[ch]) { if (run) { out.push(run); run = ''; } sup += SUP[ch]; return; }
+      if (sup) flush();
+      if (ui.inFont(ch)) { run += ch; return; }
+      flush();
+      var d = GLYPH[ch];
+      if (!d) { out.push(h('span', { class: 'sysglyph' }, ch)); return; }
+      out.push(s('svg', { class: 'gl', viewBox: '0 0 16 16', 'aria-label': ch, role: 'img' },
+        s('path', d.charAt(0) === '*' ? { d: d.slice(1), class: 'fill' } : { d: d })));
+    });
+    flush();
+    return out;
+  };
   ui.screen = function (root, opts) {
     var body = h('div', { class: 'scr-body' });
     // SPEC-v5: the header is the S-number and the title, nothing else
     var head = h('div', { class: 'scr-head' },
       opts.num ? h('span', { class: 'scr-num' }, 'S' + opts.num) : null,
-      h('h1', { class: 'scr-title' }, opts.title));
+      h('h1', { class: 'scr-title' }, ui.text(opts.title)));
     var el = h('div', { class: 'scr' }, head, body);
     root.appendChild(el);
     return body;
   };
   ui.btn = function (label, onClick, cls, title) {
-    return h('button', { class: 'btn ' + (cls || ''), onClick: function (e) { e.currentTarget.blur(); onClick(e); }, title: title }, label);
+    return h('button', { class: 'btn ' + (cls || ''), onClick: function (e) { e.currentTarget.blur(); onClick(e); }, title: title },
+      typeof label === 'string' ? ui.text(label) : label);
   };
   // The only controls a sim slide shows: Back, Step, Run, Reset. They drive the screen's controller
   // through the deck (sim* below), so the keys do the same: ← Back, S Step, Space Run, R Reset.
@@ -69,8 +100,22 @@
   };
   // SPEC-v6 E: what a screen returns as ctrl.input. parse(text) → { error } or a value; use(value) restarts
   // the sim with it, use(null) with the slide's own example. The input box itself lives in the shell.
+  // SPEC-v8: on a slide with handles, E is a text view of them (o.read: handles → text, o.write: parsed → handles,
+  // set quietly). Then E and the handles share one state: E then a drag = E's values with that field changed.
   ui.numbers = function (o) {
     var cur = null;
+    if (o.read) return {
+      label: o.label, viaHandles: true,
+      value: function () { return o.read(); },
+      custom: function () { return o.read() !== o.example; },
+      clear: function () {},
+      apply: function (text) {
+        var v = o.parse(String(text));
+        if (!v || v.error) return { error: (v && v.error) || 'Not understood' };
+        o.write(v);
+        return {};
+      }
+    };
     return {
       label: o.label,
       value: function () { return cur != null ? cur : o.example; },
@@ -88,6 +133,175 @@
     get: function (k, d) { try { var v = sessionStorage.getItem('cn.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
     set: function (k, v) { try { sessionStorage.setItem('cn.' + k, JSON.stringify(v)); } catch (e) { /* private mode */ } }
   };
+
+  /* ---------------- SPEC-v8: handles ---------------- */
+  // A handle is configuration for a ★ sim: a slider, chips, a dial, or taps on the figure itself (kind 'tap': the
+  // screen draws the tappable parts and calls hd.set). Handles are built only here, so the v5 guard on screens holds.
+  // A change from the user re-runs the sim and replays the moves since Reset (handleChanged); E, R, ? and C set values
+  // quietly. o = { key, label (one word), kind, values (array | () → array), value (the default), fmt(v), chip(v),
+  // breaks: { v: why it fails } or isBreak(v) (the taught-break notches, one past the legal limit), limit: { at, text } (a mark shown
+  // within one notch of it), disabled(v), floor (replay at least this many Steps, so the change shows), share (keeps
+  // the value across the stop's sub-slides until the deck leaves the stop), width / radius, center(v) (dial) }.
+  var curHandles = [], lastHandle = null, shared = {}, locked = false;
+  function same(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
+  function indexOfV(vs, v) { for (var i = 0; i < vs.length; i++) if (same(vs[i], v)) return i; return -1; }
+  function has(o, k) { return !!o && Object.prototype.hasOwnProperty.call(o, String(k)); }
+  ui.handle = function (o) {
+    var kind = o.kind || 'slider', sk = o.share ? o.share + '.' + o.key : null;
+    var cur = sk && has(shared, sk) ? shared[sk] : o.value;
+    var hd = { key: o.key, kind: kind, dflt: o.value, floor: o.floor || 0, el: null, draw: function () {} };
+    hd.limit = function () { return typeof o.limit === 'function' ? o.limit() : o.limit || null; };
+    hd.values = function () { return typeof o.values === 'function' ? o.values() : o.values || []; };
+    hd.value = function () { return cur; };
+    hd.custom = function () { return !same(cur, o.value); };
+    hd.fmt = function (v) { return o.fmt ? o.fmt(v) : String(v); };
+    hd.isBreak = function (v) { var x = arguments.length ? v : cur; return o.isBreak ? !!o.isBreak(x) : has(o.breaks, x); };
+    hd.breakText = function () { return hd.isBreak() ? o.breaks[String(cur)] : ''; };
+    hd.disabled = function (v) { return !!(o.disabled && o.disabled(v)); };
+    hd.legal = function () { return hd.values().filter(function (v) { return !hd.isBreak(v) && !hd.disabled(v); }); };
+    hd.set = function (v, quiet) {
+      if (!quiet && !handlesOpen()) return false;
+      if (same(v, cur)) return false;
+      cur = v;
+      if (sk) shared[sk] = v;
+      hd.draw();
+      if (!quiet) handleChanged(hd);
+      return true;
+    };
+    hd.reset = function () { cur = o.value; if (sk) delete shared[sk]; hd.draw(); };
+    // after the range moved (other numbers via E): keep the value if still on it, else the nearest legal notch
+    hd.fit = function () {
+      var vs = hd.values();
+      if (!vs.length || (indexOfV(vs, cur) >= 0 && !hd.disabled(cur))) { hd.draw(); return; }
+      var legal = hd.legal(), best = legal[0];
+      legal.forEach(function (v) { if (typeof v === 'number' && Math.abs(v - cur) < Math.abs(best - cur)) best = v; });
+      cur = best;
+      if (sk) shared[sk] = cur;
+      hd.draw();
+    };
+    // [ ]: the neighbouring notch that is not disabled
+    hd.nudge = function (d) {
+      var vs = hd.values(), i = indexOfV(vs, cur);
+      if (i < 0) return false;
+      for (var j = i + d; j >= 0 && j < vs.length; j += d) if (!hd.disabled(vs[j])) return hd.set(vs[j]);
+      return false;
+    };
+    hd.nudgeable = function () { return indexOfV(hd.values(), cur) >= 0; };
+    if (kind === 'slider') sliderEl(hd, o);
+    else if (kind === 'chips') chipsEl(hd, o);
+    else if (kind === 'dial') dialEl(hd, o);
+    curHandles.push(hd);
+    return hd;
+  };
+  function hdLabel(hd, o, el) {
+    clear(el);
+    el.classList.toggle('brk', hd.isBreak());
+    append(el, [ui.text(o.label + ' '), h('b', null, ui.text(hd.fmt(hd.value())))]);
+  }
+  function sliderEl(hd, o) {
+    var label = h('span', { class: 'hd-label' }), track = h('div', { class: 'hd-track', style: { width: (o.width || 420) + 'px' } });
+    hd.el = h('div', { class: 'hd hd-slider', 'data-key': hd.key }, label, track);
+    function at(i, n) { return (n > 1 ? i / (n - 1) * 100 : 50) + '%'; }
+    hd.draw = function () {
+      var vs = hd.values(), i = indexOfV(vs, hd.value());
+      hdLabel(hd, o, label);
+      clear(track);
+      // a long range draws a tick every few notches (every value can still be dragged to or nudged with [ ])
+      var every = vs.length > 24 ? Math.ceil(vs.length / 12) : 1;
+      vs.forEach(function (v, j) {
+        if (j % every && j !== vs.length - 1 && !hd.isBreak(v)) return;
+        var n = h('span', { class: 'hd-notch' + (hd.isBreak(v) ? ' brk' : ''), 'data-v': JSON.stringify(v), style: { left: at(j, vs.length) } });
+        n.addEventListener('click', function (e) { e.stopPropagation(); if (!hd.disabled(v)) hd.set(v); });
+        track.appendChild(n);
+      });
+      // the limit mark shows only within one notch of the limit
+      var lim = hd.limit(), li = lim ? indexOfV(vs, lim.at) : -1;
+      if (li >= 0 && Math.abs(li - i) <= 1) track.appendChild(h('span', { class: 'hd-limit', style: { left: at(li, vs.length) } }, lim.text));
+      track.appendChild(h('span', { class: 'hd-thumb' + (hd.isBreak() ? ' brk' : ''), style: { left: at(Math.max(0, i), vs.length) } }));
+    };
+    function pick(e) {
+      var r = track.getBoundingClientRect(), vs = hd.values();
+      if (!r.width || !vs.length) return;
+      var j = Math.round(Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * (vs.length - 1));
+      if (!hd.disabled(vs[j])) hd.set(vs[j]);
+    }
+    track.addEventListener('pointerdown', function (e) {
+      if (!handlesOpen()) return;
+      hd.el.classList.add('dragging');
+      try { track.setPointerCapture(e.pointerId); } catch (x) { /* fake DOM */ }
+      pick(e);
+    });
+    track.addEventListener('pointermove', function (e) { if (hd.el.classList.contains('dragging')) pick(e); });
+    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (t) { track.addEventListener(t, function () { hd.el.classList.remove('dragging'); }); });
+    hd.draw();
+  }
+  // chips: one value; with o.multi the value is the list of chips that are on (a click toggles one, order kept)
+  function chipsEl(hd, o) {
+    var label = h('span', { class: 'hd-label' }), box = h('div', { class: 'hd-chips' });
+    hd.el = h('div', { class: 'hd hd-chipset', 'data-key': hd.key }, label, box);
+    hd.draw = function () {
+      hdLabel(hd, o, label);
+      clear(box);
+      var vs = hd.values();
+      vs.forEach(function (v) {
+        var on = o.multi ? indexOfV(hd.value(), v) >= 0 : same(v, hd.value());
+        var c = h('button', { class: 'hd-chip' + (on ? ' on' : '') + (hd.isBreak(v) ? ' brk' : ''), 'data-v': JSON.stringify(v), disabled: hd.disabled(v) && !on },
+          ui.text(o.chip ? o.chip(v) : hd.fmt(v)));
+        c.addEventListener('click', function (e) {
+          e.currentTarget.blur();
+          if (hd.disabled(v) && !on) return;
+          if (!o.multi) return hd.set(v);
+          hd.set(vs.filter(function (x) { return same(x, v) ? !on : indexOfV(hd.value(), x) >= 0; }));
+        });
+        box.appendChild(c);
+      });
+    };
+    if (o.multi) hd.nudgeable = function () { return false; };
+    hd.draw();
+  }
+  function dialEl(hd, o) {
+    var R = o.radius || 120, size = 2 * R + 64, c = size / 2;
+    var svg = s('svg', { class: 'hd-dial', width: size, height: size, viewBox: '0 0 ' + size + ' ' + size });
+    var label = h('span', { class: 'hd-label' });
+    hd.el = h('div', { class: 'hd hd-dialbox', 'data-key': hd.key }, label, svg);
+    function pos(j, n, r) { var a = -Math.PI / 2 + 2 * Math.PI * j / n; return [c + r * Math.cos(a), c + r * Math.sin(a)]; }
+    hd.draw = function () {
+      var vs = hd.values();
+      hdLabel(hd, o, label);
+      clear(svg);
+      svg.appendChild(s('circle', { cx: c, cy: c, r: R, fill: 'none', stroke: 'var(--ink)', 'stroke-width': 3 }));
+      vs.forEach(function (v, j) {
+        var on = same(v, hd.value()), p = pos(j, vs.length, R), t = pos(j, vs.length, R + 22);
+        var dot = s('circle', { class: 'n' + (on ? ' on' : ''), cx: p[0], cy: p[1], r: on ? 11 : 6, 'data-v': JSON.stringify(v) });
+        dot.addEventListener('click', function (e) { e.stopPropagation(); hd.set(v); });
+        svg.appendChild(dot);
+        svg.appendChild(s('text', { x: t[0], y: t[1] + 5, 'text-anchor': 'middle', class: on ? 'on' : '' }, o.tick ? o.tick(v) : String(v)));
+      });
+      if (o.center) svg.appendChild(s('text', { x: c, y: c + 9, 'text-anchor': 'middle', class: 'on', style: 'font-size: 26px' }, o.center(hd.value())));
+    };
+    function pick(e) {
+      var r = svg.getBoundingClientRect(), vs = hd.values();
+      if (!r.width || !vs.length) return;
+      var a = Math.atan2(e.clientY - (r.top + r.height / 2), e.clientX - (r.left + r.width / 2)) + Math.PI / 2;
+      var j = Math.round(((a / (2 * Math.PI)) % 1 + 1) % 1 * vs.length) % vs.length;
+      hd.set(vs[j]);
+    }
+    svg.addEventListener('pointerdown', function (e) {
+      if (!handlesOpen()) return;
+      hd.el.classList.add('dragging');
+      try { svg.setPointerCapture(e.pointerId); } catch (x) { /* fake DOM */ }
+      pick(e);
+    });
+    svg.addEventListener('pointermove', function (e) { if (hd.el.classList.contains('dragging')) pick(e); });
+    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (t) { svg.addEventListener(t, function () { hd.el.classList.remove('dragging'); }); });
+    hd.draw();
+  }
+  // The row a screen puts its handles in (under the figure, above Back · Step · Run · Reset).
+  ui.handleRow = function () {
+    return h('div', { class: 'hd-row' }, Array.prototype.slice.call(arguments).map(function (x) { return x && x.el; }));
+  };
+  // A value another sub-slide of this stop set (20c follows 20a/b), or the default.
+  ui.sharedValue = function (share, key, dflt) { var k = share + '.' + key; return has(shared, k) ? shared[k] : dflt; };
 
   /* ---------------- Journey map ---------------- */
   // reveal: 0 = nothing, 1 = Unit II stops, 2 = + Unit III, 3 = + Units IV–V (all). done(n), cur(n) → bool.
@@ -238,11 +452,13 @@
     return true;
   }
   function simStep() { stopRun(); move('step'); ctlButtons(); post(); }
-  // R also drops numbers typed with E (SPEC-v6): the slide goes back to its fixed example.
+  // R also drops numbers typed with E (SPEC-v6) and every handle (SPEC-v8): the slide goes back to its example.
   function simReset() {
     stopRun();
-    if (ctrl && ctrl.input && ctrl.input.custom()) { ctrl.input.clear(); customTag(false); }
+    curHandles.forEach(function (x) { x.reset(); });
+    if (ctrl && ctrl.input && !ctrl.input.viaHandles && ctrl.input.custom()) ctrl.input.clear();
     else if (ctrl && ctrl.reset) ctrl.reset();
+    customTag(false);
     trail = [];
     if (predict) { predict.revealed = false; drawPredict(); }
     ctlButtons(); post();
@@ -303,7 +519,8 @@
     closeInput();
     trail = [];
     if (predict) endPredict();
-    customTag(ctrl.input.custom());
+    if (ctrl.input.viaHandles && ctrl.reset) ctrl.reset();
+    customTag(anyCustom());
     ctlButtons(); post();
   }
   function customTag(on) {
@@ -319,7 +536,9 @@
     var p = screens[idx].predict;
     if (!p) { CN.toast('No prediction on this slide'); return; }
     if (predict) { endPredict(); return; }
+    if (chal) endChallenge();
     simReset();
+    setLock(true);   // SPEC-v8: ? snaps the handles to the defaults and locks them until the answer shows
     var cap = captionEl();
     if (!cap) { cap = h('div', { class: 'say' }); main.querySelector('.scr-body').insertBefore(cap, main.querySelector('.scr-body').firstChild); }
     predict = { q: p.q, a: p.a, revealed: false, cap: cap, old: Array.prototype.slice.call(cap.childNodes) };
@@ -334,8 +553,10 @@
     cap.appendChild(h('span', null, predict.q));
     if (predict.revealed) cap.appendChild(h('span', { class: 'pd-answer' }, '✓ ' + predict.a));
     else cap.appendChild(h('span', { class: 'pd-hint' }, ' · Run to see'));
+    setLock(!predict.revealed);
   }
   function endPredict() {
+    setLock(false);
     if (!predict) return;
     var cap = predict.cap;
     clear(cap); cap.classList.remove('predict', 'answered');
@@ -359,6 +580,97 @@
     document.documentElement.setAttribute('data-motion', on ? 'on' : 'off');
     ui.store.set('motion', on);
     if (!quiet) CN.toast(on ? 'Motion on' : 'Motion off');
+  }
+
+  /* ---------------- SPEC-v8: handles in the deck, [ ] nudge, C challenge ---------------- */
+  function handlesOpen() { return !locked && !quizBusy(); }
+  function anyCustom() { return curHandles.some(function (x) { return x.custom(); }) || !!(ctrl && ctrl.input && ctrl.input.custom()); }
+  function setLock(on) {
+    locked = !!on;
+    if (main) main.classList.toggle('hd-locked', locked);
+  }
+  // A handle moved: the sim restarts at the new values and replays the moves since Reset, so it lands on the same
+  // step (or the run's last one). A handle with a floor replays at least that many Steps, so the change shows.
+  function handleChanged(hd) {
+    lastHandle = hd;
+    stopRun();
+    var moves = trail;
+    trail = [];
+    if (ctrl && ctrl.reset) ctrl.reset();
+    for (var i = 0; i < moves.length; i++) {
+      var fn = moves[i] === 'run' && ctrl.runStep ? ctrl.runStep : ctrl.step;
+      if (!fn || fn() === false) break;
+      trail.push(moves[i]);
+    }
+    while (trail.length < hd.floor && ctrl.step && ctrl.step() !== false) trail.push('step');
+    customTag(anyCustom());
+    ctlButtons(); post();
+  }
+  // [ ]: the last-touched handle (or the first one with notches) moves one notch. ← → stay deck navigation.
+  function nudgeHandle(d) {
+    if (!handlesOpen()) return;
+    var x = lastHandle && curHandles.indexOf(lastHandle) >= 0 && lastHandle.nudgeable() ? lastHandle : curHandles.filter(function (y) { return y.nudgeable(); })[0];
+    if (!x) { CN.toast(curHandles.length ? 'Tap the figure to change it' : 'No handle on this slide'); return; }
+    if (x.nudge(d)) lastHandle = x;
+  }
+  CN.handles = function () { return curHandles.slice(); };
+  CN.moves = function () { return trail.length; };   // the Steps / Runs since Reset (what a drag replays)
+
+  // C: the slide's challenge (ctrl.challenge = { goal, why, holds(), answer() → { key: value } }). The goal takes the
+  // caption's place; once holds() is true, ✓ and the one-line why replace it (no ✕, ever). C again walks the handles
+  // to the answer; a third C brings the caption back. C and ? exclude each other.
+  var chal = null, chalTimer = null;
+  function toggleChallenge() {
+    if (quizBusy()) return;
+    var ch = ctrl && ctrl.challenge;
+    if (!ch) { CN.toast('No challenge on this slide'); return; }
+    if (!chal) {
+      if (predict) endPredict();
+      var cap = captionEl(), made = !cap, body = main.querySelector('.scr-body');
+      if (made) { cap = h('div', { class: 'say' }); body.insertBefore(cap, body.firstChild); }
+      chal = { ch: ch, cap: cap, made: made, old: Array.prototype.slice.call(cap.childNodes), stage: 1, text: null };
+      if (ch.start) ch.start();
+      drawChallenge();
+    } else if (chal.stage === 1) { chal.stage = 2; solveChallenge(); }
+    else endChallenge();
+  }
+  function drawChallenge() {
+    if (!chal) return;
+    var ok = !!chal.ch.holds(), why = typeof chal.ch.why === 'function' ? chal.ch.why() : chal.ch.why, text = ok ? '✓ ' + why : chal.ch.goal;
+    if (text === chal.text) return;
+    chal.text = text;
+    var cap = chal.cap;
+    clear(cap);
+    cap.classList.add('chal');
+    cap.classList.toggle('solved', ok);
+    cap.appendChild(h('span', { class: 'ch-label' }, 'CHALLENGE'));
+    cap.appendChild(h('span', null, text));
+  }
+  function endChallenge() {
+    clearInterval(chalTimer); chalTimer = null;
+    if (!chal) return;
+    var cap = chal.cap, ch = chal.ch;
+    clear(cap); cap.classList.remove('chal', 'solved');
+    append(cap, chal.old);
+    if (chal.made) cap.remove();
+    chal = null;
+    if (ch.end) ch.end();
+  }
+  // C again: each handle walks to the answer a notch at a time (jumps with motion off, or for chips and taps)
+  function solveChallenge() {
+    var ans = chal.ch.answer();
+    var todo = curHandles.filter(function (x) { return has(ans, x.key) && !same(x.value(), ans[x.key]); });
+    function tick() {
+      var x = todo[0];
+      if (!x) { clearInterval(chalTimer); chalTimer = null; return false; }
+      var tgt = ans[x.key], vs = x.values(), i = indexOfV(vs, x.value()), j = indexOfV(vs, tgt);
+      if (!motion || x.kind === 'tap' || x.kind === 'chips' || i < 0 || j < 0 || !x.set(vs[i + (j > i ? 1 : -1)])) x.set(tgt);
+      if (same(x.value(), tgt) || !handlesOpen()) todo.shift();
+      return true;
+    }
+    if (!motion) { while (tick()) { /* every handle lands at once */ } return; }
+    tick();
+    chalTimer = setInterval(tick, 110);
   }
 
   /* ---------------- SPEC-v7: L learn pane, / search ---------------- */
@@ -499,12 +811,12 @@
     if (!learn.on || learn.hit || learn.page < 0) return;
     var sub = lnSubOf(screens[idx]);
     var step = ctrl && ctrl.learnStep ? ctrl.learnStep() : null;
-    var custom = ctrl && ctrl.input && ctrl.input.custom() ? ctrl.input.value() : null;
+    var custom = anyCustom() ? (ctrl && ctrl.genText ? ctrl.genText() : ctrl && ctrl.input ? ctrl.input.value() : null) : null;
     var gk = sub + '|' + (custom == null ? '' : custom);
     if (gk !== learn.genKey) { learn.genKey = gk; swapGen(sub, custom); learn.hlKey = null; }
     clear(lnNote);
     lnNote.classList.toggle('shown', custom != null);
-    if (custom != null) lnNote.appendChild(document.createTextNode('Your numbers (E): ' + custom + '. Tables marked ✎ use them; the text still describes the slide\'s own example.'));
+    if (custom != null) lnNote.appendChild(document.createTextNode('Your numbers: ' + custom + '. Tables marked ✎ use them; the text still describes the slide\'s own example.'));
     var key = step == null ? null : sub + ':' + step;
     if (key === learn.hlKey) return;
     learn.hlKey = key;
@@ -650,6 +962,9 @@
     stopRun(); trail = [];
     if (einBox) closeInput();
     predict = null;
+    clearInterval(chalTimer); chalTimer = null; chal = null;
+    if (screens[idx] && screens[i].topic !== screens[idx].topic) shared = {};
+    curHandles = []; lastHandle = null; setLock(false);
     if (ctrl && ctrl.destroy) ctrl.destroy();
     ctrl = null;
     if (i > 0 && !talkStart) startTimer();
@@ -670,6 +985,7 @@
       ctrl = {};
     }
     drawStory();
+    customTag(anyCustom());   // a value shared from another sub-slide of this stop (20c, 20b) shows the tag at once
     ctlButtons();
     if (learn.on) showSlide(true);
     try { history.replaceState(null, '', '#' + sc.id); } catch (e) { /* file:// in some browsers */ }
@@ -711,6 +1027,7 @@
     setTimeout(post, 400);
   }
   function post() {
+    drawChallenge();
     learnRefresh();
     if (!presenter || presenter.closed) return;
     try {
@@ -788,6 +1105,9 @@
       case 'r': case 'R': simReset(); break;
       case 'e': case 'E': openInput(); break;
       case '?': startPredict(); break;
+      case 'c': case 'C': toggleChallenge(); break;
+      case '[': nudgeHandle(-1); break;
+      case ']': nudgeHandle(1); break;
       case 'a': case 'A': setMotion(!motion); break;
       case 'l': case 'L': toggleLearn(); break;
       case '/': openFind(); break;

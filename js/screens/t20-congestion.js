@@ -5,8 +5,11 @@
   // SPEC-v5: one model (CN.tcp.cwndTrace), fixed ssthresh 32 and router capacity 39, loss signalled by
   // 3 duplicate ACKs. 20a Tahoe graph, 20b Reno graph, 20c the 3D road (simulation only, Reno), then
   // three static sub-slides: the 1986 collapse, AIMD fairness, ECN. Step = one transmission round.
+  // SPEC-v8: capacity and the initial ssthresh are handles on 20a/b, shared across the stop, so 20c's road follows them.
   var ROUNDS = 24, SSTHRESH = 32, CAPACITY = 39;
-  function trace(variant) { return T.cwndTrace({ ssthresh: SSTHRESH, capacity: CAPACITY, variant: variant, loss: 'dupack', rounds: ROUNDS }); }
+  function range(a, b) { var v = []; for (var i = a; i <= b; i++) v.push(i); return v; }
+  function trace(variant, cap, ss) { return T.cwndTrace({ ssthresh: ss || SSTHRESH, capacity: cap || CAPACITY, variant: variant, loss: 'dupack', rounds: ROUNDS }); }
+  function lossFree(cap, ss) { return !trace('tahoe', cap, ss).some(function (r) { return r.loss; }); }
   function roundText(rows, n) {
     if (!n) return 'Round 0: cwnd starts at 1 segment.';
     var r = rows[n - 1];
@@ -14,14 +17,17 @@
   }
 
   function graphSlide(body, variant) {
-    var st = { rows: trace(variant), round: 0, capacity: CAPACITY };
-    var GW = 1300, GH = 540, graph = s('svg', { width: GW, height: GH, viewBox: '0 0 ' + GW + ' ' + GH });
+    var hCap = ui.handle({ key: 'capacity', label: 'Capacity', kind: 'slider', value: CAPACITY, values: range(10, 60), share: 't20', width: 400 });
+    var hSs = ui.handle({ key: 'ssthresh', label: 'ssthresh', kind: 'slider', value: SSTHRESH, values: range(2, 64), share: 't20', width: 400 });
+    var st = { rows: null, round: 0, capacity: CAPACITY }, lossRound = 0;
+    var GW = 1300, GH = 470, graph = s('svg', { width: GW, height: GH, viewBox: '0 0 ' + GW + ' ' + GH });
     var line = h('div', { style: { fontSize: '28px', fontWeight: 700, minHeight: '40px' } });
     body.appendChild(h('div', { class: 'say' }, variant === 'reno'
       ? 'Reno: on 3 duplicate ACKs, ssthresh = cwnd/2 and cwnd = ssthresh (fast recovery).'
       : 'Tahoe: on any loss, ssthresh = cwnd/2 and cwnd = 1 (slow start again).'));
     body.appendChild(h('div', { class: 'panel', style: { padding: '4px' } }, graph));
     body.appendChild(line);
+    body.appendChild(ui.handleRow(hCap, hSs));
     function draw() {
       line.textContent = roundText(st.rows, st.round);
       CN.clear(graph);
@@ -64,40 +70,51 @@
         if (done && row.round === st.round) graph.appendChild(s('text', { x: X(row.round) + 10, y: Y(row.cwnd) + 20, 'font-size': 24, 'font-weight': 800, fill: 'var(--blue)' }, String(row.cwnd)));
       });
     }
-    draw();
     function step() { if (st.round >= ROUNDS) return false; st.round++; draw(); return true; }
-    function reset() { st.round = 0; draw(); }
+    function reset() {
+      st.capacity = hCap.value(); st.rows = trace(variant, st.capacity, hSs.value()); st.round = 0;
+      var lr = st.rows.filter(function (r) { return r.loss; })[0];
+      lossRound = lr ? lr.round : ROUNDS;
+      draw();
+    }
+    reset();
     body.appendChild(ui.controls());
     // ? (SPEC-v6): settled on the round after the first loss, where the new cwnd shows
-    var lossRound = st.rows.filter(function (r) { return r.loss; })[0].round;
-    return { step: step, reset: reset, reached: function () { return st.round > lossRound; }, learnStep: function () { return st.round; },
+    var ctl = { step: step, reset: reset, reached: function () { return st.round > lossRound || st.round >= ROUNDS; }, learnStep: function () { return st.round; },
+      genText: function () { return 'capacity ' + hCap.value() + ' | ssthresh ' + hSs.value(); },
       prev: function () { if (st.round > 0) { st.round--; draw(); return true; } return false; } };
+    // C (20a): the smallest capacity Tahoe never overruns in 24 rounds: no loss there, a loss one below
+    if (variant === 'tahoe') ctl.challenge = { goal: 'Find the smallest capacity with no Tahoe loss in 24 rounds',
+      why: function () { return 'cwnd peaks at ' + hCap.value() + ' in round 24 (ssthresh ' + hSs.value() + ', then +1 a round): any lower capacity drops a segment.'; },
+      holds: function () { return lossFree(hCap.value(), hSs.value()) && !lossFree(hCap.value() - 1, hSs.value()); },
+      answer: function () { var c = 10; while (!lossFree(c, SSTHRESH)) c++; return { ssthresh: SSTHRESH, capacity: c }; } };
+    return ctl;
   }
 
   function roadSlide(body, root) {
-    var rows = trace('reno'), round = 0, road = null;
+    var CAP = ui.sharedValue('t20', 'capacity', CAPACITY), rows = trace('reno', CAP, ui.sharedValue('t20', 'ssthresh', SSTHRESH)), round = 0, road = null;
     var status = h('div', { class: 't20-status' });
     var roadBox = h('div', { class: 't20-road' });
     var stage = h('div', { class: 't20-stage' }, roadBox, status);
     body.appendChild(stage);
     function draw() {
       CN.clear(status);
-      if (!round) { status.appendChild(h('div', null, 'One vehicle per segment. Router capacity ' + CAPACITY + ' per round.')); return; }
-      var r = rows[round - 1], rd = T.road(r.cwnd, CAPACITY);
+      if (!round) { status.appendChild(h('div', null, 'One vehicle per segment. Router capacity ' + CAP + ' per round.')); return; }
+      var r = rows[round - 1], rd = T.road(r.cwnd, CAP);
       status.appendChild(h('div', null, h('b', null, 'Round ' + r.round + ' · cwnd ' + r.cwnd)));
-      if (r.loss) status.appendChild(h('div', { class: 'bad', style: { fontWeight: 700 } }, r.cwnd + ' > ' + CAPACITY + ' → ' + rd.dropped + ' dropped'));
+      if (r.loss) status.appendChild(h('div', { class: 'bad', style: { fontWeight: 700 } }, r.cwnd + ' > ' + CAP + ' → ' + rd.dropped + ' dropped'));
       else status.appendChild(h('div', { class: 'ok' }, 'All ' + r.cwnd + ' fit'));
     }
     function step() {
       if (round >= ROUNDS) return false;
       round++;
-      if (road) road.round(rows[round - 1].cwnd, CAPACITY);
+      if (road) road.round(rows[round - 1].cwnd, CAP);
       draw(); return true;
     }
     function reset() { round = 0; if (road) road.clear(); draw(); }
     body.appendChild(ui.controls());
     draw();
-    CN.road.create(roadBox, { capacity: CAPACITY }, function (r, err) {
+    CN.road.create(roadBox, { capacity: CAP }, function (r, err) {
       if (!roadBox.isConnected) { if (r) r.destroy(); return; }
       if (!r) { stage.insertBefore(h('div', { class: 'banner warn' }, 'The 3D road needs WebGL (' + err + ').'), stage.firstChild); return; }
       road = r;

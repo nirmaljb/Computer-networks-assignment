@@ -37,29 +37,36 @@
     return z;
   }
 
-  // Message list for one uncached lookup. Each: { from, to, text, kind: query|referral|answer }.
-  function walk(name, mode) {
+  // Message list for one lookup. Each: { from, to, text, kind: query|referral|answer }.
+  // SPEC-v8: cached = names the resolver already holds a record for: a zone ('com', 'example.com') means its NS
+  // record, so the walk starts at the deepest cached zone instead of the root; the full name means its A record,
+  // so the resolver answers at once. (The root's servers are always known: the root hints.)
+  function walk(name, mode, cached) {
     var p = parse(name);
     if (p.error) return p;
     var z = zones(p.labels), a = addrFor(p.name), steps = [], q = p.name + ' A?';
-    var answer = 'A ' + a;
+    var answer = 'A ' + a, have = {}, top = 0;
+    (cached || []).forEach(function (c) { have[String(c).toLowerCase().replace(/\.$/, '')] = true; });
+    z.forEach(function (zz, i) { if (i && have[zz.zone]) top = i; });
     steps.push({ from: 'client', to: 'resolver', text: q, kind: 'query' });
-    if (mode === 'recursive') {
+    if (have[p.name]) {
+      steps.push({ from: 'resolver', to: 'client', text: answer + ' (cached)', kind: 'answer' });
+    } else if (mode === 'recursive') {
       // each server asks the next on the client's behalf, then the answer comes back down the chain
-      steps.push({ from: 'resolver', to: 0, text: q, kind: 'query' });
-      for (var i = 1; i < z.length; i++) steps.push({ from: i - 1, to: i, text: q, kind: 'query' });
-      for (i = z.length - 1; i >= 1; i--) steps.push({ from: i, to: i - 1, text: answer, kind: 'answer' });
-      steps.push({ from: 0, to: 'resolver', text: answer, kind: 'answer' });
+      steps.push({ from: 'resolver', to: top, text: q, kind: 'query' });
+      for (var i = top + 1; i < z.length; i++) steps.push({ from: i - 1, to: i, text: q, kind: 'query' });
+      for (i = z.length - 1; i >= top + 1; i--) steps.push({ from: i, to: i - 1, text: answer, kind: 'answer' });
+      steps.push({ from: top, to: 'resolver', text: answer, kind: 'answer' });
     } else {
-      for (i = 0; i < z.length; i++) {
+      for (i = top; i < z.length; i++) {
         steps.push({ from: 'resolver', to: i, text: q, kind: 'query' });
         if (i < z.length - 1) steps.push({ from: i, to: 'resolver', text: 'referral: ' + z[i + 1].zone + ' NS ' + z[i + 1].server, kind: 'referral' });
         else steps.push({ from: i, to: 'resolver', text: answer + ' (authoritative)', kind: 'answer' });
       }
     }
-    steps.push({ from: 'resolver', to: 'client', text: answer, kind: 'answer' });
+    if (!have[p.name]) steps.push({ from: 'resolver', to: 'client', text: answer, kind: 'answer' });
     var count = function (who) { return steps.filter(function (s) { return s.from === who && s.kind === 'query'; }).length; };
-    return { name: p.name, labels: p.labels, zones: z, address: a, steps: steps, mode: mode,
+    return { name: p.name, labels: p.labels, zones: z, address: a, steps: steps, mode: mode, top: top, cached: !!have[p.name],
       fromResolver: count('resolver'), fromClient: count('client'), total: steps.filter(function (s) { return s.kind === 'query'; }).length };
   }
 

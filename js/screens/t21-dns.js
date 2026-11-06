@@ -6,18 +6,25 @@
   // 21c resource records (static). No real lookups; a fresh resolver each time, so no cache hits.
   var NAME = 'www.example.com';
 
+  // SPEC-v8 handle: records the resolver already holds. A zone's NS record lets the walk start below the root; the
+  // name's own A record answers at once. Tap a record to cache it or drop it.
+  var CACHE = ['com', 'example.com', 'www.example.com'], RECORD = { com: 'com NS', 'example.com': 'example.com NS', 'www.example.com': 'www A' };
+
   // SPEC-v6 set piece: the walk drawn on the hierarchy itself (root → TLD → authoritative), with the phone and
   // the resolver beside it. No map: root and TLD servers are anycast, so geography would be wrong.
   // One message per Step; the newest one travels its arrow as a glowing dot (instant with motion off).
   var COL = { query: 'var(--blue)', referral: 'var(--amber)', answer: 'var(--green)' };
   function walk(body, mode) {
     var st = { cur: null, k: 0 }, fresh = false;
+    var hC = ui.handle({ key: 'cache', label: 'Cached', kind: 'chips', multi: true, value: [], values: CACHE,
+      fmt: function (v) { return v.length ? String(v.length) : 'none'; }, chip: function (v) { return RECORD[v]; } });
     var W = 1180, H = 600;
-    var svg = s('svg', { width: 1180, height: 600, viewBox: '0 0 ' + W + ' ' + H });
+    var svg = s('svg', { width: 1065, height: 540, viewBox: '0 0 ' + W + ' ' + H });
     body.appendChild(h('div', { class: 'say' }, mode === 'iterative'
       ? 'Iterative: the resolver asks each level itself; each server returns a referral or the answer.'
       : 'Recursive: each server asks the next one on the client\'s behalf and passes the answer back.'));
     body.appendChild(h('div', { class: 'panel', style: { padding: '4px' } }, svg));
+    body.appendChild(ui.handleRow(hC));
     var ROLE = ['root', 'TLD', 'authoritative', 'authoritative'];
     function nodes(zones) {
       var n = { client: [130, 470, 'phone', 'client'], resolver: [400, 300, 'resolver', 'local resolver'] };
@@ -62,10 +69,12 @@
           svg.appendChild(dot);
         }
       });
-      // nodes on top; the one that just received a message is lit
+      // nodes on top; the one that just received a message is lit; servers the cache lets the walk skip are faded
       Object.keys(N).forEach(function (k) {
         var p = N[k], busy = shown.length && String(shown[shown.length - 1].to) === k;
-        svg.appendChild(s('circle', { cx: p[0], cy: p[1], r: 44, fill: busy ? 'var(--accent-bg)' : 'var(--panel)', stroke: busy ? 'var(--accent)' : 'var(--ink)', 'stroke-width': 3 }));
+        var skipped = /^\d+$/.test(k) && (c.cached || +k < c.top);
+        svg.appendChild(s('circle', { cx: p[0], cy: p[1], r: 44, fill: busy ? 'var(--accent-bg)' : 'var(--panel)', stroke: busy ? 'var(--accent)' : 'var(--ink)', 'stroke-width': 3,
+          'stroke-dasharray': skipped ? '6 6' : null, opacity: skipped ? 0.45 : 1 }));
         svg.appendChild(s('text', { x: p[0], y: p[1] + 6, 'text-anchor': 'middle', 'font-size': p[2].length > 9 ? 15 : 18, 'font-weight': 800 }, p[2]));
         svg.appendChild(s('text', { x: p[0], y: p[1] + 66, 'text-anchor': 'middle', 'font-size': 16, fill: 'var(--muted)', class: 'halo' }, p[3]));
       });
@@ -75,11 +84,18 @@
       } else svg.appendChild(s('text', { x: 20, y: 34, 'font-size': 22, fill: 'var(--muted)' }, 'Step: the phone asks for ' + c.name));
       fresh = false;
     }
-    function reset() { st.cur = CN.dns.resolver(30).lookup(NAME, mode, 0); st.k = 0; fresh = false; draw(); }
+    function reset() { st.cur = CN.dns.walk(NAME, mode, hC.value()); st.k = 0; fresh = false; draw(); }
     function step() { if (st.k >= st.cur.steps.length) return false; st.k++; fresh = true; draw(); return true; }
     body.appendChild(ui.controls());
     reset();
-    return { step: step, reset: reset, prev: function () { if (st.k > 0) { st.k--; draw(); return true; } return false; }, learnStep: function () { return st.k; } };
+    var ctl = { step: step, reset: reset, prev: function () { if (st.k > 0) { st.k--; draw(); return true; } return false; }, learnStep: function () { return st.k; },
+      genText: function () { return 'cache ' + hC.value().join(' '); } };
+    // C (21a): one cached NS record so the resolver asks only two servers (the TLD's and the authoritative one)
+    if (mode === 'iterative') ctl.challenge = { goal: 'Cache one record so the resolver sends only 2 queries',
+      why: 'With com\'s NS cached the resolver skips the root: it asks the TLD server, then the authoritative one.',
+      holds: function () { return CN.dns.walk(NAME, mode, hC.value()).fromResolver === 2; },
+      answer: function () { return { cache: ['com'] }; } };
+    return ctl;
   }
 
   function records(body) {

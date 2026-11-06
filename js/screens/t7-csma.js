@@ -23,21 +23,32 @@
     return {};
   }
 
+  // SPEC-v8 handle: drag a station along the cable (positions in propagation ticks from A). On 7a–7c it is B, the
+  // station already sending at t = 0; on 7d it is D, the far end of the CSMA/CD pair (B never sends there).
+  var MOVER = { '1p': { st: 1, name: 'B', at: 2, spots: [1, 2, 3, 5] }, np: { st: 1, name: 'B', at: 2, spots: [1, 2, 3, 5] },
+    pp: { st: 1, name: 'B', at: 2, spots: [1, 2, 3, 5] }, cd: { st: 3, name: 'D', at: 6, spots: [1, 3, 5, 6] } };
+  function positions(mv, x) { var p = [0, 2, 4, 6]; p[mv.st] = x; return p; }
+  function fullRun(run, pos) {
+    return X.createBus({ mode: run.mode, p: 0.5, cd: run.cd, seed: 42, positions: pos, schedule: run.schedule.map(function (e) { return Object.assign({}, e); }) }).run();
+  }
+
   // One figure, three bands on one position axis: the stations (top), the channel itself, a cable whose
   // colour shows whose signal is on it right now (middle), and the time-space diagram (bottom): each
   // station's frame drawn as a wedge spreading both ways along the cable as time runs down.
   // Step jumps to the next event; Run plays it tick by tick.
-  function busSlide(body, run) {
-    var bus, W = 1000, H = 440, X0 = 130, X1 = 890, CY = 112, CH = 28, T0 = 192, T1 = 432, SPAN = 40;
-    var svg = s('svg', { width: 1400, height: 616, viewBox: '0 0 ' + W + ' ' + H });
+  function busSlide(body, run, part) {
+    var bus, W = 1000, H = 440, X0 = 130, X1 = 890, CY = 112, CH = 28, T0 = 192, T1 = 432, SPAN = 40, mv = MOVER[part];
+    var svg = s('svg', { width: 1250, height: 550, viewBox: '0 0 ' + W + ' ' + H });
     var event = h('div', { style: { fontSize: '26px', fontWeight: 700, minHeight: '36px', textAlign: 'center' } });
+    var hPos = ui.handle({ key: mv.name, label: mv.name, kind: 'slider', value: mv.at, values: mv.spots, width: 260, fmt: function (v) { return 'at ' + v; } });
     body.appendChild(h('div', { class: 'say' }, run.say));
     body.appendChild(h('div', { class: 'panel', style: { padding: '6px' } }, svg));
     body.appendChild(event);
+    body.appendChild(ui.handleRow(hPos));
 
     function xOf(u) { return X0 + (u / bus.tau) * (X1 - X0); }
     function reset() {
-      bus = X.createBus({ mode: run.mode, p: 0.5, cd: run.cd, seed: 42, schedule: run.schedule.map(function (e) { return Object.assign({}, e); }) });
+      bus = X.createBus({ mode: run.mode, p: 0.5, cd: run.cd, seed: 42, positions: positions(mv, hPos.value()), schedule: run.schedule.map(function (e) { return Object.assign({}, e); }) });
       draw();
     }
     function tick() { if (bus.done) return false; bus.step(); draw(); return true; }
@@ -60,16 +71,19 @@
     function draw() {
       var b = bus, t = b.t;
       CN.clear(svg);
-      // --- stations ---
+      // --- stations (boxes shrink, text with them, when a moved station sits close to another) ---
+      var gap = Infinity;
+      b.stations.forEach(function (p, i) { b.stations.forEach(function (q, j) { if (i < j) gap = Math.min(gap, Math.abs(xOf(p.x) - xOf(q.x))); }); });
+      var bw = Math.min(156, gap - 6), f = bw / 156;
       b.stations.forEach(function (stn, i) {
         var x = xOf(stn.x), sending = stn.state === 'tx' || stn.state === 'jam';
         var stateCol = stn.state === 'tx' ? COLORS[i] : stn.state === 'jam' || stn.state === 'gaveup' ? 'var(--red)' : 'var(--muted)';
         svg.appendChild(s('line', { x1: x, y1: 80, x2: x, y2: CY, stroke: 'var(--ink)', 'stroke-width': 3 }));
-        svg.appendChild(s('rect', { x: x - 78, y: 6, width: 156, height: 74, rx: 10, fill: sending ? 'var(--panel2)' : 'var(--panel)', stroke: COLORS[i], 'stroke-width': sending ? 6 : 3 }));
-        svg.appendChild(s('text', { x: x, y: 30, 'text-anchor': 'middle', 'font-size': 19, 'font-weight': 800, fill: COLORS[i] }, 'Station ' + stn.name));
-        svg.appendChild(s('text', { x: x, y: 52, 'text-anchor': 'middle', 'font-size': 15, 'font-weight': 700, fill: stateCol },
+        svg.appendChild(s('rect', { x: x - bw / 2, y: 6, width: bw, height: 74, rx: 10, fill: sending ? 'var(--panel2)' : 'var(--panel)', stroke: COLORS[i], 'stroke-width': sending ? 6 : 3 }));
+        svg.appendChild(s('text', { x: x, y: 30, 'text-anchor': 'middle', 'font-size': 19 * f, 'font-weight': 800, fill: COLORS[i] }, 'Station ' + stn.name));
+        svg.appendChild(s('text', { x: x, y: 52, 'text-anchor': 'middle', 'font-size': 15 * f, 'font-weight': 700, fill: stateCol },
           STATE_TEXT[stn.state] + (stn.state === 'backoff' || stn.state === 'defer' ? ' → t=' + stn.waitUntil : '')));
-        if (!sending) svg.appendChild(s('text', { x: x, y: 72, 'text-anchor': 'middle', 'font-size': 13, fill: b.busyFor(i, t) ? 'var(--red)' : 'var(--green)' },
+        if (!sending) svg.appendChild(s('text', { x: x, y: 72, 'text-anchor': 'middle', 'font-size': 13 * f, fill: b.busyFor(i, t) ? 'var(--red)' : 'var(--green)' },
           'senses ' + (b.busyFor(i, t) ? 'busy' : 'idle')));
       });
       // --- the channel: one cable, coloured where a station's signal is on it now ---
@@ -125,11 +139,19 @@
     body.appendChild(ui.controls());
     reset();
     // learnStep: events logged so far, so Step and Run (tick by tick) light the same learn rows
-    return { step: step, reset: reset, runStep: tick, runMs: 220, learnStep: function () { return bus.log.length; } };
+    var ctl = { step: step, reset: reset, runStep: tick, runMs: 220, learnStep: function () { return bus.log.length; },
+      genText: function () { return mv.name + ' ' + hPos.value(); } };
+    // C (7a): B already sends at t = 0, A gets its frame at t = 4. A collides with B only if B's signal has not
+    // reached A by then, i.e. B is more than 4 ticks away.
+    if (part === '1p') ctl.challenge = { goal: 'Move B so that A and B collide',
+      why: function () { return 'B is ' + hPos.value() + ' ticks from A: its signal is still on the way when A senses at t = 4, so A sends.'; },
+      holds: function () { return fullRun(run, positions(mv, hPos.value())).collisions.some(function (c) { return c[0] === 0 && c[1] === 1; }); },
+      answer: function () { return { B: 5 }; } };
+    return ctl;
   }
 
   CN.screens.t7 = function (root, sc) {
     var body = ui.screen(root, { num: sc.stop, title: sc.title });
-    return sc.part === 'minframe' ? minFrame(body) : busSlide(body, RUNS[sc.part]);
+    return sc.part === 'minframe' ? minFrame(body) : busSlide(body, RUNS[sc.part], sc.part);
   };
 })();

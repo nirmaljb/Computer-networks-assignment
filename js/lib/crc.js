@@ -125,6 +125,14 @@
     return { frame: xor(frame, e), error: e };
   }
 
+  // SPEC-v8 taught break on S3b: an error pattern equal to G itself, starting at bit `start` (0-based from the left).
+  // It is G(x)·x^k, a multiple of G, so the receiver's remainder is 0 and the burst slips through.
+  function gBurst(frame, gen, start) {
+    if (start < 0 || start + gen.length > frame.length) return { error: 'G does not fit there' };
+    var e = zeros(start) + gen + zeros(frame.length - start - gen.length);
+    return { frame: xor(frame, e), error: e };
+  }
+
   // SPEC-v6 "your numbers": 'message / generator', message 1–16 bits, generator degree 1–8 with its
   // top and bottom bits 1 (so the division and the burst guarantee on the slide still hold).
   function parseCustom(input) {
@@ -151,6 +159,6 @@
     parseCustom: parseCustom,
     xor: xor, zeros: zeros, parseGenerator: parseGenerator, parseData: parseData,
     polyString: polyString, divide: divide, encode: encode, check: check,
-    undetectable: undetectable, burst: burst
+    undetectable: undetectable, burst: burst, gBurst: gBurst
   };
 })(typeof window !== 'undefined' ? window : globalThis);

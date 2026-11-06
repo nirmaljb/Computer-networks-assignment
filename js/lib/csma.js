@@ -62,7 +62,7 @@
       stations: names.map(function (n, i) {
         return { name: n, x: pos[i], state: 'idle', frames: 0, attempts: 0, waitUntil: 0, tx: null, pDeferred: false, said: '' };
       }),
-      txs: [], log: [], schedule: (o.schedule || []).slice(), done: false, events: []
+      txs: [], log: [], schedule: (o.schedule || []).slice(), done: false, events: [], collisions: [], collisionKeys: {}
     };
     var rand = rng(b.seed);
     var idSeq = 0;
@@ -87,9 +87,14 @@
       }
       return false;
     }
+    // b.collisions lists each pair of stations whose frames overlapped (once per pair of frames)
     function markCollisions(tx) {
       b.txs.forEach(function (o2) {
-        if (o2 !== tx && overlaps(tx, o2)) { tx.collided = true; o2.collided = true; }
+        if (o2 !== tx && overlaps(tx, o2)) {
+          tx.collided = true; o2.collided = true;
+          var key = Math.min(tx.id, o2.id) + '-' + Math.max(tx.id, o2.id);
+          if (!b.collisionKeys[key]) { b.collisionKeys[key] = true; b.collisions.push([Math.min(tx.st, o2.st), Math.max(tx.st, o2.st)]); }
+        }
       });
       return tx.collided;
     }

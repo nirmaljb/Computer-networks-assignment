@@ -4,8 +4,13 @@
 
   // SPEC-v5: Tanenbaum's chain (Fig 5-10/5-11) as one table, distances to A. The router row on top is
   // the chain itself: click a router to take it down or bring it up. Step = one synchronous exchange.
-  var NODES = ['A', 'B', 'C', 'D', 'E'], LINKS = [['A', 'B', 1], ['B', 'C', 1], ['C', 'D', 1], ['D', 'E', 1]];
-  var DEST = 'A', INF = 16, OTHERS = ['B', 'C', 'D', 'E'];
+  // SPEC-v8 handle: the chain's length, 3–6 routers (A first, every link costs 1).
+  var DEST = 'A', INF = 16;
+  function chain(n) {
+    var nodes = 'ABCDEF'.slice(0, n).split(''), links = [];
+    for (var i = 1; i < n; i++) links.push([nodes[i - 1], nodes[i], 1]);
+    return { nodes: nodes, links: links, others: nodes.slice(1) };
+  }
   var RUNS = {
     good: { poison: false, say: 'A comes up. Every link costs 1. Each cell: that router\'s distance to A.' },
     bad: { poison: false, say: 'A goes down. Nobody can tell "A is gone" from "my neighbour has a path".' },
@@ -13,15 +18,19 @@
   };
 
   function dvSlide(body, kind) {
-    var run = RUNS[kind], net, hist, stable, touched;
+    var run = RUNS[kind], net, hist, stable, touched, NODES, LINKS, OTHERS;
+    var hN = ui.handle({ key: 'routers', label: 'Routers', kind: 'slider', value: 5, values: [3, 4, 5, 6], width: 220 });
     body.appendChild(h('div', { class: 'say' }, run.say));
     var tableHost = h('div', { style: { marginTop: '16px' } }), banner = h('div', { style: { minHeight: '56px' } });
     body.appendChild(tableHost);
     body.appendChild(banner);
+    body.appendChild(ui.handleRow(hN));
 
     function fmt(v) { return v >= INF ? (run.poison ? String(INF) : '∞') : String(v); }
     function snapshot() { return { cols: D.column(net, DEST, OTHERS), changed: {} }; }
     function reset() {
+      var c = chain(hN.value());
+      NODES = c.nodes; LINKS = c.links; OTHERS = c.others;
       net = D.reset(D.create(NODES, LINKS, { inf: INF, poison: run.poison }));
       if (kind === 'good') { D.setRouter(net, 'A', false); D.converge(net); D.setRouter(net, 'A', true); }
       else { D.converge(net); D.setRouter(net, 'A', false); }
@@ -52,7 +61,7 @@
         node.addEventListener('click', function () { toggle(n); });
         return h('th', { class: 'c' }, node);
       })));
-      hist.slice(-9).forEach(function (row, i, shown) {
+      hist.slice(-8).forEach(function (row, i, shown) {
         var k = hist.length - shown.length + i;
         t.appendChild(h('tr', null, h('th', null, k === 0 ? 'Initially' : 'After ' + k + ' exchange' + (k > 1 ? 's' : '')),
           h('td', { class: 'c muted' }, '•'),
@@ -68,7 +77,7 @@
     // ? (SPEC-v6): settled once every router reads ∞ = 16 for A
     // learnStep: exchanges that changed a table; a router toggled by hand leaves the script (null)
     return { step: step, reset: reset, reached: function () { return D.column(net, DEST, OTHERS).every(function (v) { return v >= INF; }); },
-      learnStep: function () { return touched ? null : hist.length - 1; } };
+      learnStep: function () { return touched ? null : hist.length - 1; }, genText: function () { return 'routers ' + hN.value(); } };
   }
 
   CN.screens.t12 = function (root, sc) {

@@ -4,7 +4,8 @@
 
   // SPEC-v5: one scenario per sub-slide on the shared time-space diagram (client left, server right),
   // fixed ISNs x = 1000, y = 5000 (old x' = 700, old ACK z = 4000). Step = one tick.
-  // 17a: click an arrow in flight to lose it. 17e: SYN flood (static).
+  // 17a: tap an arrow in flight to lose it (SPEC-v8: a handle, so it replays; tap the lost one to bring it back),
+  // with both ends' states under their names. 17e: SYN flood (static).
   var COLORS = { syn: 'var(--blue)', synack: 'var(--blue)', ack: 'var(--green)', rst: 'var(--red)', fin: 'var(--amber)', old: 'var(--amber)' };
   var RUNS = {
     normal: { build: T.handshake, say: 'Each side picks its own ISN; the other echoes it + 1. A SYN uses up one sequence number.' },
@@ -13,17 +14,24 @@
     release: { build: T.release, say: 'Each side closes its own direction (FIN → ACK); TIME_WAIT (2 × MSL) ends it. No finite exchange can be sure: the two-army problem.' }
   };
 
+  var LOSE = { syn: 0, synack: 1, ack: 2 }, LOSE_NAME = ['syn', 'synack', 'ack'];
+  // the handshake states at tick t: an end moves on only when a segment that was not lost has arrived
+  function states(sc, t) {
+    function got(k) { return sc.msgs.some(function (m) { return m.kind === k && !m.lost && m.arriveAt <= t; }); }
+    var client = t < 1 ? 'CLOSED' : got('synack') ? 'ESTABLISHED' : 'SYN_SENT';
+    var server = got('ack') && got('syn') ? 'ESTABLISHED' : got('syn') ? 'SYN_RCVD' : 'LISTEN';
+    return [client, server];
+  }
   function scenario(body, kind) {
     var run = RUNS[kind], st = { lose: null, tick: 0, sc: null };
-    var W = 1000, H = 600, VIS = 22;
+    var W = 1000, H = 600, VIS = 22, normal = kind === 'normal';
+    var hLose = normal ? ui.handle({ key: 'lose', kind: 'tap', value: null }) : null;
     var ts = CN.ui.timeSpace({ width: W, height: H, visible: VIS, rightPad: 170, names: ['Client', 'Server'],
       label: function (m) { return m.text; },
       style: function (m) { return { color: COLORS[m.k], dash: m.k === 'old' ? '9 6' : null }; },
-      onKill: kind === 'normal' ? function (id) {
-        if (st.lose != null) return;
-        st.lose = { syn: 0, synack: 1, ack: 2 }[st.sc.msgs[id].kind];
-        build(); draw();
-      } : null });
+      states: normal ? function () { return states(st.sc, st.tick); } : null,
+      tap: normal ? function (m, inFlight) { return inFlight || (m.lost && LOSE[m.kind] === hLose.value()); } : null,
+      onTap: normal ? function (m) { hLose.set(m.lost ? null : LOSE[st.sc.msgs[m.id].kind]); } : null });
     body.appendChild(h('div', { class: 'say' }, run.say));
     body.appendChild(h('div', { class: 'panel', style: { padding: '4px' } }, ts.el));
 
@@ -43,18 +51,18 @@
       return { tick: now, msgs: msgs, timers: {}, timeout: T.T };
     }
     function step() { if (st.tick >= st.sc.end) return false; st.tick++; draw(); return true; }
-    function reset() { st.tick = 0; st.lose = null; build(); draw(); }
+    function reset() { st.tick = 0; st.lose = hLose ? hLose.value() : null; build(); draw(); }
     function draw() {
       ts.draw(simView());
       // timer events, drawn on the side of whoever's timer fired
-      var off = Math.max(0, st.tick - VIS + 2), th = (H - 46 - 12) / VIS;
+      var y0 = ts.y0, off = Math.max(0, st.tick - VIS + 2), th = (H - y0 - 12) / VIS;
       st.sc.events.forEach(function (e) {
         if (e.t > st.tick || !/timer/.test(e.text)) return;
-        var server = /Server's/.test(e.text), y = 46 + (e.t - off) * th;
+        var server = /Server's/.test(e.text), y = y0 + (e.t - off) * th;
         ts.el.appendChild(s('text', { x: server ? W - 165 : 6, y: y - 4, 'font-size': 18, 'font-weight': 800, fill: 'var(--red)' }, '⏱ timeout'));
       });
       if (kind === 'release') {
-        var tw = st.sc.timeWait, y1 = 46 + (Math.max(tw[0], off) - off) * th, y2 = 46 + (Math.min(st.tick, tw[1]) - off) * th;
+        var tw = st.sc.timeWait, y1 = y0 + (Math.max(tw[0], off) - off) * th, y2 = y0 + (Math.min(st.tick, tw[1]) - off) * th;
         if (st.tick > tw[0]) {
           ts.el.appendChild(s('rect', { x: 82, y: y1, width: 16, height: Math.max(2, y2 - y1), rx: 4, fill: 'var(--amber)', opacity: 0.55 }));
           ts.el.appendChild(s('text', { x: 104, y: (y1 + y2) / 2 + 6, 'font-size': 18, 'font-weight': 800, fill: 'var(--amber)' }, 'TIME_WAIT = 2 × MSL'));
@@ -63,9 +71,10 @@
     }
     body.appendChild(ui.controls());
     reset();
-    // learnStep: segments sent so far (one learn row each); an arrow lost by hand leaves the script (null)
-    function learnStep() { return st.lose != null ? null : st.sc.msgs.filter(function (m) { return m.sentAt < st.tick; }).length; }
+    // learnStep: segments sent so far (one learn row each; with a lost segment the pane's table follows via genText)
+    function learnStep() { return st.sc.msgs.filter(function (m) { return m.sentAt < st.tick; }).length; }
     return { step: step, reset: reset, reached: function () { return st.tick >= st.sc.end; }, learnStep: learnStep,
+      genText: normal ? function () { return hLose.value() == null ? '' : 'lose ' + LOSE_NAME[hLose.value()]; } : null,
       prev: function () { if (st.tick > 0) { st.tick--; draw(); return true; } return false; } };
   }
 

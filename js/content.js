@@ -53,7 +53,7 @@
       id: 'title', title: '', target: 0,
       syllabus: 'CSPC501 Computer Networks · Units II – V',
       live: 'Wait for the room. The talk timer starts when you press → (or Start here). Open the quiz sidebar (J) and invite the professor too: "Professor, the phone quiz is open to you as well: scan the code and play along."',
-      click: '→ to start. P opens this window. F for fullscreen. On any sim: E your numbers, ? predict (where offered), A motion on/off.'
+      click: '→ to start. P opens this window. F for fullscreen. On any sim: E your numbers, ? predict (where offered), A motion on/off. On a ★ sim: drag or tap a handle, [ ] nudge it, C challenge (C again solves it, a third C closes).'
     },
     {
       id: 'hook', title: 'Hook + journey map', target: 20,
@@ -93,8 +93,8 @@
     {
       id: 't2', topic: 2, stop: '2', act: 1, hero: true, short: 'Hamming code', title: 'Hamming code', target: 50,
       subs: [
-        { id: 't2', part: 'encode', stop: '2a', short: 'Hamming encode', title: 'Hamming code: building the codeword', click: 'Step computes P1, P2, P4, P8 in turn and lights what each covers. ← undoes. E: other data bits (1–16).' },
-        { id: 't2b', part: 'correct', stop: '2b', short: 'Hamming correct', title: 'Hamming code: find and fix the error', click: 'Click any bit to flip it, or Step flips bit 5. Next Step corrects. E: other data bits (1–16).' }
+        { id: 't2', part: 'encode', stop: '2a', short: 'Hamming encode', title: 'Hamming code: building the codeword', click: 'Step computes P1, P2, P4, P8 in turn and lights what each covers. ← undoes. Tap a data bit to flip it (the codeword follows). E: other data bits (1–16).' },
+        { id: 't2b', part: 'correct', stop: '2b', short: 'Hamming correct', title: 'Hamming code: find and fix the error', click: 'Tap up to two bits to flip them, or Step flips bit 5. Next Step corrects. The 2nd flip is the break: the syndrome names a bit nobody flipped. C: challenge. E: other data bits (1–16).' }
       ],
       syllabus: 'Error Detection and Correction Codes, Hamming Code',
       problem: 'A bit flipped in transit. Can the receiver find and fix it without asking again?',
@@ -120,8 +120,8 @@
     {
       id: 't3', topic: 3, stop: '3', act: 1, hero: true, short: 'CRC', title: 'Cyclic Redundancy Check', target: 45,
       subs: [
-        { id: 't3', part: 'divide', stop: '3a', short: 'CRC sender', title: 'CRC: the sender divides', click: 'Step adds one XOR row of the long division. ← undoes. E: message / generator.' },
-        { id: 't3b', part: 'check', stop: '3b', short: 'CRC receiver', title: 'CRC: the receiver checks', click: 'Click bits to flip them, or Step sends a 3-bit burst. E: message / generator.' }
+        { id: 't3', part: 'divide', stop: '3a', short: 'CRC sender', title: 'CRC: the sender divides', click: 'Step adds one XOR row of the long division. ← undoes. Tap a message bit to flip it. E: message / generator.' },
+        { id: 't3b', part: 'check', stop: '3b', short: 'CRC receiver', title: 'CRC: the receiver checks', click: 'Start and Length move the burst Step sends (default bits 4–6). Length r + 1 is the break: the burst is G shifted, remainder 0. C: challenge. E: message / generator.' }
       ],
       syllabus: 'Cyclic Redundancy Check',
       problem: 'We need a cheap, strong detector that catches bursts.',
@@ -171,8 +171,8 @@
     {
       id: 't5', topic: 5, stop: '5', act: 1, hero: true, short: 'Sliding window', title: 'Sliding window: Go-Back-N vs Selective Repeat', target: 50,
       subs: [
-        { id: 't5', part: 'gbn', stop: '5a', short: 'Go-Back-N', title: 'Go-Back-N (Protocol 5)', click: 'Step runs to the next event. Frame 1 is lost once; GBN resends 1–4. E: what to lose (frame k, ack k).', predict: { q: 'Frame 1 is lost: how many frames does each protocol resend?', a: 'GBN resends 4 (frames 1–4), SR resends 1' } },
-        { id: 't5b', part: 'sr', stop: '5b', short: 'Selective Repeat', title: 'Selective Repeat (Protocol 6)', click: 'Same loss; SR buffers 2–4 and resends only 1. E: what to lose (frame k, ack k).', predict: { q: 'Frame 1 is lost: how many frames does each protocol resend?', a: 'GBN resends 4 (frames 1–4), SR resends 1' } },
+        { id: 't5', part: 'gbn', stop: '5a', short: 'Go-Back-N', title: 'Go-Back-N (Protocol 5)', click: 'Step runs to the next event. Frame 1 is lost once; GBN resends 1–4. E: what to lose (frame k, ack k). W slider 1–8 (8 = the break: all early ACKs lost, an old frame is taken as new). Tap a frame or ACK in flight to lose it. C: challenge.', predict: { q: 'Frame 1 is lost: how many frames does each protocol resend?', a: 'GBN resends 4 (frames 1–4), SR resends 1' } },
+        { id: 't5b', part: 'sr', stop: '5b', short: 'Selective Repeat', title: 'Selective Repeat (Protocol 6)', click: 'Same loss; SR buffers 2–4 and resends only 1. E: what to lose (frame k, ack k). W slider 1–5 (5 = the break). Tap a frame or ACK in flight to lose it.', predict: { q: 'Frame 1 is lost: how many frames does each protocol resend?', a: 'GBN resends 4 (frames 1–4), SR resends 1' } },
         { id: 't5c', part: 'trap', stop: '5c', short: 'SR window limit', title: 'Selective Repeat: why W ≤ 2ⁿ⁻¹', click: 'W = 7, every early ACK lost: old frame 0 is accepted as new.' }
       ],
       syllabus: 'Sliding Window Protocols',
@@ -223,10 +223,10 @@
     {
       id: 't7a', screen: 't7', topic: 7, stop: '7a', act: 2, hero: true, short: 'CSMA & CSMA/CD', title: 'CSMA & CSMA/CD', target: 40,
       subs: [
-        { id: 't7a', part: '1p', stop: '7a', short: '1-persistent CSMA', title: '1-persistent CSMA', click: 'Step runs to the next event.' },
-        { id: 't7b', part: 'np', stop: '7b', short: 'Non-persistent CSMA', title: 'Non-persistent CSMA', click: 'Step runs to the next event.' },
-        { id: 't7c', part: 'pp', stop: '7c', short: 'p-persistent CSMA', title: 'p-persistent CSMA', click: 'Step runs to the next event.' },
-        { id: 't7d', part: 'cd', stop: '7d', short: 'CSMA/CD', title: 'CSMA with collision detection', click: 'Step runs to the next event: collision, jam, backoff.' },
+        { id: 't7a', part: '1p', stop: '7a', short: '1-persistent CSMA', title: '1-persistent CSMA', click: 'Step runs to the next event. Drag B along the cable; [ ] nudge it. C: challenge (make A and B collide).' },
+        { id: 't7b', part: 'np', stop: '7b', short: 'Non-persistent CSMA', title: 'Non-persistent CSMA', click: 'Step runs to the next event. Drag B along the cable; [ ] nudge it.' },
+        { id: 't7c', part: 'pp', stop: '7c', short: 'p-persistent CSMA', title: 'p-persistent CSMA', click: 'Step runs to the next event. Drag B along the cable; [ ] nudge it.' },
+        { id: 't7d', part: 'cd', stop: '7d', short: 'CSMA/CD', title: 'CSMA with collision detection', click: 'Step runs to the next event: collision, jam, backoff. Drag D (the far station) along the cable; [ ] nudge it.' },
         { id: 't7e', part: 'minframe', stop: '7e', short: 'Minimum frame', title: 'CSMA/CD: minimum frame size', click: 'Static.' }
       ],
       syllabus: 'CSMA Protocols',
@@ -405,9 +405,9 @@
     {
       id: 't12', topic: 12, stop: '12', act: 4, hero: true, short: 'Distance vector', title: 'Distance vector routing', target: 45,
       subs: [
-        { id: 't12', part: 'good', stop: '12a', short: 'DV: good news', title: 'Distance vector: good news travels fast', click: 'Step = one exchange. Click a router in the top row to take it down/up.' },
-        { id: 't12b', part: 'bad', stop: '12b', short: 'DV: bad news', title: 'Distance vector: count to infinity', click: 'Step = one exchange; distances climb toward ∞ = 16.', predict: { q: 'A dies: how many exchanges until every router reads 16?', a: '15 exchanges (with poisoned reverse: 4)' } },
-        { id: 't12c', part: 'poison', stop: '12c', short: 'Poisoned reverse', title: 'Split horizon with poisoned reverse', click: 'Bad news now spreads one hop per exchange: every router reads 16 after 4 exchanges (on this chain).', predict: { q: 'Same failure with poisoned reverse: how many exchanges until every router reads 16?', a: '4 exchanges (without it: 15)' } }
+        { id: 't12', part: 'good', stop: '12a', short: 'DV: good news', title: 'Distance vector: good news travels fast', click: 'Step = one exchange. Routers: chain length 3–6. Click a router in the top row to take it down/up.' },
+        { id: 't12b', part: 'bad', stop: '12b', short: 'DV: bad news', title: 'Distance vector: count to infinity', click: 'Step = one exchange; distances climb toward ∞ = 16. Routers: chain length 3–6.', predict: { q: 'A dies: how many exchanges until every router reads 16?', a: '15 exchanges (with poisoned reverse: 4)' } },
+        { id: 't12c', part: 'poison', stop: '12c', short: 'Poisoned reverse', title: 'Split horizon with poisoned reverse', click: 'Bad news now spreads one hop per exchange: every router reads 16 after 4 exchanges (on this chain). Routers: chain length 3–6.', predict: { q: 'With poisoned reverse: exchanges until every router reads 16?', a: '4 exchanges (without it: 15)' } }
       ],
       syllabus: 'Distance Vector Routing',
       problem: 'No router has the map. Can routers find best paths by only asking their neighbours?',
@@ -505,9 +505,9 @@
     {
       id: 't15b', screen: 't15b', part: 'v4', topic: 15, stop: '15b', act: 6, hero: true, short: 'IPv4 + IP Lab', title: 'IP Lab: IPv4 & IP addresses', target: 35,
       subs: [
-        { id: 't15c', part: 'addr', stop: '15c', short: 'IPv4 address', title: 'IPv4 addresses and masks', click: 'Static: 192.168.10.77/26. E: any a.b.c.d/p.' },
-        { id: 't15d', part: 'subnet', stop: '15d', short: 'Subnetting', title: 'Subnetting', click: 'Static: /26 into 4 subnets.' },
-        { id: 't15e', part: 'lpm', stop: '15e', short: 'Longest prefix match', title: 'CIDR: longest prefix match', click: 'Static: Tanenbaum\'s Cambridge/Edinburgh/Oxford table.' }
+        { id: 't15c', part: 'addr', stop: '15c', short: 'IPv4 address', title: 'IPv4 addresses and masks', click: 'Prefix slider /0–/32 (spelled out at /31 and /32). Default 192.168.10.77/26. C: challenge (exactly 30 hosts). E: any a.b.c.d/p.' },
+        { id: 't15d', part: 'subnet', stop: '15d', short: 'Subnetting', title: 'Subnetting', click: 'Subnets chips: 2, 4 or 8 equal subnets of 192.168.10.64/26.' },
+        { id: 't15e', part: 'lpm', stop: '15e', short: 'Longest prefix match', title: 'CIDR: longest prefix match', click: 'Tap a destination: the matching row of Tanenbaum\'s Cambridge/Edinburgh/Oxford table lights; 194.24.12.9 matches none (default route).' }
       ],
       syllabus: 'IPv4, IP Addresses',
       problem: 'Every host on every network needs a unique address that routers can aggregate.',
@@ -593,8 +593,8 @@
     {
       id: 't17', topic: 17, stop: '17', act: 7, hero: true, short: 'Connect & release', title: 'Connection establishment & release', target: 0,
       subs: [
-        { id: 't17', part: 'normal', stop: '17a', short: 'Three-way handshake', title: 'Three-way handshake', click: 'Step = one tick. Click an arrow in flight to lose it.' },
-        { id: 't17b', part: 'oldsyn', stop: '17b', short: 'Old duplicate SYN', title: 'Delayed duplicate: old SYN', click: 'Step = one tick.', predict: { q: 'A stale SYN arrives at the server: does a connection open?', a: 'No: SYN+ACK ack=701 goes back, and the client, which never sent seq 700, answers RST' } },
+        { id: 't17', part: 'normal', stop: '17a', short: 'Three-way handshake', title: 'Three-way handshake', click: 'Step = one tick. Tap an arrow in flight to lose it (tap the lost one to bring it back). The states show under Client and Server.' },
+        { id: 't17b', part: 'oldsyn', stop: '17b', short: 'Old duplicate SYN', title: 'Delayed duplicate: old SYN', click: 'Step = one tick.', predict: { q: 'A stale SYN reaches the server: does a connection open?', a: 'No: SYN+ACK ack=701, the client answers RST' } },
         { id: 't17c', part: 'oldsynack', stop: '17c', short: 'Old SYN + old ACK', title: 'Delayed duplicates: old SYN and old ACK', click: 'Step = one tick.' },
         { id: 't17d', part: 'release', stop: '17d', short: 'Release', title: 'Connection release', click: 'Step = one tick.' },
         { id: 't17e', part: 'synflood', stop: '17e', short: 'SYN flood', title: 'SYN flood and SYN cookies', click: 'Static.' }
@@ -679,9 +679,9 @@
     {
       id: 't20', topic: 20, stop: '20', act: 7, hero: true, short: 'TCP congestion', title: 'TCP congestion control', target: 0,
       subs: [
-        { id: 't20', part: 'tahoe', stop: '20a', short: 'Tahoe', title: 'TCP congestion control: Tahoe', click: 'Step = one round (ssthresh 32, capacity 39).', predict: { q: 'Loss at cwnd 40: what does Tahoe do next?', a: 'cwnd 1, ssthresh 20' } },
-        { id: 't20b', part: 'reno', stop: '20b', short: 'Reno', title: 'TCP congestion control: Reno', click: 'Step = one round.', predict: { q: 'Same loss at cwnd 40, signalled by 3 duplicate ACKs: what does Reno do next?', a: 'cwnd 20 (= the new ssthresh): fast recovery' } },
-        { id: 't20c', part: 'road', stop: '20c', short: 'Traffic road', title: 'The congestion road', click: 'Step = one round; one vehicle per segment.' },
+        { id: 't20', part: 'tahoe', stop: '20a', short: 'Tahoe', title: 'TCP congestion control: Tahoe', click: 'Step = one round (ssthresh 32, capacity 39). Capacity and ssthresh sliders (shared with 20b and the 20c road). C: challenge.', predict: { q: 'Loss at cwnd 40: what does Tahoe do next?', a: 'cwnd 1, ssthresh 20' } },
+        { id: 't20b', part: 'reno', stop: '20b', short: 'Reno', title: 'TCP congestion control: Reno', click: 'Step = one round. Capacity and ssthresh sliders (shared with 20a and the 20c road).', predict: { q: 'Loss at cwnd 40 by 3 duplicate ACKs: what does Reno do next?', a: 'cwnd 20 = new ssthresh (fast recovery)' } },
+        { id: 't20c', part: 'road', stop: '20c', short: 'Traffic road', title: 'The congestion road', click: 'Step = one round; one vehicle per segment. Follows the capacity and ssthresh set on 20a/b.' },
         { id: 't20d', part: 'collapse', stop: '20d', short: 'Collapse of 1986', title: 'Congestion collapse, 1986', click: 'Static.' },
         { id: 't20e', part: 'aimd', stop: '20e', short: 'AIMD is fair', title: 'Why AIMD is fair', click: 'Static.' },
         { id: 't20f', part: 'ecn', stop: '20f', short: 'ECN', title: 'Explicit congestion notification', click: 'Static.' }
@@ -713,8 +713,8 @@
     {
       id: 't21', topic: 21, stop: '21', act: 8, hero: true, short: 'DNS', title: 'DNS: the Domain Name System', target: 0,
       subs: [
-        { id: 't21', part: 'iterative', stop: '21a', short: 'Iterative DNS', title: 'DNS: iterative resolution', click: 'Step = one message, drawn on the name hierarchy (no map: root and TLD servers are anycast).' },
-        { id: 't21b', part: 'recursive', stop: '21b', short: 'Recursive DNS', title: 'DNS: recursive resolution', click: 'Step = one message, drawn on the name hierarchy.' },
+        { id: 't21', part: 'iterative', stop: '21a', short: 'Iterative DNS', title: 'DNS: iterative resolution', click: 'Step = one message, drawn on the name hierarchy (no map: root and TLD servers are anycast). Cached: tap com NS, example.com NS or www A to skip levels. C: challenge.' },
+        { id: 't21b', part: 'recursive', stop: '21b', short: 'Recursive DNS', title: 'DNS: recursive resolution', click: 'Step = one message, drawn on the name hierarchy. Cached: tap a record to skip levels.' },
         { id: 't21c', part: 'records', stop: '21c', short: 'Resource records', title: 'DNS resource records', click: 'Static.' }
       ],
       syllabus: 'DNS',
@@ -798,9 +798,9 @@
     {
       id: 't24', topic: 24, stop: '24', act: 8, hero: true, short: 'Classical ciphers', title: 'Cryptography: substitution & transposition', target: 0,
       subs: [
-        { id: 't24', part: 'caesar', stop: '24a', short: 'Caesar', title: 'Substitution: Caesar cipher', click: 'Static.' },
+        { id: 't24', part: 'caesar', stop: '24a', short: 'Caesar', title: 'Substitution: Caesar cipher', click: 'Dial k 0–25: the mapping and ATTACK\'s ciphertext follow. C: challenge (dial the intercepted WHJRLAZ back to English).' },
         { id: 't24b', part: 'mono', stop: '24b', short: 'Monoalphabetic', title: 'Substitution: monoalphabetic cipher', click: 'Static.' },
-        { id: 't24c', part: 'freq', stop: '24c', short: 'Frequency attack', title: 'Breaking it: letter frequencies', click: 'Step 1 = pass 1 (rank-match: 6 of 13 right, wrong in red). Each later Step fixes one letter from a trigram or digram (the, er, an, and, ion); 7 fixes.' },
+        { id: 't24c', part: 'freq', stop: '24c', short: 'Frequency attack', title: 'Breaking it: letter frequencies', click: 'Step 1 = pass 1 (rank-match: 6 of 13 right, wrong in red). Each later Step fixes one letter from a trigram or digram (the, er, an, and, ion); 7 fixes. Tap a cipher letter to try the next plaintext letter for it (on top of the Step\'s guess).' },
         { id: 't24d', part: 'columnar', stop: '24d', short: 'Transposition', title: 'Columnar transposition', click: 'Static: key MEGABUCK.' },
         { id: 't24e', part: 'symmetric', stop: '24e', short: 'DES → AES', title: 'Symmetric key: DES → AES', click: 'Static.' }
       ],
@@ -828,8 +828,8 @@
     {
       id: 't25', topic: 25, stop: '25', act: 8, hero: true, short: 'RSA & public key', title: 'Public-key cryptography: RSA', target: 0,
       subs: [
-        { id: 't25', part: 'keys', stop: '25a', short: 'RSA keys', title: 'RSA: key generation', click: 'Static: p 3, q 11, d 7. E: your p q d.' },
-        { id: 't25b', part: 'encrypt', stop: '25b', short: 'RSA encrypt', title: 'RSA: encrypt and decrypt', click: 'The mod-33 dial: Step = one square-and-multiply hop, encrypt then decrypt, letter by letter. E: your p q d (dial while n ≤ 150, else the table).' },
+        { id: 't25', part: 'keys', stop: '25a', short: 'RSA keys', title: 'RSA: key generation', click: 'p 3, q 11, d 7. E: your p q d. p and q chips (26 < n ≤ 150), d slider over the valid d; d = 2 is the break (no e).' },
+        { id: 't25b', part: 'encrypt', stop: '25b', short: 'RSA encrypt', title: 'RSA: encrypt and decrypt', click: 'The mod-33 dial: Step = one square-and-multiply hop, encrypt then decrypt, letter by letter. E: your p q d (dial while n ≤ 150, else the table). Tap a letter in the table to run only its hops.' },
         { id: 't25c', part: 'compare', stop: '25c', short: 'Symmetric vs public', title: 'Symmetric vs public key', click: 'Static.' },
         { id: 't25d', part: 'firewall', stop: '25d', short: 'Firewall', title: 'Firewalls', click: 'Static.' },
         { id: 't25e', part: 'ids', stop: '25e', short: 'IDS', title: 'Intrusion detection', click: 'Static.' }

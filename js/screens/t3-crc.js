@@ -4,10 +4,14 @@
 
   // SPEC-v5: fixed Tanenbaum Fig 3-9 example. 3a divides at the sender, 3b checks at the receiver.
   // SPEC-v6: E takes 'message / generator' (message ≤ 16 bits, generator degree 1–8, top and bottom bits 1).
+  // SPEC-v8: message and generator are handles (tap a message bit on 3a to flip it); E is a text view of them. 3b's
+  // handles move the burst Step sends: start, and length 1…r, plus the taught break r + 1, a burst shaped like G.
   var DATA = '1101011111', GEN = '10011', BURST = [3, 4, 5];
-  function numbers(use) {
-    return ui.numbers({ label: 'message / generator: message ≤ 16 bits, generator degree 1–8', example: DATA + ' / ' + GEN,
-      parse: C.parseCustom, use: function (v) { use(v ? v.data : DATA, v ? v.gen : GEN); } });
+  function handles() { return { msg: ui.handle({ key: 'msg', kind: 'tap', value: DATA }), gen: ui.handle({ key: 'gen', kind: 'tap', value: GEN }) }; }
+  function numbers(hs) {
+    return ui.numbers({ label: 'message / generator: message ≤ 16 bits, generator degree 1–8', example: DATA + ' / ' + GEN, parse: C.parseCustom,
+      read: function () { return hs.msg.value() + ' / ' + hs.gen.value(); },
+      write: function (v) { hs.msg.set(v.data, true); hs.gen.set(v.gen, true); } });
   }
   // a long division is taller than the slide: shrink it to fit (one scale, nothing reflows)
   function fitted(grid, maxH) {
@@ -53,8 +57,10 @@
 
   function sup(p) { return p.replace(/\^(\d+)/g, function (_, d) { return d.split('').map(function (c) { return '⁰¹²³⁴⁵⁶⁷⁸⁹'[+c]; }).join(''); }); }
   function divide(body) {
-    var enc, total, shown = 0, say = h('div', { class: 'say' });
+    var enc, total, shown = 0, say = h('div', { class: 'say' }), hs = handles();
     body.appendChild(say);
+    var msgRow = h('div', { class: 'bits' });
+    body.appendChild(h('div', { class: 'row nowrap' }, h('span', { class: 'label', style: { width: '130px' } }, 'Message'), msgRow));
     var out = h('div', { class: 'col', style: { gap: '14px', flex: 1, minHeight: 0 } });
     body.appendChild(out);
     function load(data, gen) {
@@ -63,8 +69,18 @@
       draw();
     }
     function draw() {
+      CN.clear(msgRow);
+      enc.data.split('').forEach(function (b, i) {
+        var box = h('span', { class: 'bit data click', title: 'Tap to flip message bit ' + (i + 1) }, b);
+        box.addEventListener('click', function () {
+          var d = hs.msg.value().split('');
+          d[i] = d[i] === '1' ? '0' : '1';
+          hs.msg.set(d.join(''));
+        });
+        msgRow.appendChild(box);
+      });
       CN.clear(out);
-      out.appendChild(fitted(divisionGrid(enc.augmented, enc.gen, enc.steps, shown, { appended: enc.r }), shown === total ? 560 : 620));
+      out.appendChild(fitted(divisionGrid(enc.augmented, enc.gen, enc.steps, shown, { appended: enc.r }), shown === total ? 470 : 540));
       if (shown === total) {
         out.appendChild(h('div', { class: 'row nowrap' }, h('span', { class: 'label', style: { width: '120px' } }, 'Frame'),
           h('div', { class: 'bits' }, enc.frame.split('').map(function (b, i) {
@@ -73,57 +89,63 @@
           }))));
       }
     }
-    load(DATA, GEN);
     function step() { if (shown < total) { shown++; draw(); return true; } return false; }
-    function reset() { shown = 0; draw(); }
+    function reset() { load(hs.msg.value(), hs.gen.value()); }
+    reset();
     body.appendChild(ui.controls());
-    return { step: step, reset: reset, prev: function () { if (shown > 0) { shown--; draw(); return true; } return false; }, input: numbers(load),
+    return { step: step, reset: reset, prev: function () { if (shown > 0) { shown--; draw(); return true; } return false; }, input: numbers(hs),
       learnStep: function () { return shown; } };
   }
 
-  // Click bits to flip them, or Step sends a 3-bit burst. The receiver divides by G again.
+  // Step sends the burst the two handles set (bits 3–5 by default); the receiver divides by G again. Length r + 1 is
+  // the taught break: the error is G itself, shifted, so it leaves remainder 0.
   function check(body) {
-    var enc, flips = [], burst;
+    var hs = handles(), enc = C.encode(hs.msg.value(), hs.gen.value()), sent = false, say = h('div', { class: 'say' });
+    var hLen = ui.handle({ key: 'len', label: 'Length', kind: 'slider', value: BURST.length, floor: 1, width: 300,
+      values: function () { var v = []; for (var i = 1; i <= enc.r + 1; i++) v.push(i); return v; },
+      isBreak: function (v) { return v === enc.r + 1; }, limit: function () { return { at: enc.r, text: 'r = ' + enc.r }; } });
+    var hAt = ui.handle({ key: 'at', label: 'Start', kind: 'slider', value: BURST[0], floor: 1, width: 360, fmt: function (v) { return 'bit ' + (v + 1); },
+      values: function () { var v = []; for (var i = 0; i + hLen.value() <= enc.frame.length; i++) v.push(i); return v; } });
+    body.appendChild(say);
     var out = h('div', { class: 'col', style: { gap: '18px', marginTop: '20px' } });
     body.appendChild(out);
+    body.appendChild(ui.handleRow(hAt, hLen));
+    function error() {
+      var len = hLen.value(), at = hAt.value();
+      return len === enc.r + 1 ? C.gBurst(enc.frame, enc.gen, at).frame : C.burst(enc.frame, at, len).frame;
+    }
     function draw() {
       CN.clear(out);
-      var f = enc.frame.split('');
-      flips.forEach(function (i) { f[i] = f[i] === '1' ? '0' : '1'; });
-      var rx = f.join(''), chk = C.check(rx, enc.gen);
+      var rx = sent ? error() : enc.frame, chk = C.check(rx, enc.gen), g = hLen.isBreak();
       var rxRow = h('div', { class: 'bits' });
       rx.split('').forEach(function (b, i) {
         var bad = b !== enc.frame[i];
-        var box = h('span', { class: 'bit click ' + (bad ? 'err' : (i >= enc.data.length ? 'check' : 'data')), title: 'Click to flip' }, b);
-        box.addEventListener('click', function () {
-          var k = flips.indexOf(i);
-          if (k >= 0) flips.splice(k, 1); else flips.push(i);
-          draw();
-        });
-        rxRow.appendChild(box);
+        rxRow.appendChild(h('span', { class: 'bit ' + (bad ? 'err' : (i >= enc.data.length ? 'check' : 'data')) }, b));
       });
       out.appendChild(h('div', { class: 'row nowrap' }, h('span', { class: 'label', style: { width: '170px' } }, 'Received'), rxRow));
-      var msg;
-      if (!flips.length) msg = 'Frame ÷ G leaves remainder ' + C.zeros(enc.r) + ' → accepted. Click any bit to flip it.';
-      else if (chk.ok) msg = 'Remainder ' + C.zeros(enc.r) + ': this error is a multiple of G(x), so it slips through.';
-      else msg = flips.length + ' bit' + (flips.length > 1 ? 's' : '') + ' wrong → remainder ' + chk.remainder + ' ≠ 0 → error detected.';
-      out.appendChild(h('div', { class: 'banner ' + (flips.length && chk.ok ? 'err' : 'ok'), style: { fontSize: '26px' } }, msg));
-      out.appendChild(h('div', { class: 'say' }, 'Every burst of length ≤ r = ' + enc.r + ' is caught.'));
+      var msg, a = hAt.value() + 1, b2 = hAt.value() + hLen.value();
+      if (!sent) msg = 'Frame ÷ G leaves remainder ' + C.zeros(enc.r) + ' → accepted. Step sends the burst.';
+      else if (chk.ok) msg = 'Bits ' + a + '–' + b2 + ' flipped in the pattern of G (' + enc.gen + '): a multiple of G(x), remainder ' + C.zeros(enc.r) + ', it slips through.';
+      else msg = 'Burst of ' + hLen.value() + ' (bits ' + a + '–' + b2 + ') → remainder ' + chk.remainder + ' ≠ 0 → error detected.';
+      out.appendChild(h('div', { class: 'banner ' + (sent && chk.ok ? 'err' : 'ok'), style: { fontSize: '26px' } }, msg));
+      if (g && !sent) out.appendChild(h('div', { class: 'brk-note' }, 'Length r + 1 = ' + (enc.r + 1) + ': this burst is G itself, shifted.'));
     }
-    // Step's burst: bits 3–5 on the example; on other numbers a burst of min(3, r) bits, so it is always ≤ r
-    function load(data, gen) {
-      enc = C.encode(data, gen); flips = [];
-      var len = Math.min(BURST.length, enc.r), at = Math.min(BURST[0], enc.frame.length - len);
-      burst = []; for (var i = 0; i < len; i++) burst.push(at + i);
+    function reset() {
+      enc = C.encode(hs.msg.value(), hs.gen.value()); sent = false;
+      hLen.fit(); hAt.fit();
+      say.textContent = 'Every burst of length ≤ r = ' + enc.r + ' is caught.';
       draw();
     }
-    load(DATA, GEN);
-    function step() { if (flips.length) return false; flips = burst.slice(); draw(); return true; }
-    function reset() { flips = []; draw(); }
+    reset();
+    function step() { if (sent) return false; sent = true; draw(); return true; }
     body.appendChild(ui.controls());
-    // learnStep: 0 clean, 1 Step's burst; hand-flipped bits match no learn row (null)
-    function learnStep() { return !flips.length ? 0 : flips.join() === burst.join() ? 1 : null; }
-    return { step: step, reset: reset, input: numbers(load), learnStep: learnStep };
+    // learnStep: 0 clean, 1 the burst sent (the pane's table follows the handles through genText)
+    function holds() { return hLen.isBreak() && C.check(error(), enc.gen).ok && error() !== enc.frame; }
+    return { step: step, reset: reset, input: numbers(hs), learnStep: function () { return sent ? 1 : 0; },
+      genText: function () { return hs.msg.value() + ' / ' + hs.gen.value() + ' | burst ' + hAt.value() + ' ' + hLen.value(); },
+      challenge: { goal: 'Find a burst this generator misses',
+        why: function () { return 'The error is G(x)·' + sup('x^' + (enc.frame.length - hAt.value() - enc.gen.length)) + ': a multiple of G leaves remainder 0.'; },
+        holds: holds, answer: function () { return { len: enc.r + 1 }; } } };
   }
 
   var PARTS = { divide: divide, check: check };
