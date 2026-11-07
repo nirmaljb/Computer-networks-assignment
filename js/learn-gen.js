@@ -376,6 +376,13 @@
       return row([u, x.ip + ':' + x.url.port + (x.tls ? ' (TLS)' : ''), x.request[0], x.hostHeader, x.response[1].split(': ')[1]]);
     }));
   }
+  // 22f: the default swarm, round by round (CN.http.swarm)
+  function swarmTable() {
+    var m = CN.http.swarm(CN.http.SWARM_HAVE);
+    return table(['Step', 'Uploads (from → to: chunk)', 'Waits'], [row([1, 'A asks the tracker: S, B, C, D', ''])].concat(m.rounds.map(function (r, i) {
+      return row([i + 2, r.xfers.map(function (x) { return x.from + ' → ' + x.to + ': ' + x.c + (x.rarest ? '' : ' (rarer one busy)'); }).join(', '), r.blocked.join(', ')]);
+    })));
+  }
   // '| k 7' (the 24a dial)
   function caesarTable(text) {
     var k = +(cfg(text, ['k']).k.k || 3);
@@ -404,7 +411,7 @@
     'graph.linkstate': function () {
       return dijkstraTable(['A', 'B', 'C', 'D', 'E', 'F'], [['A', 'B', 2], ['A', 'C', 5], ['B', 'C', 1], ['B', 'D', 4], ['C', 'E', 3], ['D', 'E', 1], ['D', 'F', 2], ['E', 'F', 6]], 'B');
     },
-    'ip.frag': fragTable, 'ip.split': splitTable, 'ip.lpm': lpmTable, 'ip.v6': v6Table, 'tcp.flow': flowTable, 'http.rtt': httpTable, 'http.url': urlTable,
+    'ip.frag': fragTable, 'ip.split': splitTable, 'ip.lpm': lpmTable, 'ip.v6': v6Table, 'tcp.flow': flowTable, 'http.rtt': httpTable, 'http.url': urlTable, 'p2p.swarm': swarmTable,
     'cipher.caesar': caesarTable, 'cipher.mono': monoTable, 'cipher.columnar': columnarTable, 'mail.base64': base64Table,
     'hamming.encode': hammingEncode, 'hamming.correct': hammingCorrect,
     'crc.divide': crcDivide, 'crc.check': crcCheck,

@@ -745,7 +745,7 @@
         { id: 't22c', part: 'scale', stop: '22c', short: 'Caches & CDNs', title: 'Bringing the page closer: caches and CDNs', click: 'Static: origin, proxy, farm and CDN side by side.' },
         { id: 't22d', part: 'methods', stop: '22d', short: 'Methods & status', title: 'HTTP methods and status codes', click: 'Static.' },
         { id: 't22e', part: 'http2', stop: '22e', short: 'HTTP/2 & HTTP/3', title: 'HTTP/2 and HTTP/3: head-of-line blocking', click: 'Step sends one packet per step (css, js, png interleaved); js 1 is lost and resent at step 7. HTTP/2 holds every object behind it; HTTP/3 holds only app.js. Tap a server-side packet to lose that one instead (tap it again: no loss).' },
-        { id: 't22f', part: 'p2p', stop: '22f', short: 'P2P', title: 'Peer-to-peer: BitTorrent', click: 'Static.' }
+        { id: 't22f', part: 'p2p', stop: '22f', short: 'P2P', title: 'Peer-to-peer: BitTorrent', click: 'Step 1: A asks the tracker for the swarm. Each later Step is one round: every peer asks for its rarest missing chunk; a node uploads at most 1 and downloads at most 1 (a peer whose holders are all busy waits). Tap a peer\'s chunk to add or remove it.', predict: { q: 'A holds only chunk 0. Which chunk does it fetch first, and from whom?', a: 'Chunk 3 from S: the rarest (1 copy)' } }
       ],
       syllabus: 'WWW, Architecture, HTTP, Content Delivery, Server Farms, Web Proxies, Peer-to-Peer Networks',
       problem: 'Fetch a page made of dozens of objects from a server far away.',
@@ -764,7 +764,9 @@
         'Web proxy cache: near the clients (a campus or ISP). Hit: served locally. Miss: fetched once from the origin, then kept. Browsers cache too. A conditional GET (If-Modified-Since) gets 304 Not Modified, with no body, if the copy is still good.',
         'Server farm: many servers behind one public address; a front end (load balancer) spreads the requests, or DNS returns different addresses.',
         'CDN: the content owner pays for copies on edge servers worldwide. DNS (stop 21) returns the nearest edge\'s address, so the RTT is short and the origin is rarely asked.',
-        'P2P (BitTorrent): a torrent file names a tracker; peers swap chunks; tit-for-tat favours peers that upload; a DHT can replace the tracker.'
+        'P2P (BitTorrent): a torrent file names a tracker; peers swap chunks; tit-for-tat favours peers that upload; a DHT can replace the tracker.',
+        '22f model: seed S + peers A–D, 4 chunks. A round: each peer (A → D) asks for its rarest missing chunk (fewest copies at the round\'s start, tie → lower number) from a holder with a free upload slot (peers before the seed); if every holder is busy it tries its next-rarest. 1 upload + 1 download per node per round. Default (A 0, B 0 1, C 0, D 0 2): done at step 4, the seed sends 2 of the 10 chunks. A model, not BitTorrent\'s real rates or piece selection.',
+        'Real BitTorrent: rarest first is judged from the peer\'s own neighbours; a peer uploads to its ~4 best uploaders (tit-for-tat, re-chosen every 10 s) plus one random optimistic unchoke every 30 s (Kurose & Ross). Each chunk\'s hash is in the torrent file (SHA-1 in BitTorrent v1, SHA-256 in v2).'
       ],
       example: '1 + 10 objects: 22 / 12 / 3 RTT.',
       qa: [

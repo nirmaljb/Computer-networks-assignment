@@ -92,5 +92,44 @@
       done: { tcp: done(tcp), quic: done(quic) }, end: resend || order.length };
   }
 
-  CN.http = { plan: plan, rtts: rtts, STATUS: STATUS, URLS: URLS, PORT: PORT, url: url, exchange: exchange, hol: hol, HOL_STREAMS: HOL_STREAMS };
+  // 22f BitTorrent swarm. The seed S holds all CHUNKS; have = { A: [chunks], … } for the four peers. Step 1: A asks
+  // the tracker for the swarm. Each later step is one round: every peer (A → D) asks for its rarest missing chunk
+  // (fewest copies among S + peers at the round's start, tie → lower number) from a holder whose one upload slot is
+  // still free (peers A → D before the seed). If every holder of that chunk is busy it tries its next-rarest one.
+  // Each node uploads at most 1 and downloads at most 1 chunk per round; the chunks land at the round's end.
+  var PEERS = ['A', 'B', 'C', 'D'], CHUNKS = 4, SWARM_HAVE = { A: [0], B: [0, 1], C: [0], D: [0, 2] };
+  function swarm(have) {
+    var cur = {}, all = [], rounds = [];
+    for (var c = 0; c < CHUNKS; c++) all.push(c);
+    PEERS.forEach(function (p) { cur[p] = (have[p] || []).filter(function (c) { return c >= 0 && c < CHUNKS; }).sort(); });
+    function holds(n, c) { return n === 'S' || cur[n].indexOf(c) >= 0; }
+    function full() { return PEERS.every(function (p) { return cur[p].length === CHUNKS; }); }
+    while (!full()) {
+      var copies = all.map(function (c) { return 1 + PEERS.filter(function (p) { return holds(p, c); }).length; });
+      var busy = {}, xfers = [], blocked = [];
+      PEERS.forEach(function (p) {
+        var want = all.filter(function (c) { return !holds(p, c); }).sort(function (a, b) { return copies[a] - copies[b] || a - b; });
+        if (!want.length) return;
+        for (var i = 0; i < want.length; i++) {
+          var from = PEERS.concat('S').filter(function (n) { return n !== p && holds(n, want[i]) && !busy[n]; })[0];
+          if (from) { busy[from] = true; xfers.push({ from: from, to: p, c: want[i], rarest: i === 0 }); return; }
+        }
+        blocked.push(p);
+      });
+      xfers.forEach(function (x) { cur[x.to] = cur[x.to].concat(x.c).sort(); });
+      var snap = {};
+      PEERS.forEach(function (p) { snap[p] = cur[p].slice(); });
+      rounds.push({ copies: copies, xfers: xfers, blocked: blocked, have: snap });
+    }
+    var sent = { S: 0 };
+    PEERS.forEach(function (p) { sent[p] = 0; });
+    rounds.forEach(function (r) { r.xfers.forEach(function (x) { sent[x.from]++; }); });
+    var start = {};
+    PEERS.forEach(function (p) { start[p] = (have[p] || []).filter(function (c) { return c >= 0 && c < CHUNKS; }).sort(); });
+    return { start: start, rounds: rounds, end: 1 + rounds.length, sent: sent,
+      copies: all.map(function (c) { return 1 + PEERS.filter(function (p) { return start[p].indexOf(c) >= 0; }).length; }) };
+  }
+
+  CN.http = { plan: plan, rtts: rtts, STATUS: STATUS, URLS: URLS, PORT: PORT, url: url, exchange: exchange, hol: hol, HOL_STREAMS: HOL_STREAMS,
+    swarm: swarm, PEERS: PEERS, CHUNKS: CHUNKS, SWARM_HAVE: SWARM_HAVE };
 })(typeof window !== 'undefined' ? window : globalThis);

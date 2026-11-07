@@ -3,7 +3,7 @@
   var CN = window.CN, h = CN.h, s = CN.s, ui = CN.ui;
 
   // SPEC-v5: 22a URL + request (static), 22b page-load round trips for the three HTTP/1.x styles
-  // (CN.http, 1 HTML + 10 images, RTT 100 ms, static), 22c the 2×2 scale grid (static), then three static cards.
+  // (CN.http, 1 HTML + 10 images, RTT 100 ms, static), 22c the 2×2 scale grid (static), 22d the methods card, 22e HOL lanes, 22f the BitTorrent swarm.
   var MODES = [['nonpersistent', 'Non-persistent', 'new connection per object'],
     ['persistent', 'Persistent', 'one connection, 1 request at a time'],
     ['pipelined', 'Persistent + pipelining', 'all image requests back to back']];
@@ -426,6 +426,134 @@
       prev: function () { if (st.k > 0) { st.k--; draw(); return true; } return false; } };
   }
 
+  // 22f BitTorrent swarm (CN.http.swarm). Seed on top, the four peers in a row; the seed's uploads come down as
+  // straight arrows, peer-to-peer uploads are arcs under the row. Step 1 is A asking the tracker; each later Step
+  // is one round. The right column counts the copies of each chunk (what rarest-first ranks) and logs the round.
+  // Handle: tap a peer's chunk to give it or take it away.
+  var CHUNK_C = ['blue', 'amber', 'accent', 'green'];
+  function swarm(body) {
+    var W = 1300, H = 600, BW = 220, BH = 104, PY = 300, SX = 480, SY = 70, CS = 40, CG = 8, PX = { S: SX };
+    var P = CN.http.PEERS, NC = CN.http.CHUNKS;
+    P.forEach(function (p, i) { PX[p] = 130 + i * 240; });
+    var hHave = ui.handle({ key: 'have', kind: 'tap', value: CN.http.SWARM_HAVE });
+    var st = { k: 0, m: null }, fresh = false;
+    var svg = s('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H });
+    body.appendChild(h('div', { class: 'say' }, 'Each round every peer asks for its rarest missing chunk; a node uploads at most 1 and downloads at most 1. Tap a peer\'s chunk to add or remove it.'));
+    body.appendChild(h('div', { class: 'panel', style: { padding: '6px' } }, svg));
+    function t(x, y, str, o) {
+      o = o || {};
+      return s('text', { x: x, y: y, 'font-size': o.fs || 17, 'font-weight': o.bold ? 800 : null, fill: o.fill || null, 'text-anchor': o.anchor || 'start' }, str);
+    }
+    function col(c) { return 'var(--' + CHUNK_C[c] + ')'; }
+    function tile(x, y, c, held, sz) {
+      var g = s('g');
+      g.appendChild(s('rect', { x: x, y: y, width: sz, height: sz, rx: 6, fill: held ? 'var(--' + CHUNK_C[c] + '-bg)' : 'var(--panel)',
+        stroke: held ? col(c) : 'var(--line)', 'stroke-width': held ? 2.5 : 1.5, 'stroke-dasharray': held ? null : '4 4' }));
+      g.appendChild(t(x + sz / 2, y + sz / 2 + 6, String(c), { fs: 17, bold: held, fill: held ? col(c) : 'var(--muted)', anchor: 'middle' }));
+      return g;
+    }
+    function pop(el) { if (fresh) el.setAttribute('class', (el.getAttribute('class') ? el.getAttribute('class') + ' ' : '') + 'h3-pop'); return el; }
+    function toggle(p, c) {
+      var v = JSON.parse(JSON.stringify(hHave.value())), a = v[p] || [];
+      v[p] = a.indexOf(c) >= 0 ? a.filter(function (x) { return x !== c; }) : a.concat(c).sort();
+      hHave.set(v);
+    }
+    function have(k) { return k < 2 ? st.m.start : st.m.rounds[k - 2].have; }
+    function node(n, x, y, held, got) {
+      var g = s('g'), seed = n === 'S', done = !seed && held.length === NC;
+      g.appendChild(s('rect', { x: x - BW / 2, y: y - BH / 2, width: BW, height: BH, rx: 10, fill: 'var(--panel)', stroke: done || seed ? 'var(--green)' : 'var(--line)', 'stroke-width': done || seed ? 3 : 2 }));
+      g.appendChild(t(x - BW / 2 + 14, y - BH / 2 + 30, seed ? 'S' : n, { fs: 26, bold: true }));
+      g.appendChild(t(x - BW / 2 + 44, y - BH / 2 + 28, seed ? 'seed · whole file' : done ? 'complete' : 'peer', { fs: 16, bold: done, fill: done ? 'var(--green)' : 'var(--muted)' }));
+      for (var c = 0; c < NC; c++) {
+        var cx = x - BW / 2 + 14 + c * (CS + CG), sq = tile(cx, y - 2, c, seed || held.indexOf(c) >= 0, CS);
+        if (!seed) {
+          sq.setAttribute('class', 'clickable');
+          sq.addEventListener('click', (function (cc) { return function () { toggle(n, cc); }; })(c));
+        }
+        if (got && got.indexOf(c) >= 0) pop(sq);
+        g.appendChild(sq);
+      }
+      return g;
+    }
+    function draw() {
+      CN.clear(svg);
+      var m = st.m, k = st.k, r = k >= 2 ? m.rounds[k - 2] : null, hv = have(k);
+      var defs = s('defs');
+      CHUNK_C.concat('muted').forEach(function (cn) {
+        defs.appendChild(s('marker', { id: 'ah22f-' + cn, viewBox: '0 0 10 10', refX: 8, refY: 5, markerWidth: 5, markerHeight: 5, orient: 'auto' },
+          s('path', { d: 'M 0 0 L 10 5 L 0 10 z', fill: 'var(--' + cn + ')' })));
+      });
+      svg.appendChild(defs);
+      // the tracker; step 1 draws A's question and its answer
+      svg.appendChild(s('rect', { x: 20, y: 22, width: 200, height: 70, rx: 10, fill: 'var(--panel)', stroke: 'var(--line)', 'stroke-width': 2, 'stroke-dasharray': '7 5' }));
+      svg.appendChild(t(120, 52, 'tracker', { fs: 22, bold: true, anchor: 'middle' }));
+      svg.appendChild(t(120, 78, 'knows the swarm', { fs: 15, fill: 'var(--muted)', anchor: 'middle' }));
+      if (k === 1) {
+        var ay = PY - BH / 2;
+        svg.appendChild(pop(s('line', { x1: PX.A - 30, y1: ay, x2: PX.A - 30, y2: 98, stroke: 'var(--muted)', 'stroke-width': 3, 'stroke-dasharray': '6 5', 'marker-end': 'url(#ah22f-muted)' })));
+        svg.appendChild(pop(s('line', { x1: PX.A + 30, y1: 94, x2: PX.A + 30, y2: ay - 4, stroke: 'var(--muted)', 'stroke-width': 3, 'stroke-dasharray': '6 5', 'marker-end': 'url(#ah22f-muted)' })));
+        svg.appendChild(t(PX.A - 40, 150, 'who is in', { fs: 15, bold: true, anchor: 'end' }));
+        svg.appendChild(t(PX.A - 40, 170, 'the swarm?', { fs: 15, bold: true, anchor: 'end' }));
+        svg.appendChild(t(PX.A + 40, 160, 'S, B, C, D', { fs: 15, bold: true }));
+      }
+      // this round's uploads, drawn under the nodes so the tiles stay on top
+      var got = {};
+      if (r) r.xfers.forEach(function (x) {
+        got[x.to] = (got[x.to] || []).concat(x.c);
+        var c = col(x.c), lbl;
+        if (x.from === 'S') {
+          var x1 = SX + (PX[x.to] - SX) * 0.12, y1 = SY + BH / 2, x2 = PX[x.to], y2 = PY - BH / 2 - 4;
+          svg.appendChild(pop(s('line', { x1: x1, y1: y1, x2: x2, y2: y2, stroke: c, 'stroke-width': 3.5, 'marker-end': 'url(#ah22f-' + CHUNK_C[x.c] + ')' })));
+          lbl = [(x1 + x2) / 2, (y1 + y2) / 2];
+        } else {
+          // arcs under the row: out of a box's left side, into its right side (≤ 1 each per node, so no two ends meet);
+          // right-to-left ones run a little deeper so a swap's two arcs stay apart
+          var a = PX[x.from], b = PX[x.to], span = Math.abs(P.indexOf(x.from) - P.indexOf(x.to)), rtl = b < a;
+          var ya = PY + BH / 2, dep = 50 + 40 * span + (rtl ? 34 : 0), sx = a - 36, ex = b + 36;
+          svg.appendChild(pop(s('path', { d: 'M ' + sx + ' ' + ya + ' Q ' + (sx + ex) / 2 + ' ' + (ya + 2 * dep) + ' ' + ex + ' ' + (ya + 4),
+            fill: 'none', stroke: c, 'stroke-width': 3.5, 'marker-end': 'url(#ah22f-' + CHUNK_C[x.c] + ')' })));
+          lbl = [(sx + ex) / 2, ya + dep];
+        }
+        svg.appendChild(pop(tile(lbl[0] - 15, lbl[1] - 15, x.c, true, 30)));
+      });
+      svg.appendChild(node('S', SX, SY, [], null));
+      P.forEach(function (p) { svg.appendChild(node(p, PX[p], PY, hv[p], got[p])); });
+      // right column: copies of each chunk now (what the next round ranks), then the log
+      var RX = 1010, ranks = [], end = k >= m.end;
+      for (var c = 0; c < NC; c++) ranks.push(1 + P.filter(function (p) { return hv[p].indexOf(c) >= 0; }).length);
+      var low = Math.min.apply(null, ranks);
+      svg.appendChild(t(W - 6, 24, 'step ' + k + ' of ' + m.end, { fs: 18, bold: true, fill: 'var(--muted)', anchor: 'end' }));
+      svg.appendChild(t(RX, 52, 'Copies now', { fs: 18, bold: true }));
+      if (!end) svg.appendChild(t(RX, 72, 'the next round ranks these', { fs: 14, fill: 'var(--muted)' }));
+      ranks.forEach(function (n, c) {
+        var y = 84 + c * 42;
+        svg.appendChild(tile(RX, y, c, true, 32));
+        for (var d = 0; d < 5; d++) svg.appendChild(s('circle', { cx: RX + 52 + d * 22, cy: y + 16, r: 8, fill: d < n ? col(c) : 'none', stroke: d < n ? col(c) : 'var(--line)', 'stroke-width': 1.5 }));
+        svg.appendChild(t(RX + 166, y + 22, String(n), { fs: 18, bold: true }));
+        if (n === low && low < 5) svg.appendChild(t(RX + 186, y + 22, '← rarest', { fs: 16, bold: true, fill: 'var(--red)' }));
+      });
+      var lines;
+      if (k === 0) lines = [['The seed S has the whole file.', null], ['A–D hold some chunks each.', null]];
+      else if (k === 1) lines = [['A asks the tracker who is', null], ['in the swarm: S, B, C, D.', null]];
+      else {
+        lines = [['Round ' + (k - 1), 'bold']];
+        r.xfers.forEach(function (x) { lines.push([x.from + ' → ' + x.to + ': chunk ' + x.c + (x.rarest ? ' (rarest)' : ' (rarer one busy)'), CHUNK_C[x.c]]); });
+        r.blocked.forEach(function (p) { lines.push([p + ': every holder busy, waits', 'muted']); });
+      }
+      if (end) lines.push(['All complete. The seed sent ' + m.sent.S, 'bold'], ['of ' + P.reduce(function (n, p) { return n + m.sent[p]; }, m.sent.S) + ' chunks; the peers the rest.', 'bold']);
+      lines.forEach(function (ln, i) {
+        svg.appendChild(t(RX, 290 + i * 28, ln[0], { fs: 16, bold: !!ln[1] && ln[1] !== 'muted', fill: ln[1] && ln[1] !== 'bold' ? 'var(--' + ln[1] + ')' : null }));
+      });
+      fresh = false;
+    }
+    function step() { if (st.k >= st.m.end) return false; st.k++; fresh = true; draw(); return true; }
+    function reset() { st.k = 0; st.m = CN.http.swarm(hHave.value()); fresh = false; draw(); }
+    body.appendChild(ui.controls());
+    reset();
+    return { step: step, reset: reset, reached: function () { return st.k >= st.m.end; },
+      prev: function () { if (st.k > 0) { st.k--; draw(); return true; } return false; } };
+  }
+
   var CARDS = [
         ['Request / response', function () {
           var t = h('table', { class: 't' }, h('tr', null, h('th', null, 'Class'), h('th', null, 'Meaning'), h('th', null, 'Examples')));
@@ -439,13 +567,6 @@
             h('div', null, h('b', null, 'HTTP/2: '), 'many request streams multiplexed over ONE TCP connection, binary frames, header compression, server push. But TCP delivers bytes in order: one lost segment stalls every stream (head-of-line blocking).'),
             h('div', null, h('b', null, 'HTTP/3: '), 'runs over QUIC on UDP port 443. QUIC does reliability per stream, so a lost packet blocks only its own stream, and it merges the transport and TLS handshakes.'),
             h('div', { class: 'muted' }, 'That\'s what the buses on the stop-20 road are: UDP 443.'));
-        }],
-        ['P2P: BitTorrent', function () {
-          return h('div', { class: 'col' },
-            h('div', null, 'No server holds the file for everyone. A ', h('b', null, 'torrent'), ' file lists the chunks (with hashes) and a ', h('b', null, 'tracker'), ' that knows which peers are in the swarm.'),
-            h('div', null, 'Peers download chunks from each other, rarest first, and upload what they have. ', h('b', null, 'Tit-for-tat: '), 'a peer uploads to the peers that upload to it most (plus one random "optimistic unchoke").'),
-            h('div', null, h('b', null, 'DHT: '), 'a distributed hash table spread over the peers can replace the tracker.'),
-            h('div', { class: 'muted' }, 'The more people want a file, the more capacity there is to serve it.'));
         }]
   ];
 
@@ -458,7 +579,7 @@
     request: request, rtts: roundTrips, scale: scale,
     methods: function (body) { return cardSlide(body, 0); },
     http2: hol,
-    p2p: function (body) { return cardSlide(body, 2); }
+    p2p: swarm
   };
 
   CN.screens.t22 = function (root, sc) {
