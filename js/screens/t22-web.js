@@ -293,9 +293,10 @@
     box(g, 242, 104, 130, 76, ['Front end', 'load balancer'], 'accent');
     g.appendChild(t(307, 96, 'one public address', { fs: 14, fill: 'var(--muted)' }));
     [0, 1, 2, 3].forEach(function (k) {
-      var y = 56 + k * 52;
-      server(g, 560, y - 6, null, k < 3 ? FC[k] : 'ink', k === 3);
-      if (k < 3) g.appendChild(arrow(374, 140 + (k - 1) * 16, 538, y + 18, FC[k]));
+      var y = 34 + k * 64, c = k < 3 ? FC[k] : 'muted';
+      server(g, 520, y, null, k < 3 ? FC[k] : 'ink', k === 3);
+      g.appendChild(t(546, y + 31, 'server ' + (k + 1) + (k < 3 ? '' : ': idle'), { fs: 15, bold: k < 3, fill: 'var(--' + c + ')', anchor: 'start' }));
+      if (k < 3) g.appendChild(arrow(374, 140 + (k - 1) * 16, 498, y + 25, FC[k]));
     });
 
     // 4 CDN: (1) DNS gives each client its nearest edge, (2) the GET goes there; the origin fills the edges
