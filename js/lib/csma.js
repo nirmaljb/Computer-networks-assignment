@@ -26,15 +26,17 @@
   // 6a static allocation. Mean delay of one channel (M/M/1): T = 1/(μC − λ), C bit/s, frames of L = 1/μ bits,
   // λ frames/s; split into N sub-channels of C/N carrying λ/N each, T_N = N·T. Returns seconds.
   function staticDelay(C, L, lambda, N) { return (N || 1) / (C / L - lambda); }
-  // One burst through TDM with N slices vs the whole channel. A owns slots 1, N+1, 2N+1, …; the other N − 1
-  // stations are silent. A slot carries one frame at the full rate C. tdm[i] / shared[i] = the slot frame i leaves in.
+  // One burst through TDM and FDM with N slices vs the whole channel. A slot is the time one frame takes at the full
+  // rate C; the other N − 1 stations are silent. shared[i] / tdm[i] = the slot frame i is sent in; TDM gives A slots
+  // 1, N+1, 2N+1, …. FDM gives A a band of C/N all the time, so frame i takes N slots: fdm[i] = the slot it finishes
+  // in (N, 2N, 3N). Same 1/N share, so the same mean delay N·T, but this burst ends at 2N + 1 on TDM and 3N on FDM.
   var TDM_NS = [1, 2, 5, 10], TDM_BURST = 3;
   function staticTdm(N, burst) {
     burst = burst || TDM_BURST;
-    var shared = [], tdm = [];
-    for (var i = 0; i < burst; i++) { shared.push(i + 1); tdm.push(i * N + 1); }
+    var shared = [], tdm = [], fdm = [];
+    for (var i = 0; i < burst; i++) { shared.push(i + 1); tdm.push(i * N + 1); fdm.push((i + 1) * N); }
     var end = tdm[burst - 1];
-    return { n: N, burst: burst, shared: shared, tdm: tdm, end: end,
+    return { n: N, burst: burst, shared: shared, tdm: tdm, end: end, fdm: fdm, fdmEnd: fdm[burst - 1],
       owner: function (s) { return String.fromCharCode(65 + (s - 1) % N); },
       idle: end - burst };   // TDM slots left empty while A still had a frame queued (none on the shared channel)
   }

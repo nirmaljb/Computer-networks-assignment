@@ -7,17 +7,19 @@
   var G = 1, SEED = 11;
 
   // 6a (v14): static allocation as a Step sim (CN.csma.staticTdm). A bursts 3 frames while the other N − 1 stations
-  // are silent; top row the whole channel (A done at slot 3), bottom row TDM (A owns every Nth slot, done at 2N + 1,
-  // the slots in between sit idle). One Step = one slot. Chips N = 1 / 2 / 5 / 10; the mean delays are
-  // T = 1/(μC − λ) = 200 µs and N·T (C = 100 Mbps, 1/μ = 10,000 bits, λ = 5000/s). N = 1: the rows are the same.
-  var SLOTS = 22, T_US = 1e6 * X.staticDelay(1e8, 1e4, 5000, 1);
+  // are silent; three alternative rules for the same channel: the whole channel (A done at slot 3), TDM (A owns every
+  // Nth slot, done at 2N + 1, the slots in between sit idle) and FDM (v17: A owns 1 band of N at C/N, so each frame
+  // takes N slots, done at 3N, the other bands sit idle). One Step = one slot. Chips N = 1 / 2 / 5 / 10; the mean
+  // delays are T = 1/(μC − λ) = 200 µs and N·T for both splits (C = 100 Mbps, 1/μ = 10,000 bits, λ = 5000/s).
+  // N = 1: the three rows are the same.
+  var SLOTS = 30, T_US = 1e6 * X.staticDelay(1e8, 1e4, 5000, 1);
   function us(v) { return v >= 1000 ? (v / 1000) + ' ms' : v + ' µs'; }
   function staticAlloc(body) {
-    var W = 1300, H = 410, X0 = 320, SW = (W - 10 - X0) / SLOTS, SH = 80;
+    var W = 1300, H = 500, X0 = 320, SW = (W - 10 - X0) / SLOTS, SH = 80;
     var hN = ui.handle({ key: 'N', label: 'N', kind: 'chips', value: 10, values: X.TDM_NS, fmt: function () { return ''; }, chip: String });
-    var st = { k: 0, m: null }, fresh = false;
+    var st = { k: 0, m: null, end: 0 }, fresh = false;
     var svg = s('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H });
-    body.appendChild(h('div', { class: 'say' }, 'A bursts 3 frames, the rest are silent. Mean delay: T = 1/(μC − λ) on one channel, N·T on N slices.'));
+    body.appendChild(h('div', { class: 'say' }, 'Same 3-frame burst from A, the rest silent, three rules for the channel. Mean delay: T = 1/(μC − λ) on one channel, N·T on N slices (TDM or FDM).'));
     body.appendChild(h('div', { class: 'panel', style: { padding: '6px' } }, svg));
     body.appendChild(ui.handleRow(hN));
     function t(x, y, str, o) {
@@ -54,22 +56,52 @@
       svg.appendChild(t(0, y0 + 110, done ? 'A done · slot ' + lastA + (owner ? ' · ' + idle + ' idle' : '') : 'A: ' + left + ' queued' + (owner ? ' · ' + idle + ' idle' : ''),
         { fs: 22, bold: true, fill: done ? 'var(--green)' : null }));
     }
+    // FDM: A's band (top) carries C/N, so frame i is one box N slots wide that fills a slot per Step; the other
+    // N − 1 bands (bottom, not to scale) carry nothing. N = 1: one band, the same boxes as the top row.
+    function fdmRow(y0) {
+      var m = st.m, N = m.n, k = st.k, y = y0 + 4, AH = N === 1 ? SH : SH * 0.55, left = 0, sending = 0;
+      svg.appendChild(t(0, y0 + 26, 'FDM, N = ' + N, { fs: 30, bold: true }));
+      svg.appendChild(t(0, y0 + 54, N === 1 ? 'one band: the whole channel' : 'A owns 1 band in ' + N + ', at C/' + N, { fs: 20, fill: 'var(--muted)' }));
+      svg.appendChild(t(0, y0 + 80, 'mean delay N·T = ' + us(N * T_US), { fs: 20 }));
+      m.fdm.forEach(function (fin, i) {
+        var a = fin - N + 1, done = Math.min(Math.max(k - a + 1, 0), N), x = sx(a) + 2;
+        if (done < N) { left++; if (done > 0) sending = i + 1; }
+        svg.appendChild(s('rect', { x: x, y: y, width: N * SW - 4, height: AH, rx: 5, fill: 'none', stroke: 'var(--line)', 'stroke-width': 1.5, 'stroke-dasharray': '3 4' }));
+        if (!done) return;
+        var g = s('g');
+        g.appendChild(s('rect', { x: x, y: y, width: done * SW - 4, height: AH, rx: 5, fill: 'var(--accent-bg)', stroke: 'var(--accent)', 'stroke-width': 2.5 }));
+        g.appendChild(t(x + (done * SW - 4) / 2, y + AH / 2 + 7, 'A' + (i + 1), { fs: 20, bold: true, fill: 'var(--accent)', anchor: 'middle' }));
+        if (fresh && k >= a && k <= fin) g.setAttribute('class', 'h3-pop');
+        svg.appendChild(g);
+      });
+      for (var n = m.fdmEnd + 1; n <= SLOTS; n++) svg.appendChild(slot(n, y, n > k ? 'future' : 'free'));
+      if (N > 1) {
+        var oy = y + AH + 4, oh = SH - AH - 4, last = String.fromCharCode(64 + N);
+        if (k > 0) svg.appendChild(s('rect', { x: sx(1) + 2, y: oy, width: Math.min(k, SLOTS) * SW - 4, height: oh, rx: 5, fill: 'var(--grey-bg)', stroke: 'var(--red)', 'stroke-width': 1.5, 'stroke-dasharray': '5 4' }));
+        if (k < SLOTS) svg.appendChild(s('rect', { x: sx(k + 1) + 2, y: oy, width: (SLOTS - k) * SW - 4, height: oh, rx: 5, fill: 'none', stroke: 'var(--line)', 'stroke-width': 1.5, 'stroke-dasharray': '3 4' }));
+        svg.appendChild(t(sx(1) + 12, oy + oh / 2 + 7, (N === 2 ? 'B: 1 band' : 'B–' + last + ': ' + (N - 1) + ' bands') + ', idle the whole time', { fs: 18, fill: 'var(--muted)' }));
+      }
+      var over = k >= m.fdmEnd;
+      svg.appendChild(t(0, y0 + 110, over ? 'A done · slot ' + m.fdmEnd : 'A: ' + left + ' left' + (sending ? ' · sending A' + sending : ''),
+        { fs: 22, bold: true, fill: over ? 'var(--green)' : null }));
+    }
     function draw() {
       CN.clear(svg);
       var m = st.m, N = m.n, k = st.k;
       now = k;
-      svg.appendChild(t(W - 6, 20, 'slot ' + k + ' of ' + m.end, { fs: 20, bold: true, fill: 'var(--muted)', anchor: 'end' }));
+      svg.appendChild(t(W - 6, 20, 'slot ' + k + ' of ' + st.end, { fs: 20, bold: true, fill: 'var(--muted)', anchor: 'end' }));
       row(34, 'One channel', 'A sends at the full rate C', 'mean delay T = ' + us(T_US), m.shared, null);
-      row(224, 'TDM, N = ' + N, N === 1 ? 'one slice: the whole channel' : 'A owns 1 slot in ' + N, 'mean delay N·T = ' + us(N * T_US), m.tdm, m.owner);
+      row(194, 'TDM, N = ' + N, N === 1 ? 'one slice: the whole channel' : 'A owns 1 slot in ' + N, 'mean delay N·T = ' + us(N * T_US), m.tdm, m.owner);
+      fdmRow(354);
       for (var n = 1; n <= SLOTS; n++) svg.appendChild(t(sx(n) + SW / 2, H - 6, String(n), { fs: 18, fill: 'var(--muted)', anchor: 'middle' }));
       if (k > 0) svg.appendChild(s('line', { x1: sx(k) + SW, y1: 30, x2: sx(k) + SW, y2: H - 26, stroke: 'var(--ink)', 'stroke-width': 2 }));
       fresh = false;
     }
-    function step() { if (st.k >= st.m.end) return false; st.k++; fresh = true; draw(); return true; }
-    function reset() { st.k = 0; st.m = X.staticTdm(hN.value()); fresh = false; draw(); }
+    function step() { if (st.k >= st.end) return false; st.k++; fresh = true; draw(); return true; }
+    function reset() { st.k = 0; st.m = X.staticTdm(hN.value()); st.end = Math.max(st.m.end, st.m.fdmEnd); fresh = false; draw(); }
     body.appendChild(ui.controls());
     reset();
-    return { step: step, reset: reset, reached: function () { return st.k >= st.m.end; },
+    return { step: step, reset: reset, reached: function () { return st.k >= st.end; },
       prev: function () { if (st.k > 0) { st.k--; draw(); return true; } return false; } };
   }
 

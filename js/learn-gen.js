@@ -376,13 +376,13 @@
       return row([u, x.ip + ':' + x.url.port + (x.tls ? ' (TLS)' : ''), x.request[0], x.hostHeader, x.response[1].split(': ')[1]]);
     }));
   }
-  // 6a: one 3-frame burst, whole channel vs TDM, for each N chip (CN.csma.staticTdm / staticDelay)
+  // 6a: one 3-frame burst, whole channel vs TDM vs FDM, for each N chip (CN.csma.staticTdm / staticDelay)
   function tdmTable() {
     var X = CN.csma, T = 1e6 * X.staticDelay(1e8, 1e4, 5000, 1);
     function us(v) { return v >= 1000 ? (v / 1000) + ' ms' : v + ' µs'; }
-    return table(['N', 'A sends in slots (TDM)', 'A done: one channel', 'A done: TDM', 'Idle while A waits', 'Mean delay N·T'], X.TDM_NS.map(function (N) {
+    return table(['N', 'A sends in slots (TDM)', 'A done: one channel', 'A done: TDM', 'TDM slots idle while A waits', 'A done: FDM', 'Mean delay N·T'], X.TDM_NS.map(function (N) {
       var m = X.staticTdm(N);
-      return row([N, m.tdm.join(', '), 'slot ' + m.shared[m.burst - 1], 'slot ' + m.end, m.idle, us(N * T)]);
+      return row([N, m.tdm.join(', '), 'slot ' + m.shared[m.burst - 1], 'slot ' + m.end, m.idle, 'slot ' + m.fdmEnd, us(N * T)]);
     }));
   }
   // 22f: the default swarm, round by round (CN.http.swarm)

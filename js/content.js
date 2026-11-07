@@ -200,7 +200,7 @@
     {
       id: 't6', topic: 6, stop: '6', act: 2, short: 'ALOHA', title: 'Channel allocation & ALOHA', target: 25,
       subs: [
-        { id: 't6', part: 'static', stop: '6a', short: 'Static allocation', title: 'Static channel allocation', click: 'Step moves one slot: A sends a 3-frame burst on the whole channel (top) and on TDM (bottom, A owns every Nth slot). Tap N to change the number of slices.', predict: { q: 'N = 10: in which slot does A\'s last frame leave on TDM?', a: 'Slot 21 (= 2N + 1): A owns slots 1, 11, 21' } },
+        { id: 't6', part: 'static', stop: '6a', short: 'Static allocation', title: 'Static channel allocation', click: 'Step moves one slot. Three rules for the same channel, the same 3-frame burst from A: whole channel (top), TDM (middle, A owns every Nth slot), FDM (bottom, A owns 1 band of N at C/N). Tap N to change the number of slices.', predict: { q: 'N = 10: in which slot does A\'s last frame leave on TDM?', a: 'Slot 21 (= 2N + 1): A owns slots 1, 11, 21' } },
         { id: 't6b', part: 'curves', stop: '6b', short: 'ALOHA throughput', title: 'ALOHA: throughput vs load', click: 'Static.' },
         { id: 't6c', part: 'pure', stop: '6c', short: 'Pure ALOHA', title: 'Pure ALOHA: vulnerable period', click: 'Static, G = 1.' },
         { id: 't6d', part: 'slotted', stop: '6d', short: 'Slotted ALOHA', title: 'Slotted ALOHA: vulnerable period', click: 'Static, G = 1.' }
@@ -213,7 +213,7 @@
       click: 'Drag the G marker on the plot. Toggle Pure/Slotted on the timeline.',
       facts: [
         'Static FDM/TDM wastes capacity on bursty traffic: T = 1/(μC − λ); N sub-channels → T_N = N·T. C = 100 Mbps, 1/μ = 10,000 bits, λ = 5000/s → T = 200 µs.',
-        '6a strip: one 3-frame burst, the other stations silent. One channel: done at slot 3. TDM: A owns slots 1, N+1, 2N+1, so done at 2N + 1 with 2N − 2 slots idle (N = 10: 21, 18 idle). The strip is the intuition; N·T is the queueing mean (M/M/1), not the strip\'s finish time. FDM gives the same 1/N rate.',
+        '6a strip: one 3-frame burst, the other stations silent. One channel: done at slot 3. TDM: A owns slots 1, N+1, 2N+1, so done at 2N + 1 with 2N − 2 slots idle (N = 10: 21, 18 idle). FDM: each frame takes N slots at C/N, so done at 3N (N = 10: 30), later than TDM. Same 1/N share and same mean N·T, different finish for this burst. The strip is the intuition; N·T is the queueing mean (M/M/1), not the strip\'s finish time. Tanenbaum derives N·T for FDM and says it applies to TDM too.',
         'Dynamic assumptions: independent traffic, single channel, observable collisions, continuous or slotted time, carrier sense or not.',
         'Pure ALOHA: vulnerable 2 frame times; S = G·e^(−2G); max 1/2e ≈ 18.4% at G = 0.5.',
         'Slotted ALOHA: vulnerable 1 frame time; S = G·e^(−G); max 1/e ≈ 36.8% at G = 1 (36.8% empty, 36.8% success, 26.4% collide).'
