@@ -420,10 +420,20 @@ body.learn-on #learn { display: flex; }
 .ln-scroll h3 { font-size: 1.2em; line-height: 1.25; margin: 1.4em 0 .4em; padding-top: .5em; border-top: 1px solid var(--line); }
 .ln-scroll h3.ln-sub { border-top: 3px solid var(--accent); }
 .ln-scroll h4 { font-size: 1.02em; margin: 1.1em 0 .3em; }
-.ln-scroll p, .ln-scroll li { margin: .45em 0; }
+.ln-scroll p { margin: .75em 0; }
+.ln-scroll li { margin: .4em 0; }
 .ln-scroll ul, .ln-scroll ol { padding-left: 1.4em; margin: .4em 0; }
 .ln-scroll code { font: .92em var(--mono); background: var(--panel2); border-radius: 4px; padding: 0 .25em; }
 .ln-pre { font: .86em/1.4 var(--mono); background: var(--panel2); border-radius: 8px; padding: .7em 1em; overflow-x: auto; white-space: pre; }
+/* ```math: a displayed formula, one row per line; \frac stacks */
+.ln-math { margin: 1em 0; padding: .7em 1em; background: var(--panel2); border-left: 4px solid var(--accent); border-radius: 6px;
+  display: flex; flex-direction: column; gap: .7em; font-size: 1.12em; line-height: 1.3; overflow-x: auto; }
+.ln-mrow { white-space: nowrap; }
+.ln-mrow b { color: var(--accent); }
+.ln-frac { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; margin: 0 .2em; font-size: .92em; }
+.ln-num { padding: 0 .3em .1em; border-bottom: 1.5px solid currentColor; }
+.ln-den { padding: .1em .3em 0; }
+.ln-math sub, .ln-math sup { font-size: .7em; }
 .ln-scroll hr { border: none; border-top: 1px solid var(--line); margin: 1.2em 0; }
 .ln-tw { overflow-x: auto; margin: .6em 0; }
 .ln-table { border-collapse: collapse; width: 100%; font-size: .86em; line-height: 1.4; }
