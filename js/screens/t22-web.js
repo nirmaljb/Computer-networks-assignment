@@ -3,16 +3,10 @@
   var CN = window.CN, h = CN.h, s = CN.s, ui = CN.ui;
 
   // SPEC-v5: 22a URL + request (static), 22b page-load round trips for the three HTTP/1.x styles
-  // (CN.http, 1 HTML + 10 images, RTT 100 ms, static), 22c the scale strip (Step), then three static cards.
+  // (CN.http, 1 HTML + 10 images, RTT 100 ms, static), 22c the 2×2 scale grid (static), then three static cards.
   var MODES = [['nonpersistent', 'Non-persistent', 'new connection per object'],
     ['persistent', 'Persistent', 'one connection, 1 request at a time'],
     ['pipelined', 'Persistent + pipelining', 'all image requests back to back']];
-  var SCALE = [
-    ['Origin server', 'One machine far away: every request crosses the internet (high RTT).'],
-    ['Web proxy cache', 'Near the clients (a campus or ISP). Hit: served locally. Miss: fetched once from the origin, then cached. A conditional GET (If-Modified-Since) gets 304 Not Modified if the copy is still good.'],
-    ['Server farm', 'Many servers behind one front end: a load balancer (or DNS) spreads requests, so one site handles millions of users.'],
-    ['CDN', 'Copies on edge nodes all over the world. DNS (stop 21) returns the nearest edge\'s address, so the RTT is short and the origin is rarely asked.']
-  ];
 
   // SPEC-v9 22a: the URL taken apart (CN.http.exchange). One colour per piece, and the same colour wherever that
   // piece ends up: scheme → port, host → DNS and Host:, path → the request line. Step 0 URL, 1 split, 2 DNS + port
@@ -215,24 +209,116 @@
     return {};
   }
 
+  // SPEC-v10 22c: the four ways of serving the page side by side, one static diagram each (2×2), no Step.
+  // Labels only, no numbers on screen; the long wording is in the presenter facts.
   function scale(body) {
-    var at = 0, row = h('div', { class: 'row nowrap', style: { gap: '10px', marginTop: '30px' } }), text = h('div', { class: 'panel', style: { fontSize: '30px', padding: '28px', minHeight: '150px' } });
-    body.appendChild(row);
-    body.appendChild(text);
-    function draw() {
-      CN.clear(row);
-      SCALE.forEach(function (b, i) {
-        if (i) row.appendChild(h('span', { style: { fontSize: '34px', color: 'var(--muted)' } }, '→'));
-        row.appendChild(h('div', { class: 'panel', style: { flex: '1', textAlign: 'center', fontSize: '28px', fontWeight: 700, padding: '18px',
-          borderColor: i === at ? 'var(--accent)' : null, background: i === at ? 'var(--accent-bg)' : null, opacity: i > at ? 0.35 : 1 } }, b[0]));
-      });
-      CN.clear(text).appendChild(h('span', null, h('b', null, SCALE[at][0] + ': '), SCALE[at][1]));
+    var W = 1300, PW = 640, PH = 340, GAP = 20, H = 2 * PH + GAP;
+    var svg = s('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H });
+    body.appendChild(h('div', { style: { marginTop: '10px' } }, svg));
+    var defs = s('defs');
+    ['ink', 'blue', 'amber', 'green', 'muted'].forEach(function (c) {
+      defs.appendChild(s('marker', { id: 'ah22c-' + c, viewBox: '0 0 10 10', refX: 8, refY: 5, markerWidth: 6, markerHeight: 6, orient: 'auto-start-reverse' },
+        s('path', { d: 'M 0 0 L 10 5 L 0 10 z', fill: 'var(--' + c + ')' })));
+    });
+    svg.appendChild(defs);
+    function t(x, y, str, o) {
+      o = o || {};
+      return s('text', { x: x, y: y, 'font-size': o.fs || 17, 'font-weight': o.bold ? 800 : null, fill: o.fill || null, 'text-anchor': o.anchor || 'middle' }, str);
     }
-    draw();
-    function step() { if (at >= SCALE.length - 1) return false; at++; draw(); return true; }
-    function reset() { at = 0; draw(); }
-    body.appendChild(ui.controls());
-    return { step: step, reset: reset, prev: function () { if (at > 0) { at--; draw(); return true; } return false; } };
+    function arrow(x1, y1, x2, y2, c, o) {
+      o = o || {};
+      return s('line', { x1: x1, y1: y1, x2: x2, y2: y2, stroke: 'var(--' + c + ')', 'stroke-width': o.w || 3, 'stroke-dasharray': o.dash || null,
+        'marker-end': 'url(#ah22c-' + c + ')', 'marker-start': o.both ? 'url(#ah22c-' + c + ')' : null });
+    }
+    // a laptop centred on x, screen top at y
+    function client(g, x, y, label, c) {
+      c = c || 'ink';
+      g.appendChild(s('rect', { x: x - 22, y: y, width: 44, height: 28, rx: 3, fill: 'var(--panel)', stroke: 'var(--' + c + ')', 'stroke-width': 2.5 }));
+      g.appendChild(s('path', { d: 'M ' + (x - 29) + ' ' + (y + 34) + ' h 58', stroke: 'var(--' + c + ')', 'stroke-width': 4, 'stroke-linecap': 'round' }));
+      if (label) g.appendChild(t(x, y + 54, label, { fs: 15, fill: 'var(--muted)' }));
+    }
+    // a rack server centred on x, top at y
+    function server(g, x, y, label, c, faint) {
+      c = c || 'ink';
+      var sg = s('g', { opacity: faint ? 0.4 : null });
+      sg.appendChild(s('rect', { x: x - 18, y: y, width: 36, height: 50, rx: 3, fill: 'var(--panel)', stroke: 'var(--' + c + ')', 'stroke-width': 2.5 }));
+      [14, 26, 38].forEach(function (dy) { sg.appendChild(s('line', { x1: x - 11, y1: y + dy, x2: x + 11, y2: y + dy, stroke: 'var(--' + c + ')', 'stroke-width': 2 })); });
+      if (label) sg.appendChild(t(x, y + 70, label, { fs: 15, fill: 'var(--muted)' }));
+      g.appendChild(sg);
+    }
+    function box(g, x, y, w, hh, lines, c) {
+      g.appendChild(s('rect', { x: x, y: y, width: w, height: hh, rx: 6, fill: 'var(--' + c + '-bg)', stroke: 'var(--' + c + ')', 'stroke-width': 2.5 }));
+      lines.forEach(function (l, i) { g.appendChild(t(x + w / 2, y + hh / 2 + 6 + (i - (lines.length - 1) / 2) * 20, l, { fs: i ? 14 : 17, bold: !i, fill: 'var(--' + c + ')' })); });
+    }
+    // the diagram sits dy below the title
+    function panel(i, title, caption, dy) {
+      var g = s('g', { transform: 'translate(' + (i % 2) * (PW + GAP) + ' ' + Math.floor(i / 2) * (PH + GAP) + ')' });
+      g.appendChild(s('rect', { x: 1, y: 1, width: PW - 2, height: PH - 2, rx: 6, fill: 'var(--panel)', stroke: 'var(--line)', 'stroke-width': 1.5 }));
+      g.appendChild(t(18, 32, title, { fs: 24, bold: true, anchor: 'start' }));
+      g.appendChild(t(18, PH - 16, caption, { fs: 18, anchor: 'start' }));
+      svg.appendChild(g);
+      return g.appendChild(s('g', { transform: 'translate(0 ' + dy + ')' }));
+    }
+
+    // 1 Origin: many clients, one long crossing, one machine
+    var g = panel(0, 'Origin server', 'Every request crosses the Internet to one far-away machine.', 20);
+    [70, 135, 200].forEach(function (y) { client(g, 50, y - 14); g.appendChild(arrow(82, y, 168, 150 + (y - 135) / 3, 'blue')); });
+    g.appendChild(s('rect', { x: 170, y: 105, width: 340, height: 90, rx: 45, fill: 'none', stroke: 'var(--muted)', 'stroke-width': 2, 'stroke-dasharray': '7 6' }));
+    g.appendChild(t(340, 145, 'Internet', { fs: 19, bold: true, fill: 'var(--muted)' }));
+    g.appendChild(t(340, 168, 'far away: long RTT', { fs: 15, fill: 'var(--muted)' }));
+    g.appendChild(arrow(512, 150, 552, 150, 'blue', { w: 5 }));
+    server(g, 580, 125, 'one machine');
+
+    // 2 Proxy: A misses (fetched once, stored), B hits (served locally)
+    g = panel(1, 'Web proxy cache', 'Near the clients: a hit is served here, a miss fetched once.', 20);
+    g.appendChild(s('rect', { x: 14, y: 46, width: 300, height: 196, rx: 8, fill: 'none', stroke: 'var(--line)', 'stroke-width': 2, 'stroke-dasharray': '5 5' }));
+    g.appendChild(t(300, 64, 'campus / ISP: near', { fs: 14, fill: 'var(--muted)', anchor: 'end' }));
+    client(g, 54, 80, 'A');
+    client(g, 54, 172, 'B');
+    box(g, 170, 116, 120, 64, ['Proxy', 'cache'], 'accent');
+    g.appendChild(arrow(84, 98, 166, 132, 'amber'));
+    g.appendChild(t(120, 100, 'miss', { fs: 15, bold: true, fill: 'var(--amber)', anchor: 'start' }));
+    g.appendChild(arrow(84, 190, 166, 164, 'green', { both: true }));
+    g.appendChild(t(110, 214, 'hit: served here', { fs: 15, bold: true, fill: 'var(--green)', anchor: 'start' }));
+    g.appendChild(arrow(294, 140, 552, 140, 'amber', { both: true }));
+    g.appendChild(t(424, 128, 'fetch once, keep a copy', { fs: 15, bold: true, fill: 'var(--amber)' }));
+    g.appendChild(t(424, 166, 'still fresh? conditional GET', { fs: 14, fill: 'var(--muted)' }));
+    g.appendChild(t(424, 185, '→ 304 Not Modified', { fs: 14, fill: 'var(--muted)' }));
+    server(g, 580, 115, 'origin');
+
+    // 3 Farm: one address, the front end sends each client to a different server
+    g = panel(2, 'Server farm', 'One address, many servers: the front end spreads the requests.', 20);
+    var FC = ['blue', 'amber', 'green'];
+    FC.forEach(function (c, k) { var y = 70 + k * 65; client(g, 50, y - 14, null, c); g.appendChild(arrow(82, y, 238, 140 + (k - 1) * 16, c)); });
+    box(g, 242, 104, 130, 76, ['Front end', 'load balancer'], 'accent');
+    g.appendChild(t(307, 96, 'one public address', { fs: 14, fill: 'var(--muted)' }));
+    [0, 1, 2, 3].forEach(function (k) {
+      var y = 56 + k * 52;
+      server(g, 560, y - 6, null, k < 3 ? FC[k] : 'ink', k === 3);
+      if (k < 3) g.appendChild(arrow(374, 140 + (k - 1) * 16, 538, y + 18, FC[k]));
+    });
+
+    // 4 CDN: (1) DNS gives each client its nearest edge, (2) the GET goes there; the origin fills the edges
+    g = panel(3, 'CDN', 'DNS sends each client to its nearest edge, which holds a copy.', 0);
+    client(g, 50, 50, 'region 1');
+    client(g, 50, 212, 'region 2');
+    box(g, 14, 140, 72, 36, ['DNS'], 'blue');
+    g.appendChild(arrow(50, 112, 50, 136, 'blue', { both: true, w: 2.5 }));
+    g.appendChild(arrow(50, 180, 50, 206, 'blue', { both: true, w: 2.5 }));
+    g.appendChild(t(98, 152, '① name →', { fs: 15, bold: true, fill: 'var(--blue)', anchor: 'start' }));
+    g.appendChild(t(98, 172, 'nearest edge', { fs: 15, bold: true, fill: 'var(--blue)', anchor: 'start' }));
+    [[66, 'edge 1'], [228, 'edge 2']].forEach(function (e) {
+      g.appendChild(arrow(84, e[0], 290, e[0], 'green', { both: true }));
+      g.appendChild(t(186, e[0] - 10, '② GET', { fs: 15, bold: true, fill: 'var(--green)' }));
+      server(g, 320, e[0] - 25, null, 'green');
+      g.appendChild(t(350, e[0] - 4, e[1], { fs: 17, bold: true, fill: 'var(--green)', anchor: 'start' }));
+      g.appendChild(t(350, e[0] + 16, 'a copy', { fs: 14, fill: 'var(--muted)', anchor: 'start' }));
+      g.appendChild(arrow(546, 158, 420, e[0] + (e[0] < 158 ? 14 : -14), 'muted', { dash: '7 6', w: 2.5 }));
+    });
+    g.appendChild(t(470, 150, 'fills', { fs: 14, fill: 'var(--muted)' }));
+    server(g, 580, 128, 'origin');
+    g.appendChild(t(580, 218, 'rarely asked', { fs: 15, fill: 'var(--muted)' }));
+    return {};
   }
 
   var CARDS = [
