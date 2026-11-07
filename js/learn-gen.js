@@ -376,6 +376,15 @@
       return row([u, x.ip + ':' + x.url.port + (x.tls ? ' (TLS)' : ''), x.request[0], x.hostHeader, x.response[1].split(': ')[1]]);
     }));
   }
+  // 6a: one 3-frame burst, whole channel vs TDM, for each N chip (CN.csma.staticTdm / staticDelay)
+  function tdmTable() {
+    var X = CN.csma, T = 1e6 * X.staticDelay(1e8, 1e4, 5000, 1);
+    function us(v) { return v >= 1000 ? (v / 1000) + ' ms' : v + ' µs'; }
+    return table(['N', 'A sends in slots (TDM)', 'A done: one channel', 'A done: TDM', 'Idle while A waits', 'Mean delay N·T'], X.TDM_NS.map(function (N) {
+      var m = X.staticTdm(N);
+      return row([N, m.tdm.join(', '), 'slot ' + m.shared[m.burst - 1], 'slot ' + m.end, m.idle, us(N * T)]);
+    }));
+  }
   // 22f: the default swarm, round by round (CN.http.swarm)
   function swarmTable() {
     var m = CN.http.swarm(CN.http.SWARM_HAVE);
@@ -411,7 +420,7 @@
     'graph.linkstate': function () {
       return dijkstraTable(['A', 'B', 'C', 'D', 'E', 'F'], [['A', 'B', 2], ['A', 'C', 5], ['B', 'C', 1], ['B', 'D', 4], ['C', 'E', 3], ['D', 'E', 1], ['D', 'F', 2], ['E', 'F', 6]], 'B');
     },
-    'ip.frag': fragTable, 'ip.split': splitTable, 'ip.lpm': lpmTable, 'ip.v6': v6Table, 'tcp.flow': flowTable, 'http.rtt': httpTable, 'http.url': urlTable, 'p2p.swarm': swarmTable,
+    'ip.frag': fragTable, 'ip.split': splitTable, 'ip.lpm': lpmTable, 'ip.v6': v6Table, 'tcp.flow': flowTable, 'http.rtt': httpTable, 'http.url': urlTable, 'p2p.swarm': swarmTable, 'static.tdm': tdmTable,
     'cipher.caesar': caesarTable, 'cipher.mono': monoTable, 'cipher.columnar': columnarTable, 'mail.base64': base64Table,
     'hamming.encode': hammingEncode, 'hamming.correct': hammingCorrect,
     'crc.divide': crcDivide, 'crc.check': crcCheck,

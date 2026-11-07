@@ -23,6 +23,22 @@
   function alohaPure(Gv) { return Gv * Math.exp(-2 * Gv); }
   function alohaSlotted(Gv) { return Gv * Math.exp(-Gv); }
 
+  // 6a static allocation. Mean delay of one channel (M/M/1): T = 1/(μC − λ), C bit/s, frames of L = 1/μ bits,
+  // λ frames/s; split into N sub-channels of C/N carrying λ/N each, T_N = N·T. Returns seconds.
+  function staticDelay(C, L, lambda, N) { return (N || 1) / (C / L - lambda); }
+  // One burst through TDM with N slices vs the whole channel. A owns slots 1, N+1, 2N+1, …; the other N − 1
+  // stations are silent. A slot carries one frame at the full rate C. tdm[i] / shared[i] = the slot frame i leaves in.
+  var TDM_NS = [1, 2, 5, 10], TDM_BURST = 3;
+  function staticTdm(N, burst) {
+    burst = burst || TDM_BURST;
+    var shared = [], tdm = [];
+    for (var i = 0; i < burst; i++) { shared.push(i + 1); tdm.push(i * N + 1); }
+    var end = tdm[burst - 1];
+    return { n: N, burst: burst, shared: shared, tdm: tdm, end: end,
+      owner: function (s) { return String.fromCharCode(65 + (s - 1) % N); },
+      idle: end - burst };   // TDM slots left empty while A still had a frame queued (none on the shared channel)
+  }
+
   // After collision i: K uniform in 0 .. 2^min(i,10) - 1. Give up after 16.
   function bebRange(i) {
     if (i >= 16) return { abort: true };
@@ -242,6 +258,7 @@
 
   CN.csma = {
     rng: rng, alohaPure: alohaPure, alohaSlotted: alohaSlotted, bebRange: bebRange,
+    staticDelay: staticDelay, staticTdm: staticTdm, TDM_NS: TDM_NS, TDM_BURST: TDM_BURST,
     minFrame: minFrame, binaryCountdown: binaryCountdown, createBus: createBus
   };
 })(typeof window !== 'undefined' ? window : globalThis);

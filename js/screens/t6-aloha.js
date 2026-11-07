@@ -2,17 +2,75 @@
   'use strict';
   var CN = window.CN, h = CN.h, s = CN.s, ui = CN.ui, X = CN.csma;
 
-  // SPEC-v5: four static sub-slides. Static allocation maths, the S–G curves,
+  // SPEC-v5: four sub-slides. Static allocation (a Step sim since v14), the S–G curves,
   // then one fixed 5-station run for pure and for slotted ALOHA (G = 1, seed 11).
   var G = 1, SEED = 11;
 
+  // 6a (v14): static allocation as a Step sim (CN.csma.staticTdm). A bursts 3 frames while the other N − 1 stations
+  // are silent; top row the whole channel (A done at slot 3), bottom row TDM (A owns every Nth slot, done at 2N + 1,
+  // the slots in between sit idle). One Step = one slot. Chips N = 1 / 2 / 5 / 10; the mean delays are
+  // T = 1/(μC − λ) = 200 µs and N·T (C = 100 Mbps, 1/μ = 10,000 bits, λ = 5000/s). N = 1: the rows are the same.
+  var SLOTS = 22, T_US = 1e6 * X.staticDelay(1e8, 1e4, 5000, 1);
+  function us(v) { return v >= 1000 ? (v / 1000) + ' ms' : v + ' µs'; }
   function staticAlloc(body) {
-    body.appendChild(h('div', { class: 'panel col', style: { gap: '18px', padding: '36px', marginTop: '40px', fontSize: '34px' } },
-      h('div', { class: 'label', style: { fontSize: '26px' } }, 'Static FDM/TDM wastes capacity on bursty traffic'),
-      h('div', { class: 'mono' }, 'T = 1/(μC − λ)    N sub-channels → T_N = N·T'),
-      h('div', { class: 'mono' }, 'C = 100 Mbps, 1/μ = 10,000 bits, λ = 5000/s'),
-      h('div', { class: 'mono' }, '→ T = 1/(10,000 − 5000) = ', h('b', null, '200 µs'), ' ;  N = 10 → 2 ms')));
-    return {};
+    var W = 1300, H = 410, X0 = 320, SW = (W - 10 - X0) / SLOTS, SH = 80;
+    var hN = ui.handle({ key: 'N', label: 'N', kind: 'chips', value: 10, values: X.TDM_NS, fmt: function () { return ''; }, chip: String });
+    var st = { k: 0, m: null }, fresh = false;
+    var svg = s('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H });
+    body.appendChild(h('div', { class: 'say' }, 'A bursts 3 frames, the rest are silent. Mean delay: T = 1/(μC − λ) on one channel, N·T on N slices.'));
+    body.appendChild(h('div', { class: 'panel', style: { padding: '6px' } }, svg));
+    body.appendChild(ui.handleRow(hN));
+    function t(x, y, str, o) {
+      o = o || {};
+      return s('text', { x: x, y: y, 'font-size': o.fs || 17, 'font-weight': o.bold ? 800 : null, fill: o.fill || null, 'text-anchor': o.anchor || 'start' }, str);
+    }
+    function sx(n) { return X0 + (n - 1) * SW; }
+    // one slot: 'A' a frame of A's (i = which), 'idle' empty while A still waits, 'free' empty with nobody waiting,
+    // 'future' not reached yet
+    var now = 0;
+    function slot(n, y, kind, i) {
+      var x = sx(n) + 2, w = SW - 4, g = s('g');
+      var look = { A: ['var(--accent-bg)', 'var(--accent)', null], idle: ['var(--grey-bg)', 'var(--red)', '5 4'],
+        free: ['var(--panel)', 'var(--line)', null], future: ['none', 'var(--line)', '3 4'] }[kind];
+      g.appendChild(s('rect', { x: x, y: y, width: w, height: SH, rx: 5, fill: look[0], stroke: look[1], 'stroke-width': kind === 'A' ? 2.5 : 1.5, 'stroke-dasharray': look[2] }));
+      if (kind === 'A') g.appendChild(t(x + w / 2, y + SH / 2 + 7, 'A' + i, { fs: 20, bold: true, fill: 'var(--accent)', anchor: 'middle' }));
+      if (fresh && n === now) g.setAttribute('class', 'h3-pop');   // the slot this Step filled (CSS: off with motion off)
+      return g;
+    }
+    function row(y0, name, rule, mean, sent, owner) {
+      var m = st.m, k = st.k, left = m.burst, lastA = sent[m.burst - 1], idle = 0, y = y0 + 4;
+      svg.appendChild(t(0, y0 + 26, name, { fs: 30, bold: true }));
+      svg.appendChild(t(0, y0 + 54, rule, { fs: 20, fill: 'var(--muted)' }));
+      svg.appendChild(t(0, y0 + 80, mean, { fs: 20 }));
+      for (var n = 1; n <= SLOTS; n++) {
+        var i = sent.indexOf(n);
+        if (owner) svg.appendChild(t(sx(n) + SW / 2, y - 8, owner(n), { fs: 18, bold: owner(n) === 'A', fill: owner(n) === 'A' ? 'var(--accent)' : 'var(--muted)', anchor: 'middle' }));
+        if (n > k) { svg.appendChild(slot(n, y, 'future')); continue; }
+        if (i >= 0) { left--; svg.appendChild(slot(n, y, 'A', i + 1)); continue; }
+        if (n < lastA) idle++;
+        svg.appendChild(slot(n, y, n < lastA ? 'idle' : 'free'));
+      }
+      var done = k >= lastA;
+      svg.appendChild(t(0, y0 + 110, done ? 'A done · slot ' + lastA + (owner ? ' · ' + idle + ' idle' : '') : 'A: ' + left + ' queued' + (owner ? ' · ' + idle + ' idle' : ''),
+        { fs: 22, bold: true, fill: done ? 'var(--green)' : null }));
+    }
+    function draw() {
+      CN.clear(svg);
+      var m = st.m, N = m.n, k = st.k;
+      now = k;
+      svg.appendChild(t(W - 6, 20, 'slot ' + k + ' of ' + m.end, { fs: 20, bold: true, fill: 'var(--muted)', anchor: 'end' }));
+      row(34, 'One channel', 'A sends at the full rate C', 'mean delay T = ' + us(T_US), m.shared, null);
+      row(224, 'TDM, N = ' + N, N === 1 ? 'one slice: the whole channel' : 'A owns 1 slot in ' + N, 'mean delay N·T = ' + us(N * T_US), m.tdm, m.owner);
+      for (var n = 1; n <= SLOTS; n++) svg.appendChild(t(sx(n) + SW / 2, H - 6, String(n), { fs: 18, fill: 'var(--muted)', anchor: 'middle' }));
+      if (k > 0) svg.appendChild(s('line', { x1: sx(k) + SW, y1: 30, x2: sx(k) + SW, y2: H - 26, stroke: 'var(--ink)', 'stroke-width': 2 }));
+      fresh = false;
+    }
+    function step() { if (st.k >= st.m.end) return false; st.k++; fresh = true; draw(); return true; }
+    function reset() { st.k = 0; st.m = X.staticTdm(hN.value()); fresh = false; draw(); }
+    body.appendChild(ui.controls());
+    reset();
+    return { step: step, reset: reset, reached: function () { return st.k >= st.m.end; },
+      prev: function () { if (st.k > 0) { st.k--; draw(); return true; } return false; } };
   }
 
   function curves(body) {
