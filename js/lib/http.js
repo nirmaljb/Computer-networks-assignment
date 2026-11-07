@@ -65,5 +65,32 @@
     };
   }
 
-  CN.http = { plan: plan, rtts: rtts, STATUS: STATUS, URLS: URLS, PORT: PORT, url: url, exchange: exchange };
+  // 22e head-of-line blocking. Three page objects, two frames each, sent interleaved one per step (steps 1–6).
+  // lost = the index of the one packet lost (null: none); it is resent at step 7 in both lanes, so the only
+  // difference is the delivery rule. tcp (HTTP/2): a packet reaches the app once it and every packet before it
+  // in the byte stream have arrived. quic (HTTP/3): once it and the earlier packets of its own stream have.
+  var HOL_STREAMS = ['css', 'js', 'png'];
+  function hol(lost) {
+    var order = [];
+    [1, 2].forEach(function (n) { HOL_STREAMS.forEach(function (st) { order.push({ s: st, n: n }); }); });
+    var resend = lost == null ? null : order.length + 1;
+    var arrive = order.map(function (p, i) { return i === lost ? resend : i + 1; });
+    function deliver(sameStream) {
+      return order.map(function (p, i) {
+        var t = arrive[i];
+        for (var j = 0; j < i; j++) if (!sameStream || order[j].s === p.s) t = Math.max(t, arrive[j]);
+        return t;
+      });
+    }
+    function done(at) {
+      var d = {};
+      HOL_STREAMS.forEach(function (st) { d[st] = Math.max.apply(null, order.map(function (p, i) { return p.s === st ? at[i] : 0; })); });
+      return d;
+    }
+    var tcp = deliver(false), quic = deliver(true);
+    return { order: order, lost: lost, resend: resend, arrive: arrive, tcp: tcp, quic: quic,
+      done: { tcp: done(tcp), quic: done(quic) }, end: resend || order.length };
+  }
+
+  CN.http = { plan: plan, rtts: rtts, STATUS: STATUS, URLS: URLS, PORT: PORT, url: url, exchange: exchange, hol: hol, HOL_STREAMS: HOL_STREAMS };
 })(typeof window !== 'undefined' ? window : globalThis);

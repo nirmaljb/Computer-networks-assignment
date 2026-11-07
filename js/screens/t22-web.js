@@ -322,6 +322,110 @@
     return {};
   }
 
+  // 22e: head-of-line blocking (CN.http.hol). Two stacked lanes share one timing: the same packets, the same loss,
+  // the same resend at step 7; HTTP/2 hands bytes to the app in TCP order, HTTP/3 per QUIC stream. Tap a packet
+  // on the server side to lose that one instead (tap the lost one again: no loss). Motion: each Step glides the
+  // new packet across; with A off the same state is drawn without it.
+  var HOL_C = { css: 'blue', js: 'amber', png: 'accent' }, HOL_NAME = { css: 'style.css', js: 'app.js', png: 'logo.png' };
+  function hol(body) {
+    var W = 1300, LANE = 250, H = 2 * LANE + 10, CX = 214, CW = 54, CG = 6, PX0 = 590, PX1 = 790, RX = 812, SX = 935, SW = 62;
+    var hLose = ui.handle({ key: 'lose', kind: 'tap', value: 1 });
+    var st = { k: 0, m: null }, fresh = false;
+    var svg = s('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H });
+    body.appendChild(h('div', { class: 'say' }, 'One page, three objects, one packet lost. Tap a server-side packet to lose that one instead.'));
+    body.appendChild(h('div', { class: 'panel', style: { padding: '6px' } }, svg));
+    var LANES = [
+      { key: 'tcp', name: 'HTTP/2', over: 'over TCP', pipe: 'one TCP connection', rule: 'TCP: in byte order' },
+      { key: 'quic', name: 'HTTP/3', over: 'over QUIC (UDP 443)', pipe: 'one QUIC connection', rule: 'QUIC: in order per stream' }];
+    function t(x, y, str, o) {
+      o = o || {};
+      return s('text', { x: x, y: y, 'font-size': o.fs || 17, 'font-weight': o.bold ? 800 : null, fill: o.fill || null, 'text-anchor': o.anchor || 'start' }, str);
+    }
+    function chipX(i) { return CX + i * (CW + CG); }
+    function rowY(y0, si) { return y0 + 62 + si * 58; }
+    function slotX(n) { return SX + (n - 1) * (SW + 8); }
+    // one packet: a rounded tile in its stream colour; fill = delivered to the app, dashed = arrived but held
+    function pkt(x, y, w, p, how) {
+      var c = HOL_C[p.s], g = s('g');
+      g.appendChild(s('rect', { x: x, y: y, width: w, height: 36, rx: 6, fill: how === 'held' ? 'var(--panel)' : 'var(--' + c + '-bg)',
+        stroke: 'var(--' + c + ')', 'stroke-width': 2.5, 'stroke-dasharray': how === 'held' ? '6 4' : null }));
+      g.appendChild(t(x + w / 2, y + 24, p.s + ' ' + p.n, { fs: 15, bold: true, fill: 'var(--' + c + ')', anchor: 'middle' }));
+      return g;
+    }
+    // a glide from (dx, dy) back to where the element is drawn; only on the Step that caused it
+    function fly(el, dx, dy, cls) {
+      if (!fresh || !cls) return el;
+      el.setAttribute('class', cls);
+      el.setAttribute('style', '--dx:' + dx + 'px;--dy:' + dy + 'px');
+      return el;
+    }
+    function draw() {
+      CN.clear(svg);
+      var m = st.m, k = st.k, lostP = m.lost == null ? null : m.order[m.lost];
+      svg.appendChild(t(W - 6, 24, 'step ' + k + ' of ' + m.end, { fs: 18, bold: true, fill: 'var(--muted)', anchor: 'end' }));
+      svg.appendChild(s('line', { x1: 0, y1: LANE + 4, x2: W, y2: LANE + 4, stroke: 'var(--line)', 'stroke-width': 1.5 }));
+      LANES.forEach(function (L, li) {
+        var y0 = li * (LANE + 10), at = m[L.key], cy = y0 + 120;
+        svg.appendChild(t(6, y0 + 40, L.name, { fs: 30, bold: true }));
+        svg.appendChild(t(6, y0 + 66, L.over, { fs: 18, fill: 'var(--muted)' }));
+        svg.appendChild(t(6, y0 + 210, L.rule, { fs: 16, bold: true, fill: 'var(--muted)' }));
+        // server side: the six packets in send order (one per step); the lost one is the tap target
+        svg.appendChild(t(CX, y0 + 88, 'Server sends, interleaved', { fs: 15, fill: 'var(--muted)' }));
+        m.order.forEach(function (p, i) {
+          var sent = k >= i + 1, isLost = i === m.lost, resent = isLost && k >= m.resend;
+          var g = pkt(chipX(i), cy - 18, CW, p, null);
+          g.setAttribute('opacity', sent && !(isLost && !resent) ? 0.3 : 1);
+          if (isLost) g.appendChild(t(chipX(i) + CW / 2, cy + 40, resent ? '↻ resent' : sent ? '✕ lost' : 'to be lost', { fs: 14, bold: true, fill: 'var(--red)', anchor: 'middle' }));
+          g.setAttribute('class', 'clickable');
+          g.addEventListener('click', function () { hLose.set(isLost ? null : i); });
+          svg.appendChild(g);
+        });
+        // the connection: one pipe for all three streams
+        svg.appendChild(s('rect', { x: PX0, y: cy - 30, width: PX1 - PX0, height: 60, rx: 30, fill: 'none', stroke: 'var(--line)', 'stroke-width': 2, 'stroke-dasharray': '7 6' }));
+        svg.appendChild(t((PX0 + PX1) / 2, cy + 52, L.pipe, { fs: 15, fill: 'var(--muted)', anchor: 'middle' }));
+        if (lostP && k >= m.lost + 1 && k < m.resend) {
+          var mx = (PX0 + PX1) / 2 - 26, lg = pkt(mx, cy - 18, 52, lostP, null);
+          lg.setAttribute('opacity', 0.45);
+          lg.appendChild(t(mx + 26, cy - 24, '✕', { fs: 26, bold: true, fill: 'var(--red)', anchor: 'middle' }));
+          svg.appendChild(fly(lg, chipX(m.lost) - mx, 0, k === m.lost + 1 ? 'h3-fly' : null));
+        }
+        // browser side: one row per object, a slot per frame
+        svg.appendChild(t(RX, y0 + 40, 'Browser gets', { fs: 15, fill: 'var(--muted)' }));
+        CN.http.HOL_STREAMS.forEach(function (sn, si) {
+          var ry = rowY(y0, si), c = HOL_C[sn];
+          svg.appendChild(t(RX, ry + 6, HOL_NAME[sn], { fs: 17, bold: true, fill: 'var(--' + c + ')' }));
+          var held = false;
+          [1, 2].forEach(function (n) {
+            var i = m.order.findIndex(function (p) { return p.s === sn && p.n === n; }), x = slotX(n), p = m.order[i];
+            svg.appendChild(s('rect', { x: x, y: ry - 18, width: SW, height: 36, rx: 6, fill: 'none', stroke: 'var(--line)', 'stroke-width': 1.5, 'stroke-dasharray': '3 4' }));
+            if (k < m.arrive[i]) return;
+            var how = k >= at[i] ? 'got' : 'held';
+            if (how === 'held') held = true;
+            var g = pkt(x, ry - 18, SW, p, how);
+            // arrives this Step: glide in from its server-side tile; released this Step: a soft pop
+            if (k === m.arrive[i]) fly(g, chipX(i) - x, cy - ry, 'h3-fly');
+            else if (k === at[i]) fly(g, 0, 0, 'h3-pop');
+            svg.appendChild(g);
+          });
+          var d = m.done[L.key][sn];
+          if (k >= d) {
+            var faster = L.key === 'quic' && d < m.done.tcp[sn];
+            svg.appendChild(fly(t(SX + 2 * SW + 30, ry + 6, 'done · step ' + d, { fs: 18, bold: true, fill: faster ? 'var(--green)' : null }), 0, 0, k === d ? 'h3-pop' : null));
+          } else if (held) {
+            svg.appendChild(t(SX + 2 * SW + 30, ry + 6, 'held: waits for ' + lostP.s + ' ' + lostP.n, { fs: 16, bold: true, fill: 'var(--red)' }));
+          }
+        });
+      });
+      fresh = false;
+    }
+    function step() { if (st.k >= st.m.end) return false; st.k++; fresh = true; draw(); return true; }
+    function reset() { st.k = 0; st.m = CN.http.hol(hLose.value()); fresh = false; draw(); }
+    body.appendChild(ui.controls());
+    reset();
+    return { step: step, reset: reset, reached: function () { return st.k >= st.m.end; },
+      prev: function () { if (st.k > 0) { st.k--; draw(); return true; } return false; } };
+  }
+
   var CARDS = [
         ['Request / response', function () {
           var t = h('table', { class: 't' }, h('tr', null, h('th', null, 'Class'), h('th', null, 'Meaning'), h('th', null, 'Examples')));
@@ -353,7 +457,7 @@
   var PARTS = {
     request: request, rtts: roundTrips, scale: scale,
     methods: function (body) { return cardSlide(body, 0); },
-    http2: function (body) { return cardSlide(body, 1); },
+    http2: hol,
     p2p: function (body) { return cardSlide(body, 2); }
   };
 

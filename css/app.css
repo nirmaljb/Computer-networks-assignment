@@ -151,7 +151,9 @@ table.t .x { color: var(--red); font-weight: 700; }
 .kv .k { color: var(--muted); font-size: 21px; font-weight: 600; }
 .kv .v { font-family: var(--mono); font-weight: 700; }
 
-svg text { font-family: var(--sans); fill: var(--ink); }
+svg text { font-family: var(--sans); }
+/* ink only where the figure gives no colour: a rule on `svg text` would beat every fill attribute */
+svg text:not([fill]) { fill: var(--ink); }
 svg .mono { font-family: var(--mono); }
 svg text.halo { paint-order: stroke; stroke: var(--panel); stroke-width: 6px; stroke-linejoin: round; }
 .clickable { cursor: pointer; }
@@ -382,7 +384,12 @@ table.t.dv-table .dv-node { position: relative; }
 @keyframes fx-flash { from { background: var(--accent); color: #fff; } }
 .fx-head { animation: fx-pulse 1s ease-in-out infinite; }
 @keyframes fx-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
-[data-motion="off"] #stage *, [data-motion="off"] #stage *::before, [data-motion="off"] #stage *::after { animation: none !important; transition: none !important; }
+/* 22e: a packet glides in from --dx/--dy; a released packet settles */
+.h3-fly { animation: h3-fly .6s cubic-bezier(.25, .7, .3, 1); }
+@keyframes h3-fly { from { transform: translate(var(--dx), var(--dy)); opacity: .5; } }
+.h3-pop { transform-box: fill-box; transform-origin: center; animation: h3-pop .5s ease-out .15s both; }
+@keyframes h3-pop { from { transform: scale(1.12); opacity: .3; } }
+[data-motion="off"] #stage *,[data-motion="off"] #stage *::before, [data-motion="off"] #stage *::after { animation: none !important; transition: none !important; }
 
 /* S24c frequency crack */
 .crack-map { display: grid; gap: 4px; justify-content: center; }

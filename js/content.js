@@ -744,7 +744,7 @@
         { id: 't22b', part: 'rtts', stop: '22b', short: 'Connections', title: 'HTTP: non-persistent vs persistent', click: 'Static: 1 HTML + 10 images, RTT 100 ms.' },
         { id: 't22c', part: 'scale', stop: '22c', short: 'Caches & CDNs', title: 'Bringing the page closer: caches and CDNs', click: 'Static: origin, proxy, farm and CDN side by side.' },
         { id: 't22d', part: 'methods', stop: '22d', short: 'Methods & status', title: 'HTTP methods and status codes', click: 'Static.' },
-        { id: 't22e', part: 'http2', stop: '22e', short: 'HTTP/2 & HTTP/3', title: 'HTTP/2 and HTTP/3', click: 'Static.' },
+        { id: 't22e', part: 'http2', stop: '22e', short: 'HTTP/2 & HTTP/3', title: 'HTTP/2 and HTTP/3: head-of-line blocking', click: 'Step sends one packet per step (css, js, png interleaved); js 1 is lost and resent at step 7. HTTP/2 holds every object behind it; HTTP/3 holds only app.js. Tap a server-side packet to lose that one instead (tap it again: no loss).' },
         { id: 't22f', part: 'p2p', stop: '22f', short: 'P2P', title: 'Peer-to-peer: BitTorrent', click: 'Static.' }
       ],
       syllabus: 'WWW, Architecture, HTTP, Content Delivery, Server Farms, Web Proxies, Peer-to-Peer Networks',
@@ -758,6 +758,8 @@
         'Request: method (GET, HEAD, POST, PUT, DELETE…) path version, then headers (Host: is required in HTTP/1.1). Response: status line, headers, body. 1xx info, 2xx success, 3xx redirect, 4xx client error, 5xx server error.',
         'RTT count, transmission time ignored (as in Kurose & Ross), 1 HTML + 10 images: non-persistent 2(1+10) = 22; persistent 2 + 10 = 12; pipelined 2 + 1 = 3.',
         'HTTP/2: many streams over one TCP connection, binary frames, header compression; a lost TCP segment still blocks every stream (head-of-line blocking). HTTP/3: QUIC over UDP 443; a loss blocks only its own stream.',
+        '22e model: one packet per step, the lost one resent at step 7 in BOTH lanes (how the loss is detected, dup ACKs or a timer, is the same question for TCP and QUIC, so it is held equal). Steps are send slots, not RTTs. Default js 1 lost: HTTP/2 finishes all three at step 7; HTTP/3 finishes style.css at 4, logo.png at 6, app.js at 7. Real HTTP/2 frames do not line up with TCP segments; one frame per packet keeps the picture readable.',
+        'QUIC also merges the transport and TLS 1.3 handshakes: 1 RTT before the first request instead of 2 for TCP + TLS 1.3 (0-RTT on resumption).',
         'Origin only: one machine far away, so every request crosses the Internet (long RTT) and lands on the same server.',
         'Web proxy cache: near the clients (a campus or ISP). Hit: served locally. Miss: fetched once from the origin, then kept. Browsers cache too. A conditional GET (If-Modified-Since) gets 304 Not Modified, with no body, if the copy is still good.',
         'Server farm: many servers behind one public address; a front end (load balancer) spreads the requests, or DNS returns different addresses.',
