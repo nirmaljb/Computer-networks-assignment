@@ -779,7 +779,7 @@
     {
       id: 't23', topic: 23, stop: '23', act: 8, short: 'E-mail', title: 'Electronic mail', target: 0,
       subs: [
-        { id: 't23', part: 'path', stop: '23a', short: 'Mail path', title: 'Electronic mail: the path', click: 'Static.' },
+        { id: 't23', part: 'path', stop: '23a', short: 'Mail path', title: 'Electronic mail: the path', click: 'Step moves the mail one hop: submit (SMTP), DNS MX lookup, MTA to MTA (SMTP, TCP 25), into Bob\'s mailbox, then Bob\'s user agent pulls it (IMAP). Tap Bob offline / online: offline, the mail waits in the mailbox until he connects.', predict: { q: 'Bob\'s laptop is off. Where is the mail after step 5?', a: 'In Bob\'s mailbox on two.example.com, his provider\'s server' } },
         { id: 't23b', part: 'smtp', stop: '23b', short: 'SMTP', title: 'SMTP dialogue', click: 'Step = one line.' },
         { id: 't23c', part: 'parts', stop: '23c', short: 'Envelope & header', title: 'Envelope, header and body', click: 'Static.' },
         { id: 't23d', part: 'mime', stop: '23d', short: 'MIME', title: 'MIME and base64', click: 'Static.' }
@@ -791,6 +791,8 @@
       click: 'S steps the SMTP dialogue. Type text in the MIME box to see its base64. Click envelope / header / body.',
       facts: [
         'User agents (compose, read) and message transfer agents (mail servers). Alice\'s UA → her MTA → SMTP over TCP 25 → Bob\'s MTA → Bob\'s mailbox → Bob\'s UA pulls with IMAP (or POP3).',
+        'Alice\'s MTA finds Bob\'s mail server with a DNS MX query on the domain after @ (two.example.com → MX 10 two.example.com), then opens TCP to it on port 25. The mail never passes through DNS.',
+        '23a: the UA → MTA hop is mail submission (also SMTP; real clients use port 587 with authentication). The slide labels it SMTP only.',
         'SMTP: 220 greeting; HELO, MAIL FROM, RCPT TO each answered 250; DATA → 354; the message ends with a line holding only "."; 250; QUIT → 221.',
         'Envelope (MAIL FROM, RCPT TO: used for delivery) vs header (From:, To:, Subject:, Date: shown to the user) vs body.',
         'Messages are 7-bit ASCII text. MIME adds MIME-Version, Content-Type (text/plain, image/jpeg, multipart/mixed…) and Content-Transfer-Encoding: base64 turns every 3 bytes into 4 characters.',

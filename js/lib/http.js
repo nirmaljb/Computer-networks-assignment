@@ -130,6 +130,27 @@
       copies: all.map(function (c) { return 1 + PEERS.filter(function (p) { return start[p].indexOf(c) >= 0; }).length; }) };
   }
 
+  // 23a the mail path. Nodes: 0 Alice's user agent, 1 Alice's MTA (one.example.com), 2 Bob's MTA (two.example.com),
+  // 3 Bob's mailbox (on that server), 4 Bob's user agent. Step 1 submits with SMTP; step 2 Alice's MTA asks DNS for the
+  // MX record of the domain after @; step 3 pushes MTA to MTA (SMTP, TCP 25); step 4 files it in the mailbox. Bob
+  // online: step 5 his user agent pulls it with IMAP and a copy stays on the server. Bob offline: step 5 the mail waits
+  // (SMTP can't push to a machine that is off); step 6 Bob connects and pulls.
+  var MAIL_NODES = ['Alice\'s user agent', 'Alice\'s MTA', 'Bob\'s MTA', 'Bob\'s mailbox', 'Bob\'s user agent'];
+  function mailPath(online) {
+    var steps = [
+      { at: 0, hop: null, say: 'Alice writes to bob@two.example.com and presses Send.' },
+      { at: 1, hop: [0, 1], proto: 'SMTP', push: true, say: 'Her user agent submits the mail to her provider\'s MTA with SMTP.' },
+      { at: 1, hop: null, dns: { q: 'MX of two.example.com?', a: 'MX 10 two.example.com' },
+        say: 'Alice\'s MTA asks DNS for the MX record of two.example.com (the part after @): its mail server is two.example.com.' },
+      { at: 2, hop: [1, 2], proto: 'SMTP, TCP 25', push: true, say: 'It opens TCP to two.example.com port 25 and pushes the mail with SMTP.' },
+      { at: 3, hop: [2, 3], proto: 'stored', say: 'Bob\'s MTA files it in Bob\'s mailbox, on the server.' }
+    ];
+    if (!online) steps.push({ at: 3, hop: null, wait: true, say: 'Bob\'s laptop is off. SMTP can\'t push to it, so the mail waits in the mailbox.' });
+    steps.push({ at: 4, hop: [3, 4], proto: 'IMAP', pull: true, copy: true,
+      say: (online ? 'Bob is online: his' : 'Bob comes online: his') + ' user agent pulls the mail with IMAP; a copy stays on the server.' });
+    return { online: !!online, steps: steps, end: steps.length - 1 };
+  }
+
   CN.http = { plan: plan, rtts: rtts, STATUS: STATUS, URLS: URLS, PORT: PORT, url: url, exchange: exchange, hol: hol, HOL_STREAMS: HOL_STREAMS,
-    swarm: swarm, PEERS: PEERS, CHUNKS: CHUNKS, SWARM_HAVE: SWARM_HAVE };
+    swarm: swarm, PEERS: PEERS, CHUNKS: CHUNKS, SWARM_HAVE: SWARM_HAVE, mailPath: mailPath, MAIL_NODES: MAIL_NODES };
 })(typeof window !== 'undefined' ? window : globalThis);

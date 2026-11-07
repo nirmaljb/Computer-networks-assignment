@@ -392,6 +392,14 @@
       return row([i + 2, r.xfers.map(function (x) { return x.from + ' → ' + x.to + ': ' + x.c + (x.rarest ? '' : ' (rarer one busy)'); }).join(', '), r.blocked.join(', ')]);
     })));
   }
+  // 23a: the mail path with Bob offline (CN.http.mailPath)
+  function mailPathTable() {
+    var m = CN.http.mailPath(false), N = CN.http.MAIL_NODES;
+    return table(['Step', 'Mail is at', 'Hop', 'Push / pull'], m.steps.map(function (p, i) {
+      return row([i, N[p.at], p.hop ? p.proto : p.dns ? 'DNS: ' + p.dns.q + ' → ' + p.dns.a : p.wait ? 'none: Bob\'s laptop is off' : '—',
+        p.push ? 'push' : p.pull ? 'pull' : '—'], i);
+    }));
+  }
   // '| k 7' (the 24a dial)
   function caesarTable(text) {
     var k = +(cfg(text, ['k']).k.k || 3);
@@ -421,7 +429,7 @@
       return dijkstraTable(['A', 'B', 'C', 'D', 'E', 'F'], [['A', 'B', 2], ['A', 'C', 5], ['B', 'C', 1], ['B', 'D', 4], ['C', 'E', 3], ['D', 'E', 1], ['D', 'F', 2], ['E', 'F', 6]], 'B');
     },
     'ip.frag': fragTable, 'ip.split': splitTable, 'ip.lpm': lpmTable, 'ip.v6': v6Table, 'tcp.flow': flowTable, 'http.rtt': httpTable, 'http.url': urlTable, 'p2p.swarm': swarmTable, 'static.tdm': tdmTable,
-    'cipher.caesar': caesarTable, 'cipher.mono': monoTable, 'cipher.columnar': columnarTable, 'mail.base64': base64Table,
+    'cipher.caesar': caesarTable, 'cipher.mono': monoTable, 'cipher.columnar': columnarTable, 'mail.base64': base64Table, 'mail.path': mailPathTable,
     'hamming.encode': hammingEncode, 'hamming.correct': hammingCorrect,
     'crc.divide': crcDivide, 'crc.check': crcCheck,
     'arq.p3': arqP3, 'arq.gbn': arqTable('gbn'), 'arq.sr': arqTable('sr'), 'arq.trap': arqTrap,
