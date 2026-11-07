@@ -740,7 +740,7 @@
     {
       id: 't22', topic: 22, stop: '22', act: 8, short: 'WWW, HTTP & CDN', title: 'The Web: HTTP, caches and CDNs', target: 0,
       subs: [
-        { id: 't22', part: 'request', stop: '22a', short: 'URL & request', title: 'The Web: URLs and HTTP requests', click: 'Static.' },
+        { id: 't22', part: 'request', stop: '22a', short: 'URL & request', title: 'The Web: URLs and HTTP requests', click: 'Step takes the URL apart: 1 pieces, 2 DNS + port + TCP, 3 request, 4 response. URL chips: http, https (443 + TLS), :8080 · .png (port in Host:, image/png).', predict: { q: 'The URL names no port: which port does the browser connect to?', a: '80, http\'s default (443 for https)' } },
         { id: 't22b', part: 'rtts', stop: '22b', short: 'Connections', title: 'HTTP: non-persistent vs persistent', click: 'Static: 1 HTML + 10 images, RTT 100 ms.' },
         { id: 't22c', part: 'scale', stop: '22c', short: 'Caches & CDNs', title: 'Bringing the page closer: caches and CDNs', click: 'Step moves origin → proxy → farm → CDN.' },
         { id: 't22d', part: 'methods', stop: '22d', short: 'Methods & status', title: 'HTTP methods and status codes', click: 'Static.' },
@@ -753,7 +753,8 @@
       live: '"A page is one HTML file plus every image it names. If each object needs its own TCP connection, that\'s two round trips each: 22 for this page. Keep the connection open: 12. Send all the requests without waiting: 3. Then bring the page closer: a proxy near the users, a server farm behind one address, and a CDN, where DNS from the last stop sends you to the nearest copy. But the web pulls. Mail has to be pushed to someone who isn\'t online."',
       click: 'Objects and RTT inputs; the three timelines redraw. Cards: request/response, HTTP/2–3, P2P. Click a box on the scale strip.',
       facts: [
-        'URL = scheme://host:port/path. The browser asks DNS for the host, opens TCP to port 80 (443 for HTTPS), sends a request, then fetches each embedded object.',
+        'URL = scheme://host[:port]/path. Scheme → the default port (http 80, https 443) unless the URL gives one; host → DNS → the address, and also the Host: header; path → the request line. Then TCP to address:port (TLS first for https), send the request, then fetch each embedded object.',
+        'Host: carries the port only when it isn\'t the scheme\'s default (RFC 9110 §7.2): http://www.example.com:8080/a/b.png → Host: www.example.com:8080. Content-Type tells the browser how to read the body (text/html vs image/png); Content-Length = the body\'s bytes.',
         'Request: method (GET, HEAD, POST, PUT, DELETE…) path version, then headers (Host: is required in HTTP/1.1). Response: status line, headers, body. 1xx info, 2xx success, 3xx redirect, 4xx client error, 5xx server error.',
         'RTT count, transmission time ignored (as in Kurose & Ross), 1 HTML + 10 images: non-persistent 2(1+10) = 22; persistent 2 + 10 = 12; pipelined 2 + 1 = 3.',
         'HTTP/2: many streams over one TCP connection, binary frames, header compression; a lost TCP segment still blocks every stream (head-of-line blocking). HTTP/3: QUIC over UDP 443; a loss blocks only its own stream.',

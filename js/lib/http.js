@@ -31,5 +31,39 @@
     ['5xx', 'Server error', '500 Internal Server Error, 503 Service Unavailable']
   ];
 
-  CN.http = { plan: plan, rtts: rtts, STATUS: STATUS };
+  // 22a: a URL taken apart, and the request and response it turns into. Only the three demo URLs are
+  // served (an http page, the same page over https, and an image on a non-default port).
+  var URLS = ['http://www.example.com/index.html', 'https://www.example.com/index.html', 'http://www.example.com:8080/a/b.png'];
+  var PORT = { http: 80, https: 443 };
+  var PAGE = ['<html><body><h1>Hello</h1>', '<img src="logo.png"> <img src="cat.jpg">', '</body></html>'];
+  var PNG_BYTES = 2048;
+
+  // scheme://host[:port]path → the pieces in order, so the figure can colour each one
+  function url(u) {
+    var m = /^(https?):\/\/([a-z0-9.-]+)(?::(\d+))?(\/.*)$/.exec(u);
+    if (!m) return { error: 'Not a URL this slide knows' };
+    var explicit = m[3] != null, port = explicit ? +m[3] : PORT[m[1]];
+    var parts = [{ k: 'scheme', t: m[1] }, { k: 'sep', t: '://' }, { k: 'host', t: m[2] }];
+    if (explicit) parts.push({ k: 'port', t: ':' + m[3] });
+    parts.push({ k: 'path', t: m[4] });
+    return { scheme: m[1], host: m[2], port: port, explicit: explicit, path: m[4], parts: parts };
+  }
+
+  // The exchange for one URL. Host: carries the port only when it isn't the scheme's default (RFC 9110 §7.2).
+  // https: the same request and response, sent inside TLS after a TLS handshake.
+  function exchange(u, addrFor) {
+    var p = url(u);
+    if (p.error) return p;
+    var host = p.host + (p.port !== PORT[p.scheme] ? ':' + p.port : ''), png = /\.png$/.test(p.path);
+    var body = png ? null : PAGE.join('\n');
+    return {
+      url: p, ip: addrFor ? addrFor(p.host) : null, tls: p.scheme === 'https',
+      request: ['GET ' + p.path + ' HTTP/1.1', 'Host: ' + host], hostHeader: host,
+      response: ['HTTP/1.1 200 OK', 'Content-Type: ' + (png ? 'image/png' : 'text/html'),
+        'Content-Length: ' + (png ? PNG_BYTES : new TextEncoder().encode(body).length)],
+      body: png ? { kind: 'png', bytes: PNG_BYTES } : { kind: 'html', lines: PAGE.slice(), objects: ['logo.png', 'cat.jpg'] }
+    };
+  }
+
+  CN.http = { plan: plan, rtts: rtts, STATUS: STATUS, URLS: URLS, PORT: PORT, url: url, exchange: exchange };
 })(typeof window !== 'undefined' ? window : globalThis);

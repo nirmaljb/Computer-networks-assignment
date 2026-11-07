@@ -369,6 +369,13 @@
       return row([m[1], n, (n * 100 / 1000) + ' s']);
     }));
   }
+  // 22a: the three URL chips, each taken apart by CN.http.exchange
+  function urlTable() {
+    return table(['URL', 'Connects to', 'Request line', 'Host:', 'Content-Type'], CN.http.URLS.map(function (u) {
+      var x = CN.http.exchange(u, CN.dns.addrFor);
+      return row([u, x.ip + ':' + x.url.port + (x.tls ? ' (TLS)' : ''), x.request[0], x.hostHeader, x.response[1].split(': ')[1]]);
+    }));
+  }
   // '| k 7' (the 24a dial)
   function caesarTable(text) {
     var k = +(cfg(text, ['k']).k.k || 3);
@@ -397,7 +404,7 @@
     'graph.linkstate': function () {
       return dijkstraTable(['A', 'B', 'C', 'D', 'E', 'F'], [['A', 'B', 2], ['A', 'C', 5], ['B', 'C', 1], ['B', 'D', 4], ['C', 'E', 3], ['D', 'E', 1], ['D', 'F', 2], ['E', 'F', 6]], 'B');
     },
-    'ip.frag': fragTable, 'ip.split': splitTable, 'ip.lpm': lpmTable, 'ip.v6': v6Table, 'tcp.flow': flowTable, 'http.rtt': httpTable,
+    'ip.frag': fragTable, 'ip.split': splitTable, 'ip.lpm': lpmTable, 'ip.v6': v6Table, 'tcp.flow': flowTable, 'http.rtt': httpTable, 'http.url': urlTable,
     'cipher.caesar': caesarTable, 'cipher.mono': monoTable, 'cipher.columnar': columnarTable, 'mail.base64': base64Table,
     'hamming.encode': hammingEncode, 'hamming.correct': hammingCorrect,
     'crc.divide': crcDivide, 'crc.check': crcCheck,
