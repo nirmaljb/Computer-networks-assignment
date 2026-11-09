@@ -521,3 +521,8 @@ p.ln-hl, li.ln-hl { border-radius: 6px; padding: 0 .4em; }
 .say.chal.solved .ch-label { color: var(--green); border-color: var(--green); }
 .ch-hint { color: var(--muted); font-weight: 600; }
 .brk-note { font-size: 22px; font-weight: 700; color: var(--red); text-align: center; }
+
+/* v17 4d utilisation figure: pieces fade in in order (frame, ACK, wait, slots) */
+.u4d-in { animation: u4d-in .6s ease-out both; }
+@keyframes u4d-in { from { opacity: 0; } }
+.u4d-sum { font-size: 34px; font-weight: 700; text-align: center; margin-top: 14px; }
