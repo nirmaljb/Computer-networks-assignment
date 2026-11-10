@@ -160,7 +160,7 @@
       svg.appendChild(s('text', { x: 8, y: ys + 7, 'font-size': 20, 'font-weight': 700 }, 'S'));
       svg.appendChild(s('text', { x: 8, y: yr + 7, 'font-size': 20, 'font-weight': 700 }, 'R'));
       svg.appendChild(s('text', { x: 4, y: ys - 10, 'font-size': 17, fill: 'var(--blue)', 'font-weight': 700 }, 'frame'));
-      svg.appendChild(s('text', { x: 4, y: yr + 26, 'font-size': 17, fill: 'var(--green)', 'font-weight': 700 }, 'ACK'));
+      svg.appendChild(s('text', { x: 4, y: yr + 26, 'font-size': 17, fill: 'var(--green)', 'font-weight': 700 }, opts.ackLegend || 'ACK'));
       svg.appendChild(s('text', { x: 4, y: yr + 48, 'font-size': 17, fill: 'var(--red)', 'font-weight': 700 }, 'NAK'));
       svg.appendChild(s('line', { x1: x0 - 10, y1: ys, x2: W - 6, y2: ys, stroke: 'var(--ink)', 'stroke-width': 3 }));
       svg.appendChild(s('line', { x1: x0 - 10, y1: yr, x2: W - 6, y2: yr, stroke: 'var(--ink)', 'stroke-width': 3 }));

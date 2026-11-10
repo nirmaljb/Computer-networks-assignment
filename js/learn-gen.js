@@ -86,7 +86,7 @@
     o = o || {};
     var A = CN.arq, s = A.create({ proto: proto, n: o.n || 3, W: W, total: o.total || 8, delay: 3, timeout: o.timeout || 8, noAck: !!o.noAck, drop: drop });
     var rows = [], seen = 0, handled = {}, logN = 0, k = 0;
-    function name(m) { return (m.kind === 'data' ? 'frame ' : m.kind === 'ack' ? 'ACK ' : 'NAK ') + m.seq; }
+    function name(m) { return A.ackName(m, s); }
     while (!(s.done || (stopAt && s.tick >= stopAt)) && k < 200) {
       var t0 = s.tick;
       A.stepToEvent(s); k++;
@@ -118,7 +118,7 @@
       return table(['Step', 't', 'What happens'], r.rows);
     };
   }
-  // 4c: Protocol 3 (n = 1, W = 1, 6 frames); frame 1 lost once, then the first ACK for frame 2 (as the screen scripts it)
+  // 4c: Protocol 3 (n = 1, W = 1, 6 frames); frame 1 lost once, then the first ACK for frame 2, named ACK 1 (as the screen scripts it)
   function arqP3() {
     var ackLost = false, drop = function (m) {
       if (m.kind === 'data') return m.abs === 1 && m.copy === 1;
@@ -180,8 +180,8 @@
   // '| lose syn' (or synack, ack) on the handshake: the segment tapped away on 17a.
   function tcpScenario(build) {
     return function (text) {
-      var lose = { syn: 0, synack: 1, ack: 2 }[cfg(text, ['lose']).k.lose];
-      var sc = CN.tcp[build]({ x: 1000, y: 5000, xOld: 700, z: 4000, lose: lose == null ? null : lose });
+      var c = cfg(text, ['lose', 'segments']), lose = { syn: 0, synack: 1, ack: 2 }[c.k.lose];
+      var sc = CN.tcp[build]({ x: 1000, y: 5000, xOld: 700, z: 4000, lose: lose == null ? null : lose, combined: c.k.segments === '3' });
       return table(['#', 'Sent at t', 'Direction', 'Segment', 'On arrival'], sc.msgs.map(function (m, i) {
         return row([i + 1, m.sentAt, m.from === 'C' ? 'client → server' : 'server → client', m.label, m.note], i + 1);
       }));

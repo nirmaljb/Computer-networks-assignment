@@ -23,8 +23,8 @@
     { name: 'Acknowledgement number', bits: 32, tcpOnly: true, role: 'Next byte expected: every byte before it has arrived (cumulative).' },
     { name: 'TCP header length', bits: 4, tcpOnly: true, role: 'Header size in 32-bit words, 5–15 (20–60 bytes): where the data starts.' },
     { name: 'Unused', bits: 4, tcpOnly: true, role: 'Reserved, always 0.' },
-    { name: 'CWR', bits: 1, flag: true, tcpOnly: true, role: 'Congestion Window Reduced: sender halved cwnd after an ECN echo.' },
-    { name: 'ECE', bits: 1, flag: true, tcpOnly: true, role: 'ECN-Echo: tells the sender a router marked congestion.' },
+    { name: 'CWR', bits: 1, flag: true, ecn: true, tcpOnly: true, role: 'Congestion Window Reduced: sender halved cwnd after an ECN echo. Added by ECN (RFC 3168, 2001).' },
+    { name: 'ECE', bits: 1, flag: true, ecn: true, tcpOnly: true, role: 'ECN-Echo: tells the sender a router marked congestion. Added by ECN (RFC 3168, 2001).' },
     { name: 'URG', bits: 1, flag: true, tcpOnly: true, role: 'Urgent pointer is valid.' },
     { name: 'ACK', bits: 1, flag: true, tcpOnly: true, role: 'Acknowledgement number is valid (set on every segment after the SYN).' },
     { name: 'PSH', bits: 1, flag: true, tcpOnly: true, role: 'Push: deliver to the application now, don\'t buffer.' },
@@ -115,10 +115,22 @@
   }
 
   // Release after the default handshake: FIN seq=x+1 → ACK → FIN seq=y+1 → ACK; client waits 2 MSL.
+  // o.combined: Forouzan's three-way release (Fig 23.20), the server's ACK and FIN ride in one FIN+ACK.
   function release(o) {
     o = o || {};
     var x = wrap(o.x == null ? 1000 : o.x), y = wrap(o.y == null ? 5000 : o.y), msl = o.msl || 4;
     var u = wrap(x + 1), v = wrap(y + 1);
+    if (o.combined) {
+      var t3 = 2 * D;
+      return { msgs: [
+        msg('C', 'FIN seq=' + u + ' ack=' + v, 0, { kind: 'fin', note: 'Server: client is done sending' }),
+        msg('S', 'FIN+ACK seq=' + v + ' ack=' + wrap(u + 1), D, { kind: 'fin', note: 'Client: server has nothing left to send either' }),
+        msg('C', 'ACK seq=' + wrap(u + 1) + ' ack=' + wrap(v + 1), t3, { kind: 'ack', note: 'Server: CLOSED' })
+      ], events: [{ t: t3, text: 'Client enters TIME_WAIT = 2 × MSL' }, { t: t3 + 2 * msl, text: 'TIME_WAIT over → CLOSED' }],
+        end: t3 + 2 * msl, timeWait: [t3, t3 + 2 * msl],
+        states: { client: [[0, 'ESTABLISHED'], [0, 'FIN_WAIT_1'], [t3, 'TIME_WAIT'], [t3 + 2 * msl, 'CLOSED']],
+          server: [[0, 'ESTABLISHED'], [D, 'LAST_ACK'], [3 * D, 'CLOSED']] } };
+    }
     var m = [
       msg('C', 'FIN seq=' + u, 0, { kind: 'fin', note: 'Server: client is done sending' }),
       msg('S', 'ACK ack=' + wrap(u + 1), D, { kind: 'ack', note: 'Client: half closed, can still receive' }),

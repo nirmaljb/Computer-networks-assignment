@@ -211,7 +211,41 @@
     return {};
   }
 
-  var PARTS = { keys: keys, encrypt: encrypt, compare: compare, firewall: firewall, ids: ids };
+  // 25c: the same algorithm in Forouzan's notation (Fig 30.24, Ex 30.7) beside the slide's Tanenbaum run.
+  // Tanenbaum chooses d and solves for e (z); Forouzan chooses e and solves for d (Φ). Step reveals one row.
+  var FOR = { p: 7, q: 11, e: 13, P: 5 };
+  function forouzan(body) {
+    var T = R.keygen(3, 11, 7), F = R.keygenE(FOR.p, FOR.q, FOR.e), tP = 19, k = 0;
+    var tC = R.modpow(tP, T.e, T.n).value, fC = R.modpow(FOR.P, F.e, F.n).value;
+    var rows = [
+      ['Primes', 'p = ' + T.p + ', q = ' + T.q, 'p = ' + F.p + ', q = ' + F.q],
+      ['n = p·q', String(T.n), String(F.n)],
+      ['(p−1)(q−1)', 'z = ' + T.z, 'Φ = ' + F.phi],
+      ['Choose first', 'd = ' + T.d + ' (coprime to z)', 'e = ' + F.e + ' (coprime to Φ)'],
+      ['Then solve', 'e = ' + T.e + ': ' + T.e + '·' + T.d + ' = ' + T.e * T.d + ' ≡ 1 (mod ' + T.z + ')', 'd = ' + F.d + ': ' + F.e + '·' + F.d + ' = ' + F.e * F.d + ' ≡ 1 (mod ' + F.phi + ')'],
+      ['Encrypt C = Pᵉ mod n', tP + sup(T.e) + ' mod ' + T.n + ' = ' + tC + ' (S)', FOR.P + sup(F.e) + ' mod ' + F.n + ' = ' + fC],
+      ['Decrypt P = Cᵈ mod n', tC + sup(T.d) + ' mod ' + T.n + ' = ' + R.modpow(tC, T.d, T.n).value, fC + sup(F.d) + ' mod ' + F.n + ' = ' + R.modpow(fC, F.d, F.n).value]
+    ];
+    var host = h('div');
+    body.appendChild(h('div', { class: 'say' }, 'Same algorithm, same key pair (e, n) public and d private; only the name of (p−1)(q−1) and which exponent is chosen first differ.'));
+    body.appendChild(host);
+    function draw() {
+      CN.clear(host);
+      var tb = h('table', { class: 't', style: { fontSize: '27px', marginTop: '16px' } },
+        h('tr', null, h('th', null, ''), h('th', null, 'Tanenbaum (25a, 25b)'), h('th', null, 'Forouzan (Ex 30.7)')));
+      rows.slice(0, k).forEach(function (r, i) {
+        tb.appendChild(h('tr', { class: i === k - 1 ? 'win' : '' }, h('td', null, r[0]), h('td', { class: 'mono' }, r[1]), h('td', { class: 'mono' }, r[2])));
+      });
+      host.appendChild(tb);
+    }
+    function step() { if (k >= rows.length) return false; k++; draw(); return true; }
+    function reset() { k = 0; draw(); }
+    body.appendChild(ui.controls());
+    reset();
+    return { step: step, reset: reset, prev: function () { if (k > 0) { k--; draw(); return true; } return false; }, learnStep: function () { return k; } };
+  }
+
+  var PARTS = { keys: keys, encrypt: encrypt, forouzan: forouzan, compare: compare, firewall: firewall, ids: ids };
 
   CN.screens.t25 = function (root, sc) {
     return PARTS[sc.part](ui.screen(root, { num: sc.stop, title: sc.title }));

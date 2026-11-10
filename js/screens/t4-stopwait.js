@@ -9,7 +9,8 @@
     p3: { p: 3, desc: 'Noisy channel: timer + retransmission; a 1-bit sequence number spots duplicates.' }
   };
 
-  // P3's scripted run: frame 1 is lost once (timeout, resend), the first ACK 2 is lost (duplicate, re-ACK).
+  // P3's scripted run: frame 1 is lost once (timeout, resend), the first ACK for frame 2 is lost (duplicate, re-ACK).
+  // ACKs are named by the next frame expected (Forouzan), so frame 0 → ACK 1.
   function p3Drop() {
     var ackLost = false;
     return function (m) {
@@ -23,7 +24,7 @@
     var proto = PROTOS[key].p, sim;
     body.appendChild(h('div', { class: 'say' }, PROTOS[key].desc));
     var ts = CN.ui.timeSpace({ width: 1100, height: 560, visible: 30, rightPad: 260, timers: function () { return proto === 3; },
-      label: function (m) { return m.kind === 'data' ? (proto === 1 ? 'frame' : 'frame ' + m.seq) : 'ACK ' + m.seq; },
+      label: function (m) { return m.kind === 'data' ? (proto === 1 ? 'frame' : 'frame ' + m.seq) : CN.arq.ackName(m, sim); },
       onKill: function (id) { sim.kill(id); ts.draw(sim); } });
     body.appendChild(h('div', { class: 'panel', style: { padding: '6px' } }, ts.el));
     function reset() {

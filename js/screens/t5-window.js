@@ -37,7 +37,9 @@
     function listed(m) { return hLoss.value().some(function (r) { return r.kind === m.kind && r.abs === m.abs; }); }
     var sStrip = CN.ui.windowStrip({ total: TOTAL, title: 'Sender', box: 46 });
     var rStrip = CN.ui.windowStrip({ total: TOTAL, title: 'Receiver', box: 46 });
-    var tl = CN.ui.timeLine({ width: 1470, height: 260, visible: 25,
+    // ACK numbers name the next frame expected (Forouzan); SR's selective ACKs name the frame received (SACK).
+    var tl = CN.ui.timeLine({ width: 1470, height: 260, visible: 25, ackLegend: run.proto === 'sr' ? 'SACK' : 'ACK',
+      label: function (m) { return A.ackName(m, sim).replace(/^\D+/, ''); },
       onKill: function (id) { if (sim.kill(id)) killed = true; draw(); },
       tap: played ? function (m, inFlight) { return !hW.isBreak() && m.kind !== 'nak' && first(m) && (inFlight || (m.lost && listed(m))); } : null,
       onTap: played ? function (m) {
@@ -87,7 +89,7 @@
     // learnStep: Steps since Reset (one learn row each); a message killed by hand leaves the script (null)
     var ctl = { step: step, reset: reset, runMs: 600, reached: function () { return sim.done; }, learnStep: function () { return killed ? null : steps; } };
     if (!played) return ctl;
-    ctl.input = ui.numbers({ label: 'What to lose, e.g. frame 1, ack 3 (n = 3; W is the slider)', example: 'frame 1',
+    ctl.input = ui.numbers({ label: 'What to lose, e.g. frame 1, ack 3 (ack k = the ACK for frame k; n = 3; W is the slider)', example: 'frame 1',
       parse: function (t) { return A.parseLoss(t, TOTAL); }, read: function () { return A.lossText(hLoss.value()); },
       write: function (v) { hLoss.set(v.list, true); } });
     ctl.genText = function () { return A.lossText(hLoss.value()) + ' | W ' + hW.value(); };

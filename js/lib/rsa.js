@@ -77,5 +77,16 @@
   function encrypt(nums, key) { return nums.map(function (P) { return modpow(P, key.e, key.n); }); }
   function decrypt(nums, key) { return nums.map(function (C) { return modpow(C, key.d, key.n); }); }
 
-  CN.rsa = { isPrime: isPrime, gcd: gcd, modInverse: modInverse, keygen: keygen, parseKey: parseKey, modpow: modpow, hops: hops, DIAL_MAX: 150, letters: letters, encrypt: encrypt, decrypt: decrypt };
+  // Forouzan's order (Fig 30.24, Ex 30.7): Φ = (p−1)(q−1), choose e coprime to Φ, d = e⁻¹ mod Φ.
+  // Same key pair as keygen(p, q, d) with the roles of choosing swapped: 7, 11, e 13 → n 77, Φ 60, d 37.
+  function keygenE(p, q, e) {
+    p = num(p); q = num(q); e = num(e);
+    if (!isPrime(p) || !isPrime(q) || p === q) return { error: 'p and q must be two different primes' };
+    var n = p * q, phi = (p - 1) * (q - 1);
+    if (isNaN(e) || e < 2 || e >= phi) return { error: 'e must be between 2 and Φ − 1 = ' + (phi - 1) };
+    if (gcd(e, phi) !== 1) return { error: 'gcd(e, Φ) = ' + gcd(e, phi) + ' ≠ 1: no d exists' };
+    return { p: p, q: q, n: n, phi: phi, e: e, d: modInverse(e, phi) };
+  }
+
+  CN.rsa = { keygenE: keygenE, isPrime: isPrime, gcd: gcd, modInverse: modInverse, keygen: keygen, parseKey: parseKey, modpow: modpow, hops: hops, DIAL_MAX: 150, letters: letters, encrypt: encrypt, decrypt: decrypt };
 })(typeof window !== 'undefined' ? window : globalThis);

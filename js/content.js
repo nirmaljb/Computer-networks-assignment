@@ -94,7 +94,8 @@
       id: 't2', topic: 2, stop: '2', act: 1, hero: true, short: 'Hamming code', title: 'Hamming code', target: 50,
       subs: [
         { id: 't2', part: 'encode', stop: '2a', short: 'Hamming encode', title: 'Hamming code: building the codeword', click: 'Step computes P1, P2, P4, P8 in turn and lights what each covers. ← undoes. Tap a data bit to flip it (the codeword follows). E: other data bits (1–16).' },
-        { id: 't2b', part: 'correct', stop: '2b', short: 'Hamming correct', title: 'Hamming code: find and fix the error', click: 'Tap up to two bits to flip them, or Step flips bit 5. Next Step corrects. The 2nd flip is the break: the syndrome names a bit nobody flipped. C: challenge. E: other data bits (1–16).' }
+        { id: 't2b', part: 'correct', stop: '2b', short: 'Hamming correct', title: 'Hamming code: find and fix the error', click: 'Tap up to two bits to flip them, or Step flips bit 5. Next Step corrects. The 2nd flip is the break: the syndrome names a bit nobody flipped. C: challenge. E: other data bits (1–16).' },
+        { id: 't2c', part: 'c74', stop: '2c', short: 'Forouzan C(7,4)', title: 'Hamming code C(7,4): Forouzan\'s layout', click: 'Steps 1–3 compute r0, r1, r2 for 0111; 4 sends it with b2 flipped (tap another received bit to move the flip); 5 the syndrome; 6 Table 10.5 names the bit to flip (Ex 10.13).' }
       ],
       syllabus: 'Error Detection and Correction Codes, Hamming Code',
       problem: 'A bit flipped in transit. Can the receiver find and fix it without asking again?',
@@ -108,11 +109,14 @@
         'Positions 1…n from the left; powers of 2 are check bits; each enforces even parity over positions whose binary expansion includes it (11 = 1+2+8).',
         'Syndrome = sum of failing check positions = position of the bad bit (0 = no error).',
         'Corrects ONE error. Two errors → syndrome blames an innocent bit.',
+        '2c, Forouzan\'s C(7,4) (Table 10.4): codeword a3 a2 a1 a0 r2 r1 r0, check bits AFTER the data. r0 = a2⊕a1⊕a0, r1 = a3⊕a2⊕a1, r2 = a1⊕a0⊕a3. Syndrome s0 = b2⊕b1⊕b0⊕q0, s1 = b3⊕b2⊕b1⊕q1, s2 = b1⊕b0⊕b3⊕q2, looked up in Table 10.5 (011 → b2, 101 → b0, 110 → b3, 111 → b1; 001/010/100 → a check bit). d_min = 3, n = 2^m − 1 with m = number of CHECK bits (Tanenbaum\'s m is the data bits).',
+        'Ex 10.13: 0111 → 0111001; b2 flipped → 0011001 → syndrome 011 → flip b2 → 0111. Two errors (1101000 received as 0001000) → 101 → flip b0 → 0000, wrong.',
         'Cost (the But…): 1 Mbit in 1000-bit blocks, error rate 10⁻⁶: Hamming 10,000 check bits; one parity bit per block + one resent block 2,001.'
       ],
       example: "'A' 1000001 → 00100001001. Flip bit 5 → checks 1, 4 fail → syndrome 0101 = 5. Flip 2 and 6 → syndrome 4 (wrong).",
       qa: [
         ['Why check bits at powers of 2?', 'A power of 2 has a single 1 bit, so each check bit is covered only by itself and every data position by a unique set of checks. That is why the syndrome equals the position.'],
+        ['Your Hamming code doesn\'t look like Forouzan\'s. Why?', 'Same code family, different bit order. Tanenbaum interleaves check bits at powers of 2, so the syndrome IS the position; Forouzan puts r2 r1 r0 after the data (systematic), so the syndrome needs Table 10.5. Both have distance 3 and correct one error (2c).'],
         ['What if two bits flip?', 'Demo: flip 2 and 6 → syndrome 4, the wrong bit. An extra overall parity bit (SEC-DED) detects doubles.'],
         ['So when is correction used?', 'On noisy links where a retransmission would probably be corrupted too (wireless), or where there is no return channel. That is FEC.']
       ]
@@ -148,7 +152,7 @@
       subs: [
         { id: 't4', part: 'p1', stop: '4a', short: 'Protocol 1', title: 'Protocol 1: utopian simplex', click: 'Step runs to the next event. Click a message in flight to destroy it.' },
         { id: 't4b', part: 'p2', stop: '4b', short: 'Protocol 2', title: 'Protocol 2: simplex stop-and-wait', click: 'Step runs to the next event. Click a message in flight to destroy it.' },
-        { id: 't4c', part: 'p3', stop: '4c', short: 'Protocol 3', title: 'Protocol 3: stop-and-wait on a noisy channel (PAR / ARQ)', click: 'Scripted: frame 1 lost once (timeout, resend), first ACK 2 lost (duplicate discarded, re-ACKed).' },
+        { id: 't4c', part: 'p3', stop: '4c', short: 'Protocol 3', title: 'Protocol 3: stop-and-wait on a noisy channel (PAR / ARQ)', click: 'Scripted: frame 1 lost once (timeout, resend), then the first ACK for frame 2 (ACK 1) is lost (duplicate discarded, re-ACKed). ACK k = next frame expected.' },
         { id: 't4d', part: 'util', stop: '4d', short: 'Utilisation', title: 'Why stop-and-wait is not enough', click: 'Static.' }
       ],
       syllabus: 'Data Link Layer Protocols, Simplex Protocol',
@@ -160,9 +164,10 @@
         'P1 utopian simplex: one-way, error-free, infinite buffers; no flow or error control. (Story: what if nothing ever went wrong?)',
         'P2 simplex stop-and-wait: flow control only; dummy ACK; channel at least half-duplex. (Story: the receiver is slow.)',
         'P3 PAR/ARQ (noisy): timer + retransmit; 1-bit sequence number discards duplicates from lost ACKs; timeout > round trip. (Story: frames get lost.)',
+        'Forouzan\'s names for P1–P3: Simplest, Stop-and-Wait, Stop-and-Wait ARQ. ACK number = the next frame expected, mod 2 (frame 0 → ACK 1), as on the slide; Tanenbaum\'s code carries the last frame received instead (frame 0 → ACK 0). Same protocol, different label.',
         'Utilisation = frame time / (frame time + RTT): 50 kbps, 500 ms RTT, 1000 bits → 20/520 ≈ 4%.'
       ],
-      example: 'Lose an ACK → timeout → resend 0 → "Duplicate of 0 → discard, re-ACK".',
+      example: 'Frame 0 → ACK 1. Lose an ACK → timeout → resend 0 → "Duplicate of 0 → discard, re-ACK".',
       qa: [
         ['Why is one bit of sequence number enough?', 'Only one frame is ever outstanding, so the only confusion is frame m vs m+1.'],
         ['What if the timer is too short?', 'Premature timeouts send duplicates; the sequence number catches them, but bandwidth is wasted.']
@@ -186,13 +191,15 @@
         'GBN (P5): receiver window 1, cumulative ACKs, resend ALL outstanding on timeout. Max window 2ⁿ−1.',
         'SR (P6): receiver buffers in-window frames, NAKs the hole, sender resends only that one. Max window 2ⁿ⁻¹.',
         'Trap (Fig 3-21): 3 bits, W=7, all ACKs lost → old frame 0 accepted as new. W=4: windows do not overlap.',
-        'ACK number: Tanenbaum = last received correctly; Forouzan = next expected.'
+        'ACK number on the slides = the next frame expected: GBN ACK 2 = frames up to 1 received. Tanenbaum\'s Protocol 5 carries the last frame received (ACK 1 for the same thing).',
+        'SR here acknowledges each frame by its own number: SACK k = frame k received (a selective ACK). Neither book does exactly this: Tanenbaum\'s Protocol 6 piggybacks a cumulative ACK; Forouzan (Ex 11.8) sends one cumulative ACK when frames are delivered (2 ACKs, the second covers 3 frames).'
       ],
       example: 'n=3, W=4, first copy of 1 lost: GBN discards 2, 3 (and 4) and resends them all; SR buffers and resends only 1.',
       qa: [
         ['Why is GBN max 2ⁿ−1 but SR only 2ⁿ⁻¹?', "SR's new receiver window must not overlap the old one, or an old frame looks new (trap demo). GBN's receiver window is 1, so only window = 2ⁿ is ambiguous."],
         ['When is GBN preferable?', 'Low error rates; simpler receiver with no buffering.'],
-        ['Why does the app\'s SR ACK each frame?', 'Selective ACKs (as in Forouzan). Tanenbaum\'s Protocol 6 piggybacks a cumulative ACK; with this short 8-tick timer, 2 and 3 would also time out before that ACK returns.']
+        ['Why does the app\'s SR ACK each frame (SACK)?', 'A modelling choice. Tanenbaum\'s Protocol 6 piggybacks a cumulative ACK; Forouzan (Ex 11.8) ACKs only on delivery, so frames 2–3 wait for frame 1. With this short 8-tick timer either way, 2 and 3 would also time out before that ACK returns; per-frame SACKs keep the one-resend contrast with GBN.'],
+        ['Why does the ACK say 2 after frame 1?', 'Forouzan\'s convention: the ACK names the next frame expected. Tanenbaum names the last frame received (1). Same information.']
       ]
     },
 
@@ -254,8 +261,8 @@
       syllabus: 'Ethernet MAC Sublayer Protocol',
       problem: 'What does a real frame carrying all these fixes look like?',
       but: 'Ethernet accepts collisions and cleans up after them. Can we avoid them entirely?',
-      history: 'Ethernet, Bob Metcalfe, Xerox PARC, 1973.',
-      live: '"Metcalfe\'s Ethernet, 1973, is everything we\'ve built so far in one frame: a preamble for framing, CRC-32 in the trailer, padding up to 64 bytes for collision detection. But Ethernet accepts collisions and cleans up after them. Could we avoid them altogether?"',
+      history: 'Ethernet, Bob Metcalfe and David Boggs, Xerox PARC: first ran in 1973, published in 1976 (Forouzan dates it 1976).',
+      live: '"Metcalfe\'s Ethernet, from Xerox PARC in the 1970s, is everything we\'ve built so far in one frame: a preamble for framing, CRC-32 in the trailer, padding up to 64 bytes for collision detection. But Ethernet accepts collisions and cleans up after them. Could we avoid them altogether?"',
       click: 'Click a frame field. Type a data length (10 → pad 36). Point at the three back-link tags under the bar.',
       facts: [
         'Ethernet: Preamble 8 (7×10101010 + SOF 10101011) · Dest 6 · Src 6 · Type/Length 2 · Data 0–1500 · Pad 0–46 · Checksum 4 (CRC-32). Min 64, max 1518 (dest → checksum).',
@@ -581,12 +588,14 @@
         'UDP header 8 bytes: source port, destination port, length, checksum (16 bits each). No connection, no ACKs, no ordering, no flow or congestion control.',
         'TCP header 20 bytes minimum, 60 maximum: the header length (data offset) counts 32-bit words, 5–15. Ports, sequence number, acknowledgement number, header length, 8 flags (CWR ECE URG ACK PSH RST SYN FIN), window size, checksum, urgent pointer, options (0–40 bytes).',
         'TCP numbers bytes, not segments: the sequence number is the first data byte\'s number; the ACK is the next byte expected.',
+        'Flags: CWR and ECE (amber) came out of the reserved bits with ECN (RFC 3168, 2001). Forouzan\'s Fig 23.16 is older: HLEN 4, reserved 6, six flags URG ACK PSH RST SYN FIN.',
         'UDP and TCP checksums cover a pseudoheader (source and destination IP, protocol, length) as well as header and data.',
         'Berkeley sockets: server SOCKET → BIND → LISTEN → ACCEPT (blocks); client SOCKET → CONNECT; both SEND / RECEIVE; CLOSE.'
       ],
       example: 'UDP 8 bytes · TCP 20 bytes (header length 5) to 60 bytes (header length 15).',
       qa: [
         ['Why does UDP exist if TCP is reliable?', 'No setup and 8 bytes of overhead: one-request/one-reply protocols (DNS), real-time media that would rather lose a late packet than stall, and protocols that do their own reliability (QUIC).'],
+        ['Forouzan shows 6 flags. Why 8 here?', 'CWR and ECE were added by ECN (RFC 3168, 2001), taken from the reserved bits. Forouzan\'s figure predates them in his text: 6 reserved bits, 6 flags.'],
         ['Why does TCP need a header length field?', 'Options make the header 20–60 bytes. The field, in 32-bit words (5–15), says where the data starts.'],
         ['What is the pseudoheader for?', 'It puts the IP addresses and protocol into the checksum, so a segment delivered to the wrong host is caught. It is never sent, and it breaks strict layering.']
       ]
@@ -611,6 +620,8 @@
         'Old duplicate SYN (x\'): the server answers SYN+ACK seq=y ack=x\'+1; the client never sent x\', so it replies RST.',
         'Old SYN + old ACK: the old ACK carries ack=z; z ≠ y+1, so the server rejects it. The server\'s own ISN must be echoed.',
         'Release: two-army problem: no protocol with a finite number of messages makes both sides sure. TCP: FIN → ACK in each direction, then timers.',
+        'Third handshake segment: seq = x + 1 (the SYN used up x; RFC 9293, Tanenbaum). Forouzan\'s Fig 23.18 draws seq = x (8000), since a pure ACK consumes no sequence number; the ack numbers agree.',
+        'Release in 3 segments (Forouzan Fig 23.20, the Release chip): FIN seq 1001 ack 5001 → FIN+ACK seq 5001 ack 1002 → ACK seq 1002 ack 5002. The server merges its ACK and FIN when it has nothing left to send; 4 segments is the general case (half-close).',
         'TIME_WAIT = 2 × MSL on the side that closes first: a lost final ACK can be resent, and old segments die before the port pair is reused.',
         'SYN flood: half-open connections fill the server\'s table. SYN cookies: encode the state in the server\'s ISN and keep nothing until the final ACK.'
       ],
@@ -619,6 +630,8 @@
         ['Why not a two-way handshake?', 'The server could not tell a delayed duplicate SYN from a new one, and would open a connection nobody asked for. The third message proves the client saw the server\'s y.'],
         ['Why pick ISNs that are not 0?', 'So segments from an old connection on the same ports fall outside the new sequence space, and so an attacker can\'t guess y and forge the third message.'],
         ['Why is TIME_WAIT 2 MSL?', 'One MSL for the last ACK to travel and one for a resent FIN to come back. After that no segment from this connection is still alive.'],
+        ['Forouzan\'s third segment says seq 8000, not 8001. Who is right?', 'The field holds x + 1: the SYN used up x (RFC 9293). Forouzan writes x because a pure ACK consumes no number; the next data byte is still x + 1, so the two agree on everything that follows.'],
+        ['Forouzan closes with 3 segments, the slide with 4. Which?', 'Both. If the server has nothing left to send it merges its ACK and FIN into one FIN+ACK (tap 3 on the chip). Four is the general case: after the first ACK the server may keep sending (half-close).'],
         ['What if the final ACK is lost?', 'A pure ACK has no timer. The server\'s SYN+ACK timer fires, it resends SYN+ACK, and the client ACKs again (Normal tab, lose the ACK).']
       ]
     },
@@ -840,9 +853,10 @@
       subs: [
         { id: 't25', part: 'keys', stop: '25a', short: 'RSA keys', title: 'RSA: key generation', click: 'p 3, q 11, d 7. E: your p q d. p and q chips (26 < n ≤ 150), d slider over the valid d; d = 2 is the break (no e).' },
         { id: 't25b', part: 'encrypt', stop: '25b', short: 'RSA encrypt', title: 'RSA: encrypt and decrypt', click: 'The mod-33 dial: Step = one square-and-multiply hop, encrypt then decrypt, letter by letter. E: your p q d (dial while n ≤ 150, else the table). Tap a letter in the table to run only its hops.' },
-        { id: 't25c', part: 'compare', stop: '25c', short: 'Symmetric vs public', title: 'Symmetric vs public key', click: 'Static.' },
-        { id: 't25d', part: 'firewall', stop: '25d', short: 'Firewall', title: 'Firewalls', click: 'Static.' },
-        { id: 't25e', part: 'ids', stop: '25e', short: 'IDS', title: 'Intrusion detection', click: 'Static.' }
+        { id: 't25c', part: 'forouzan', stop: '25c', short: 'RSA, Forouzan', title: 'RSA in Forouzan\'s notation', click: 'Step reveals one row: Tanenbaum (3, 11, choose d 7 → e 3) beside Forouzan (7, 11, choose e 13 → d 37; 5 → 26 → 5).' },
+        { id: 't25d', part: 'compare', stop: '25d', short: 'Symmetric vs public', title: 'Symmetric vs public key', click: 'Static.' },
+        { id: 't25e', part: 'firewall', stop: '25e', short: 'Firewall', title: 'Firewalls', click: 'Static.' },
+        { id: 't25f', part: 'ids', stop: '25f', short: 'IDS', title: 'Intrusion detection', click: 'Static.' }
       ],
       syllabus: 'Public Key Algorithms, RSA, Firewalls, Intrusion Detection System',
       problem: 'Share a key with someone you\'ve never met, over a public channel.',
@@ -855,12 +869,14 @@
         'RSA: primes p, q; n = pq, z = (p−1)(q−1); d coprime to z; e with e·d ≡ 1 (mod z). Public key (e, n), private key (d, n).',
         'C = Pᵉ mod n, P = Cᵈ mod n. Security rests on factoring n. Real keys use n of 2048 bits or more.',
         'Tanenbaum: p = 3, q = 11 → n = 33, z = 20, d = 7, e = 3. SUZANNE = 19 21 26 1 14 14 5 → 28 21 20 1 5 5 26.',
+        '25c, Forouzan\'s notation (Fig 30.24, Ex 30.7): Φ = (p−1)(q−1) (Tanenbaum\'s z); choose e coprime to Φ, then d = e⁻¹ mod Φ. p 7, q 11 → n 77, Φ 60, e 13 → d 37 (13·37 = 481 = 8·60 + 1); P 5 → 5¹³ mod 77 = 26 → 26³⁷ mod 77 = 5. Public (e, n), private d in both books.',
         'Symmetric vs public key: n(n−1)/2 shared keys vs 2n keys (one pair per person); RSA is far slower, so it carries a symmetric (AES) session key.',
         'Firewall: packet filter (header rules), stateful (tracks connections), application gateway (reads content). IDS: signature-based (known attacks) vs anomaly-based (deviation from normal).'
       ],
       example: 'SUZANNE: 19³ = 6859 ≡ 28 (mod 33); 28⁷ ≡ 19 (mod 33).',
       qa: [
         ['Why is this example insecure?', 'n = 33 factors at once, and one letter per block is a monoalphabetic cipher (14 → 5 every time). Real RSA uses 2048-bit n and random padding.'],
+        ['Forouzan picks e first, you pick d first. Does it matter?', 'No: e·d ≡ 1 (mod z) is symmetric, so choosing either one fixes the other. Forouzan calls z Φ (Euler\'s totient). 25c runs both.'],
         ['Why must d be coprime to z?', 'Only then does an e with e·d ≡ 1 (mod z) exist.'],
         ['Why does decryption work?', 'e·d = 1 + k·z, and by Euler\'s theorem P^z ≡ 1 (mod n) when P is coprime to n, so P^(ed) ≡ P. It still holds when P shares a factor with n (Chinese remainder theorem).'],
         ['Firewall or IDS?', 'A firewall enforces a policy at the border (allow/deny). An IDS watches traffic and raises alarms; it can see attacks that the policy allows through.']
@@ -906,10 +922,15 @@
   ];
 
   var traps = [
-    ['Hamming layout', 'Positions 1…n from the left; check bits at powers of 2', '(7,4) with parity equations and a different layout', 'Tanenbaum; mention the difference if asked'],
-    ['ACK number', 'Last frame received correctly', 'Next frame expected', 'Toggle on S5'],
+    ['Hamming layout', 'Positions 1…n from the left; check bits at powers of 2', 'C(7,4): r2 r1 r0 after the data, syndrome via Table 10.5', 'Both: 2a/2b Tanenbaum, 2c Forouzan'],
+    ['ACK number', 'Last frame received correctly', 'Next frame expected', 'Forouzan on S4–S5 (frame 0 → ACK 1)'],
     ['CRC terms', 'Frame M(x), generator G(x), checksum', 'Dataword, divisor, codeword, syndrome', 'Both labels shown'],
-    ['SR acknowledgements', 'Protocol 6: cumulative ACK piggybacked, plus NAK', 'Selective (per-frame) ACKs', 'Per-frame ACKs + NAK, so only frame 1 is resent']
+    ['SR acknowledgements', 'Protocol 6: cumulative ACK piggybacked, plus NAK', 'Cumulative ACK on delivery, plus NAK (Ex 11.8)', 'Per-frame SACK k + NAK, so only frame 1 is resent'],
+    ['TCP flags', '8 (CWR, ECE added by ECN)', '6 + 6 reserved bits (Fig 23.16)', '8; CWR/ECE in amber, legend says why'],
+    ['Handshake ACK seq', 'x + 1', 'x (Fig 23.18: 8000)', 'x + 1 (RFC 9293); acks agree'],
+    ['TCP release', 'FIN, ACK, FIN, ACK', 'FIN, FIN+ACK, ACK (Fig 23.20)', 'Both: Release chip on 17d'],
+    ['RSA', 'z; choose d, solve e (3, 11, d 7)', 'Φ; choose e, solve d (7, 11, e 13)', 'Both: 25a/b Tanenbaum, 25c Forouzan'],
+    ['Ethernet date', '1973 (first ran)', '1976 (published)', 'Say both']
   ];
 
   function fmt(sec) {

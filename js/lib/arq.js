@@ -5,12 +5,14 @@
    carries its absolute frame number `abs`, used ONLY to narrate and to detect
    when the receiver accepts an old frame as new (the SR window trap).
 
-   GBN / stop-and-wait ACKs are cumulative and carry the last frame received
-   correctly (Tanenbaum). Forouzan's "next frame expected" is the same ACK shown
-   as seq+1; the screen toggles the label, not the behaviour.
+   GBN / stop-and-wait ACKs are cumulative. Internally m.seq is the last frame
+   received correctly (Tanenbaum); every screen and table names the ACK by the
+   NEXT frame expected, (seq + 1) mod 2^n, as Forouzan's slides do (ackName).
 
-   SR acknowledges each frame individually (selective ACK) and NAKs the first
-   hole. With Protocol 6's cumulative ACK and this short timer, frames 2 and 3
+   SR acknowledges each frame individually (a selective ACK, named SACK k = frame k
+   received) and NAKs the first hole. Neither book does exactly this: Tanenbaum's
+   Protocol 6 piggybacks a cumulative ACK, Forouzan (Ex 11.8) sends one cumulative
+   ACK when frames are delivered. With either, and this short timer, frames 2 and 3
    would also time out before the ACK covering them could return.
 
    Per tick t: 1) deliver arrivals  2) check timers  3) send at most one frame. */
@@ -283,5 +285,12 @@
     do { s.step(); } while (!s.done && sig() === before && guard++ < 40);
   }
 
-  CN.arq = { create: create, scriptedDrop: scriptedDrop, parseLoss: parseLoss, firstCopyDrop: firstCopyDrop, lossText: lossText, safeMax: safeMax, windowMath: windowMath, stepToEvent: stepToEvent };
+  // What the slide prints for a message: frame k, ACK = next frame expected, SACK k, NAK k.
+  function ackName(m, s) {
+    if (m.kind === 'data') return 'frame ' + m.seq;
+    if (m.kind === 'nak') return 'NAK ' + m.seq;
+    return s.proto === 'sr' ? 'SACK ' + m.seq : 'ACK ' + (m.seq + 1) % s.M;
+  }
+
+  CN.arq = { ackName: ackName, create: create, scriptedDrop: scriptedDrop, parseLoss: parseLoss, firstCopyDrop: firstCopyDrop, lossText: lossText, safeMax: safeMax, windowMath: windowMath, stepToEvent: stepToEvent };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -285,6 +285,8 @@ svg text.halo { paint-order: stroke; stroke: var(--panel); stroke-width: 6px; st
 .hdr .f.flag { font-size: 12px; writing-mode: vertical-rl; transform: rotate(180deg); padding: 1px 0; }
 .hdr .f:hover, .hdr .f.hl { background: var(--accent-bg); color: var(--accent); }
 .hdr .f.port { background: var(--blue-bg); color: var(--blue); }
+.hdr .f.ecn, .ecn-key { background: var(--amber-bg); color: var(--amber); }
+.ecn-key { font-weight: 800; padding: 0 6px; border-radius: 4px; }
 .hdr .f.grey { background: var(--grey-bg); color: var(--muted); opacity: .45; text-decoration: line-through; }
 .bitruler { display: grid; grid-template-columns: repeat(32, 1fr); font: 600 13px var(--mono); color: var(--muted); }
 /* byte strip (S18) */

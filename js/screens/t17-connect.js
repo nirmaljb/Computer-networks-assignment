@@ -5,13 +5,14 @@
   // SPEC-v5: one scenario per sub-slide on the shared time-space diagram (client left, server right),
   // fixed ISNs x = 1000, y = 5000 (old x' = 700, old ACK z = 4000). Step = one tick.
   // 17a: tap an arrow in flight to lose it (SPEC-v8: a handle, so it replays; tap the lost one to bring it back),
-  // with both ends' states under their names. 17e: SYN flood (static).
+  // with both ends' states under their names. 17d: chips 4 segments (FIN → ACK each way, Tanenbaum, RFC 9293) or
+  // 3 (the server's ACK and FIN in one FIN+ACK, Forouzan Fig 23.20). 17e: SYN flood (static).
   var COLORS = { syn: 'var(--blue)', synack: 'var(--blue)', ack: 'var(--green)', rst: 'var(--red)', fin: 'var(--amber)', old: 'var(--amber)' };
   var RUNS = {
     normal: { build: T.handshake, say: 'Each side picks its own ISN; the other echoes it + 1. A SYN uses up one sequence number.' },
     oldsyn: { build: T.oldSyn, say: 'Dashed amber = a delayed duplicate SYN. Only a reply that echoes y + 1 proves a live client.' },
     oldsynack: { build: T.oldSynAck, say: 'An old SYN and an old ACK arrive. The ACK carries z, not y + 1, so the server rejects it.' },
-    release: { build: T.release, say: 'Each side closes its own direction (FIN → ACK); TIME_WAIT (2 × MSL) ends it. No finite exchange can be sure: the two-army problem.' }
+    release: { build: T.release, say: 'Each side closes its own direction; the server may send its ACK and FIN apart (4) or together as FIN+ACK (3). TIME_WAIT (2 × MSL) ends it.' }
   };
 
   var LOSE = { syn: 0, synack: 1, ack: 2 }, LOSE_NAME = ['syn', 'synack', 'ack'];
@@ -26,6 +27,8 @@
     var run = RUNS[kind], st = { lose: null, tick: 0, sc: null };
     var W = 1000, H = 600, VIS = 22, normal = kind === 'normal';
     var hLose = normal ? ui.handle({ key: 'lose', kind: 'tap', value: null }) : null;
+    var hSeg = kind === 'release' ? ui.handle({ key: 'segments', label: 'Release', kind: 'chips', value: 4, values: [4, 3], fmt: function () { return ''; },
+      chip: function (v) { return v === 4 ? '4 segments: FIN, ACK, FIN, ACK' : '3 segments: FIN, FIN+ACK, ACK'; } }) : null;
     var ts = CN.ui.timeSpace({ width: W, height: H, visible: VIS, rightPad: 170, names: ['Client', 'Server'],
       label: function (m) { return m.text; },
       style: function (m) { return { color: COLORS[m.k], dash: m.k === 'old' ? '9 6' : null }; },
@@ -34,9 +37,10 @@
       onTap: normal ? function (m) { hLose.set(m.lost ? null : LOSE[st.sc.msgs[m.id].kind]); } : null });
     body.appendChild(h('div', { class: 'say' }, run.say));
     body.appendChild(h('div', { class: 'panel', style: { padding: '4px' } }, ts.el));
+    if (hSeg) body.appendChild(ui.handleRow(hSeg));
 
     function build() {
-      st.sc = run.build({ x: 1000, y: 5000, xOld: 700, z: 4000, lose: st.lose });
+      st.sc = run.build({ x: 1000, y: 5000, xOld: 700, z: 4000, lose: st.lose, combined: !!hSeg && hSeg.value() === 3 });
       st.sc.msgs.forEach(function (m, i) { m.id = i; });
     }
     function simView() {
@@ -74,7 +78,8 @@
     // learnStep: segments sent so far (one learn row each; with a lost segment the pane's table follows via genText)
     function learnStep() { return st.sc.msgs.filter(function (m) { return m.sentAt < st.tick; }).length; }
     return { step: step, reset: reset, reached: function () { return st.tick >= st.sc.end; }, learnStep: learnStep,
-      genText: normal ? function () { return hLose.value() == null ? '' : 'lose ' + LOSE_NAME[hLose.value()]; } : null,
+      genText: normal ? function () { return hLose.value() == null ? '' : 'lose ' + LOSE_NAME[hLose.value()]; }
+        : hSeg ? function () { return hSeg.value() === 3 ? 'segments 3' : ''; } : null,
       prev: function () { if (st.tick > 0) { st.tick--; draw(); return true; } return false; } };
   }
 
