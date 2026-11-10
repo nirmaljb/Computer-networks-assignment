@@ -489,15 +489,15 @@
         p.push ? 'push' : p.pull ? 'pull' : '—'], i);
     }));
   }
-  // 7f: one row per Step, the frame built field by field (CN.csma.ethFrame); follows the data chips ('data 1500')
+  // 7f: one row per field in wire order, then the total (CN.csma.ethFrame); follows the data chips ('data 1500')
   function ethTable(text) {
     var c = cfg(text, ['data']), L = c.k.data != null ? +c.k.data : ints(c.e).length ? ints(c.e)[0] : 10, m = CN.csma.ethFrame(L);
     if (m.error) return m;
     var rows = m.fields.map(function (f, i) {
-      return row([i + 1, f.name, f.bytes, f.value.replace(' · ', ', '), f.at == null ? 'not counted' : f.at], i + 1);
+      return row([f.name, f.bytes, f.value.replace(' · ', ', '), f.at == null ? 'not counted' : f.at]);
     });
-    rows.push(row([8, 'Destination → checksum', m.counted, m.over ? '> 1518: not legal' : m.min ? 'the 64-byte minimum' : m.max ? 'the 1518-byte maximum' : '64–1518', m.counted], 8));
-    return table(['Step', 'Field', 'Bytes', 'Holds', 'Counted so far'], rows);
+    rows.push(row(['Destination → checksum', m.counted, m.over ? '> 1518: not legal' : m.min ? 'the 64-byte minimum' : m.max ? 'the 1518-byte maximum' : '64–1518', m.counted]));
+    return table(['Field', 'Bytes', 'Holds', 'Counted so far'], rows);
   }
   // '| k 7' (the 24a dial)
   function caesarTable(text) {
