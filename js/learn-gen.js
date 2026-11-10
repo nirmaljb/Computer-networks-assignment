@@ -489,6 +489,16 @@
         p.push ? 'push' : p.pull ? 'pull' : '—'], i);
     }));
   }
+  // 7f: one row per Step, the frame built field by field (CN.csma.ethFrame); follows the data chips ('data 1500')
+  function ethTable(text) {
+    var c = cfg(text, ['data']), L = c.k.data != null ? +c.k.data : ints(c.e).length ? ints(c.e)[0] : 10, m = CN.csma.ethFrame(L);
+    if (m.error) return m;
+    var rows = m.fields.map(function (f, i) {
+      return row([i + 1, f.name, f.bytes, f.value.replace(' · ', ', '), f.at == null ? 'not counted' : f.at], i + 1);
+    });
+    rows.push(row([8, 'Destination → checksum', m.counted, m.over ? '> 1518: not legal' : m.min ? 'the 64-byte minimum' : m.max ? 'the 1518-byte maximum' : '64–1518', m.counted], 8));
+    return table(['Step', 'Field', 'Bytes', 'Holds', 'Counted so far'], rows);
+  }
   // '| k 7' (the 24a dial)
   function caesarTable(text) {
     var k = +(cfg(text, ['k']).k.k || 3);
@@ -517,7 +527,7 @@
     'graph.lsflood': function () { return floodTable(LN, LE, 'B', 99, true, 4); },
     'graph.linkstate': function () { return dijkstraTable(LN, LE, 'B', 5 + CN.graph.flood(LN, LE, 'B', 99, true).length); },
     'ip.frag': fragTable, 'ip.split': splitTable, 'ip.lpm': lpmTable, 'ip.v6': v6Table, 'tcp.flow': flowTable, 'http.rtt': httpTable, 'http.url': urlTable, 'http.steps': urlSteps, 'http.hol': holTable, 'mail.smtp': smtpTable, 'p2p.swarm': swarmTable, 'static.tdm': tdmTable, 'static.slots': slotsTable, 'aloha.pure': alohaTable(false), 'aloha.slotted': alohaTable(true),
-    'cipher.caesar': caesarTable, 'cipher.mono': monoTable, 'cipher.columnar': columnarTable, 'mail.base64': base64Table, 'mail.path': mailPathTable,
+    'cipher.caesar': caesarTable, 'cipher.mono': monoTable, 'cipher.columnar': columnarTable, 'mail.base64': base64Table, 'mail.path': mailPathTable, 'eth.frame': ethTable,
     'hamming.encode': hammingEncode, 'hamming.correct': hammingCorrect,
     'crc.divide': crcDivide, 'crc.check': crcCheck,
     'arq.p1': arqP1, 'arq.p2': arqP2, 'arq.p3': arqP3, 'arq.gbn': arqTable('gbn'), 'arq.sr': arqTable('sr'), 'arq.trap': arqTrap,

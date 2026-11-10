@@ -65,6 +65,32 @@
     return { bits: bits, bytes: bits / 8 };
   }
 
+  // 7f: the classic Ethernet (802.3) frame for L data bytes, field by field in wire order. The preamble is sent but
+  // not counted; dest → checksum must be 64–1518 bytes. pad = max(0, 46 − L). The Length field holds L, not L + pad,
+  // which is how the receiver strips the pad. L = 1501 is the taught break: past the MTU, 1519 bytes, and 0x05DD is
+  // neither a length (≤ 0x05DC) nor a type (≥ 0x0600). at = bytes counted once this field is on (null: not counted).
+  var ETH_MTU = 1500, ETH_MIN = 64, ETH_MAX = 1518, ETH_MBPS = 10;
+  function ethFrame(L) {
+    if (!(L >= 0 && L <= ETH_MTU + 1 && L === Math.floor(L))) return { error: 'Data is 0–' + ETH_MTU + ' bytes' };
+    var pad = Math.max(0, 46 - L), hex = '0x' + ('000' + L.toString(16).toUpperCase()).slice(-4), at = 0;
+    var fields = [
+      ['pre', 'Preamble', 8, '10101010 ×7 · 10101011', 'S1 framing'],
+      ['dst', 'Destination', 6, '48-bit address', ''],
+      ['src', 'Source', 6, '48-bit address', '10a bridges'],
+      ['len', 'Type / Length', 2, hex + ' = ' + L, ''],
+      ['data', 'Data', L, L + ' bytes', ''],
+      ['pad', 'Pad', pad, pad + ' filler bytes', '7e minimum'],
+      ['crc', 'Checksum', 4, 'CRC-32', 'S3 CRC']
+    ].map(function (f) {
+      if (f[0] !== 'pre') at += f[2];
+      return { key: f[0], name: f[1], bytes: f[2], value: f[3], link: f[4], at: f[0] === 'pre' ? null : at };
+    });
+    var counted = 18 + L + pad, over = L > ETH_MTU;
+    return { L: L, pad: pad, hex: hex, fields: fields, counted: counted, bits: counted * 8, us: counted * 8 / ETH_MBPS,
+      min: counted === ETH_MIN, max: counted === ETH_MAX, over: over,
+      kind: L <= ETH_MTU ? 'length' : L >= 0x600 ? 'type' : 'undefined' };
+  }
+
   // Binary countdown: addresses broadcast MSB first; channel ORs the bits;
   // a station that sent 0 and sees 1 drops out.
   function binaryCountdown(addrs) {
@@ -274,6 +300,6 @@
   CN.csma = {
     rng: rng, alohaPure: alohaPure, alohaSlotted: alohaSlotted, alohaWhatIf: alohaWhatIf, bebRange: bebRange,
     staticDelay: staticDelay, staticTdm: staticTdm, TDM_NS: TDM_NS, TDM_BURST: TDM_BURST,
-    minFrame: minFrame, binaryCountdown: binaryCountdown, createBus: createBus
+    minFrame: minFrame, ethFrame: ethFrame, ETH_MTU: ETH_MTU, ETH_MIN: ETH_MIN, ETH_MAX: ETH_MAX, binaryCountdown: binaryCountdown, createBus: createBus
   };
 })(typeof window !== 'undefined' ? window : globalThis);

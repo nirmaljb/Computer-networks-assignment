@@ -265,7 +265,8 @@
       but: 'Ethernet accepts collisions and cleans up after them. Can we avoid them entirely?',
       history: 'Ethernet, Bob Metcalfe and David Boggs, Xerox PARC: first ran in 1973, published in 1976.',
       live: '"Metcalfe\'s Ethernet, from Xerox PARC in the 1970s, is everything we\'ve built so far in one frame: a preamble for framing, CRC-32 in the trailer, padding up to 64 bytes for collision detection. But Ethernet accepts collisions and cleans up after them. Could we avoid them altogether?"',
-      click: 'Click a frame field. Type a data length (10 → pad 36). Point at the three back-link tags under the bar.',
+      click: 'Step adds one field in wire order (8 Steps); the counter skips the preamble; Step 8 brackets destination → checksum. Chips: data 0 / 10 / 46 / 1500 / 1501 (the break). E: any data length 0–1500.',
+      predict: { q: 'Data = 10 bytes. What goes in the Type / Length field?', a: '10 (0x000A): the data only, not the pad' },
       facts: [
         'Ethernet: Preamble 8 (7×10101010 + SOF 10101011) · Dest 6 · Src 6 · Type/Length 2 · Data 0–1500 · Pad 0–46 · Checksum 4 (CRC-32). Min 64, max 1518 (dest → checksum).',
         'Type/length: ≤ 1500 (0x05DC) length; ≥ 1536 (0x0600) type (0x0800 IPv4, 0x0806 ARP, 0x86DD IPv6).',
