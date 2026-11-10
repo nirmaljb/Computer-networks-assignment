@@ -151,6 +151,56 @@
     return { online: !!online, steps: steps, end: steps.length - 1 };
   }
 
+  // 23d: base64 step by step. text → its UTF-8 bytes (1–6, two groups of 3 at most) → 8 bits each → the same bits cut
+  // every 6 (zero bits fill the last 6-bit group) → a number 0–63 → a character of B64; a group of 3 missing 1 or 2
+  // bytes ends in 1 or 2 '='. Each sextet: { bits: [{ b: '0' | '1', byte: i | null (null = a fill zero) }], value,
+  // ch, pad } (pad: no data bits at all → '='). Steps 0 bytes, 1 bits, 2 cut every 6, 3 numbers, 4 characters, 5 '='.
+  var B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/', B64_MAX = 6, B64_TEXTS = ['Hi', 'Hi!', 'M', '\u00e9'];
+  function utf8(text) {
+    var out = [];
+    Array.from(String(text)).forEach(function (c) {
+      var cp = c.codePointAt(0), b;
+      if (cp < 0x80) b = [cp];
+      else if (cp < 0x800) b = [0xC0 | cp >> 6, 0x80 | cp & 63];
+      else if (cp < 0x10000) b = [0xE0 | cp >> 12, 0x80 | cp >> 6 & 63, 0x80 | cp & 63];
+      else b = [0xF0 | cp >> 18, 0x80 | cp >> 12 & 63, 0x80 | cp >> 6 & 63, 0x80 | cp & 63];
+      out.push({ ch: c, bytes: b });
+    });
+    return out;
+  }
+  function base64(text) {
+    var chars = utf8(text), bytes = [], owner = [];
+    chars.forEach(function (c, i) { c.bytes.forEach(function (b) { bytes.push(b); owner.push(i); }); });
+    if (!bytes.length || bytes.length > B64_MAX) return { error: 'Text of 1–' + B64_MAX + ' bytes (UTF-8)' };
+    var groups = [];
+    for (var g = 0; g < bytes.length; g += 3) {
+      var have = bytes.slice(g, g + 3), bits = [];
+      have.forEach(function (b, j) { for (var k = 7; k >= 0; k--) bits.push({ b: String(b >> k & 1), byte: g + j }); });
+      var nData = Math.ceil(bits.length / 6), sextets = [];
+      while (bits.length < nData * 6) bits.push({ b: '0', byte: null });
+      for (var q = 0; q < 4; q++) {
+        if (q < nData) {
+          var six = bits.slice(q * 6, q * 6 + 6), v = parseInt(six.map(function (x) { return x.b; }).join(''), 2);
+          sextets.push({ bits: six, value: v, ch: B64[v], pad: false });
+        } else sextets.push({ bits: [], value: null, ch: '=', pad: true });
+      }
+      groups.push({ at: g, bytes: have, sextets: sextets, missing: 3 - have.length });
+    }
+    var out = groups.map(function (gr) { return gr.sextets.map(function (x) { return x.ch; }).join(''); }).join('');
+    var pads = groups[groups.length - 1].missing;
+    var plain = function (x) { return x.pad ? null : x; }, data = [].concat.apply([], groups.map(function (gr) { return gr.sextets.filter(plain); }));
+    var high = bytes.filter(function (b) { return b > 127; }).length;
+    var say = [
+      '"' + text + '" is ' + bytes.length + ' byte' + (bytes.length > 1 ? 's' : '') + ' in UTF-8' + (high ? ': ' + high + ' with the top bit set, so not 7-bit ASCII' : ', all 7-bit ASCII') + '.',
+      'Each byte is 8 bits: ' + bytes.length * 8 + ' bits in all.',
+      'The same bits, cut every 6 instead of every 8' + (data.some(function (x) { return x.bits.some(function (y) { return y.byte === null; }); }) ? '; zero bits fill the last group of 6.' : '.'),
+      'Each group of 6 bits is a number 0–63: ' + data.map(function (x) { return x.value; }).join(', ') + '.',
+      'Each number picks one of 64 safe characters: ' + data.map(function (x) { return x.ch; }).join(', ') + '.',
+      (pads ? 'The last group of 3 is ' + ['', 'one byte', 'two bytes'][pads] + ' short: ' + ['', 'one', 'two'][pads] + ' "=". ' : 'Whole groups of 3: no "=". ') + bytes.length + ' byte' + (bytes.length > 1 ? 's' : '') + ' → ' + out.length + ' characters.'
+    ];
+    return { text: String(text), chars: chars, bytes: bytes, owner: owner, groups: groups, out: out, pads: pads, high: high, say: say, end: 5 };
+  }
+
   // 23b: the SMTP dialogue, one line per Step: [C client | S server, the line, what it means]
   var SMTP = [
     ['S', '220 two.example.com ESMTP ready', 'Server greets on TCP port 25'],
@@ -170,5 +220,6 @@
   ];
 
   CN.http = { SMTP: SMTP, plan: plan, rtts: rtts, STATUS: STATUS, URLS: URLS, PORT: PORT, url: url, exchange: exchange, hol: hol, HOL_STREAMS: HOL_STREAMS,
-    swarm: swarm, PEERS: PEERS, CHUNKS: CHUNKS, SWARM_HAVE: SWARM_HAVE, mailPath: mailPath, MAIL_NODES: MAIL_NODES };
+    swarm: swarm, PEERS: PEERS, CHUNKS: CHUNKS, SWARM_HAVE: SWARM_HAVE, mailPath: mailPath, MAIL_NODES: MAIL_NODES,
+    base64: base64, B64: B64, B64_MAX: B64_MAX, B64_TEXTS: B64_TEXTS };
 })(typeof window !== 'undefined' ? window : globalThis);

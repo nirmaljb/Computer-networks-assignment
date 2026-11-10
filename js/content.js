@@ -797,13 +797,13 @@
         { id: 't23', part: 'path', stop: '23a', short: 'Mail path', title: 'Electronic mail: the path', click: 'Step moves the mail one hop: submit (SMTP), DNS MX lookup, MTA to MTA (SMTP, TCP 25), into Bob\'s mailbox, then Bob\'s user agent pulls it (IMAP). Tap Bob offline / online: offline, the mail waits in the mailbox until he connects.', predict: { q: 'Bob\'s laptop is off. Where is the mail after step 5?', a: 'In Bob\'s mailbox on two.example.com, his provider\'s server' } },
         { id: 't23b', part: 'smtp', stop: '23b', short: 'SMTP', title: 'SMTP dialogue', click: 'Step = one line.' },
         { id: 't23c', part: 'parts', stop: '23c', short: 'Envelope & header', title: 'Envelope, header and body', click: 'Static.' },
-        { id: 't23d', part: 'mime', stop: '23d', short: 'MIME', title: 'MIME and base64', click: 'Static.' }
+        { id: 't23d', part: 'mime', stop: '23d', short: 'MIME', title: 'MIME and base64', click: 'Step: 0 the bytes, 1 their bits, 2 the same bits cut every 6 (zero bits fill), 3 each group as a number 0–63, 4 its character from the 64-character table, 5 the "=" padding; the mail body fills in. Tap a text chip: Hi (one =), Hi! (none), M (two), é (2 bytes with the top bit set). E: any 1–6 bytes.', predict: { q: '"Hi" is 2 bytes. How many base64 characters come out, and how many of them are "="?', a: '4 characters, one "=": SGk=' } }
       ],
       syllabus: 'E-mail',
       problem: 'Deliver a message to a user who is offline, on another system.',
       but: 'Every SMTP hop, router and Wi-Fi access point on the way can read the mail in plain text.',
       live: '"Alice\'s mail program hands the message to her provider\'s server, which pushes it with SMTP to Bob\'s provider over TCP port 25. There it waits in Bob\'s mailbox until he connects and pulls it with IMAP. The SMTP dialogue is plain text: HELO, MAIL FROM, RCPT TO, DATA, a line with a dot, QUIT. Attachments are bytes, so MIME wraps them in base64. But that plain text means every hop on the way can read the mail."',
-      click: 'S steps the SMTP dialogue. Type text in the MIME box to see its base64. Click envelope / header / body.',
+      click: 'S steps the mail path and the SMTP dialogue. 23d: Step takes text to base64; chips or E change the text.',
       facts: [
         'User agents (compose, read) and message transfer agents (mail servers). Alice\'s UA → her MTA → SMTP over TCP 25 → Bob\'s MTA → Bob\'s mailbox → Bob\'s UA pulls with IMAP (or POP3).',
         'Alice\'s MTA finds Bob\'s mail server with a DNS MX query on the domain after @ (two.example.com → MX 10 two.example.com), then opens TCP to it on port 25. The mail never passes through DNS.',
@@ -811,6 +811,7 @@
         'SMTP: 220 greeting; HELO, MAIL FROM, RCPT TO each answered 250; DATA → 354; the message ends with a line holding only "."; 250; QUIT → 221.',
         'Envelope (MAIL FROM, RCPT TO: used for delivery) vs header (From:, To:, Subject:, Date: shown to the user) vs body.',
         'Messages are 7-bit ASCII text. MIME adds MIME-Version, Content-Type (text/plain, image/jpeg, multipart/mixed…) and Content-Transfer-Encoding: base64 turns every 3 bytes into 4 characters.',
+        '23d: "é" is 2 bytes in UTF-8 (195 169), both over 127, so it cannot ride a 7-bit line as is; base64 gives w6k=. The slide shows the encoder on at most 6 bytes; real encoders also break lines at 76 characters (RFC 2045).',
         'Final delivery is a pull: SMTP needs the receiver online, so mail waits on the provider\'s server. IMAP keeps mail on the server; POP3 downloads it.'
       ],
       example: '"Hi" → base64 "SGk=". 3 bytes → 4 characters; = pads the last group.',

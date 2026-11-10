@@ -514,11 +514,20 @@
       return row([ch, r.rank[i], r.rows.map(function (rw) { return rw[i]; }).join('')]);
     }).concat([row(['Ciphertext', '', r.cipher])]));
   }
-  function base64Table() {
-    function b64(t) { return typeof btoa === 'function' ? btoa(t) : Buffer.from(t, 'binary').toString('base64'); }
-    return table(['Text', 'Bytes', 'Bits', 'base64'], ['Hi', 'Hi!'].map(function (t) {
-      return row(['"' + t + '"', t.length, t.split('').map(function (c) { return bin(c.charCodeAt(0), 8); }).join(' '), b64(t)]);
-    }));
+  // 23d, '| text Hi' (the text chips or E): what each Step adds, from CN.http.base64
+  function base64Table(text) {
+    var c = cfg(text, ['text']), m = CN.http.base64(c.k.text != null ? c.k.text : c.e || 'Hi');
+    if (m.error) return m;
+    var data = [].concat.apply([], m.groups.map(function (g) { return g.sextets.filter(function (x) { return !x.pad; }); }));
+    function six(x) { return x.bits.map(function (y) { return y.b; }).join(''); }
+    return table(['Step', 'What happens', 'Here'], [
+      row([0, 'The text as bytes (UTF-8)', m.bytes.join(' ')], 0),
+      row([1, '8 bits per byte', m.bytes.map(function (b) { return bin(b, 8); }).join(' ')], 1),
+      row([2, 'The same bits cut every 6 (zero bits fill the last group)', data.map(six).join(' ')], 2),
+      row([3, 'Each group of 6 as a number 0–63', data.map(function (x) { return x.value; }).join(' ')], 3),
+      row([4, 'Each number → its character (A–Z 0–25, a–z 26–51, 0–9 52–61, + 62, / 63)', data.map(function (x) { return x.ch; }).join(' ')], 4),
+      row([5, m.pads ? '"=" for each byte missing from the last group of 3' : 'No "=": the last group of 3 is full', m.out + ' (' + m.bytes.length + ' byte' + (m.bytes.length > 1 ? 's' : '') + ' → ' + m.out.length + ' characters)'], 5)
+    ]);
   }
 
   var GEN = {

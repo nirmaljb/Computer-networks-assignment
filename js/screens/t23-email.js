@@ -3,14 +3,8 @@
   var CN = window.CN, h = CN.h, s = CN.s, ui = CN.ui;
 
   // SPEC-v5: 23a the mail path (a Step sim since v16), 23b the SMTP dialogue (one line per Step), 23c envelope /
-  // header / body, 23d MIME base64 of "Hi". 23c and 23d are static. example.com names only.
+  // header / body (static), 23d MIME and base64 (a Step sim since v27). example.com names only.
   var DIALOG = CN.http.SMTP;
-
-  function b64(text) {
-    var bytes = new TextEncoder().encode(text), bin = '';
-    bytes.forEach(function (b) { bin += String.fromCharCode(b); });
-    return { b64: btoa(bin), n: bytes.length };
-  }
 
   // 23a (v16): the mail path as a Step sim (CN.http.mailPath). Five nodes in four machines (dashed boxes): the
   // mailbox sits on Bob's provider's server, not on his laptop. The DNS server sits above Alice's MTA (the mail never
@@ -143,13 +137,127 @@
     return {};
   }
 
+  // 23d (v27): base64 as a Step sim (CN.http.base64). Columns line up: one bit cell per bit, the bytes row and the
+  // 6-bit row hold the SAME bits (same x, same colour per byte), only the cuts move from every 8 to every 6. Fill
+  // zeros are grey and dashed; a 6-bit group with no data at all becomes '='. Lines run from each character down to
+  // its cell in the 64-character table. The MIME mail at the top gets its body as the characters appear.
+  // Chips: Hi (one '='), Hi! (none), M (two), é (2 bytes, top bit set: why mail needs this); E: any 1–6 bytes.
+  var BYTE_COL = ['blue', 'green', 'amber'];
   function mime(body) {
-    var r = b64('Hi');
-    body.appendChild(h('div', { class: 'panel col', style: { gap: '18px', fontSize: '30px', padding: '32px', marginTop: '30px' } },
-      h('div', { class: 'mono', style: { fontSize: '24px' } }, 'MIME-Version: 1.0 · Content-Type: image/jpeg · Content-Transfer-Encoding: base64'),
-      h('div', null, 'Text ', h('b', { class: 'mono' }, '"Hi"'), ' → base64 ', h('b', { class: 'mono' }, r.b64))));
-    body.appendChild(h('div', { class: 'say' }, r.n + ' bytes → ' + r.b64.length + ' characters: every 3 bytes become 4, and "=" pads the last group.'));
-    return {};
+    var W = 1300, H = 610, X0 = 210, XW = 1070, st = { k: 0, m: null }, fresh = false;
+    var hT = ui.handle({ key: 'text', label: 'Text', kind: 'chips', value: CN.http.B64_TEXTS[0],
+      values: function () { var v = hT ? hT.value() : CN.http.B64_TEXTS[0]; return CN.http.B64_TEXTS.indexOf(v) >= 0 ? CN.http.B64_TEXTS : CN.http.B64_TEXTS.concat([v]); },
+      fmt: function () { return ''; }, chip: function (v) { return '"' + v + '"'; } });
+    var svg = s('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H });
+    body.appendChild(h('div', { class: 'say' }, 'Mail carries 7-bit text. base64 cuts any bytes into 6-bit pieces and sends each as one of 64 safe characters.'));
+    body.appendChild(h('div', { class: 'panel', style: { padding: '4px' } }, svg));
+    body.appendChild(ui.handleRow(hT));
+    function t(x, y, str, o) {
+      o = o || {};
+      return s('text', { x: x, y: y, 'font-size': o.fs || 18, 'font-weight': o.bold ? 800 : null, fill: o.fill || null, 'text-anchor': o.anchor || null,
+        opacity: o.op || null, class: o.mono ? 'mono' : null, style: o.mono ? 'white-space: pre' : null }, str);
+    }
+    function pop(el) { if (fresh) el.setAttribute('class', (el.getAttribute('class') ? el.getAttribute('class') + ' ' : '') + 'h3-pop'); return el; }
+    function draw() {
+      CN.clear(svg);
+      var m = st.m, k = st.k, G = m.groups.length, GAP = 36;
+      var cw = Math.min(40, Math.floor((XW - GAP * (G - 1)) / (24 * G)));
+      function gx(g) { return X0 + g * (24 * cw + GAP); }
+      function bx(i) { return gx(Math.floor(i / 3)) + (i % 3) * 8 * cw; }
+      function col(i, bg) { return 'var(--' + BYTE_COL[i % 3] + (bg ? '-bg' : '') + ')'; }
+      svg.appendChild(t(W - 8, 22, 'step ' + k + ' of ' + m.end, { fs: 17, bold: true, fill: 'var(--muted)', anchor: 'end' }));
+      // row labels
+      [['the mail', 44], ['text', 112], ['bytes', 156], ['8 bits each', 222], ['6 bits each', 318], ['number 0–63', 378], ['base64', 432], ['64 characters', 528]].forEach(function (r, i) {
+        var on = [true, true, true, k >= 1, k >= 2, k >= 3, k >= 4, true][i];
+        svg.appendChild(t(20, r[1], r[0], { fs: 18, bold: true, fill: on ? null : 'var(--line)' }));
+      });
+      // the MIME mail: headers, then a body that fills in at step 4 and 5
+      var body5 = k >= 5 ? m.out : k >= 4 ? m.groups.map(function (g) { return g.sextets.filter(function (x) { return !x.pad; }).map(function (x) { return x.ch; }).join(''); }).join('') : '';
+      svg.appendChild(s('rect', { x: X0 - 10, y: 12, width: XW - 120, height: 62, rx: 8, fill: 'var(--panel)', stroke: 'var(--line)', 'stroke-width': 2 }));
+      svg.appendChild(t(X0, 36, 'MIME-Version: 1.0  Content-Type: text/plain; charset=utf-8  Content-Transfer-Encoding: base64', { fs: 15, mono: true, fill: 'var(--muted)' }));
+      var bt = t(X0, 62, body5 || '(body: not encoded yet)', { fs: body5 ? 20 : 15, mono: true, bold: !!body5, fill: body5 ? 'var(--accent)' : 'var(--muted)' });
+      svg.appendChild(body5 && fresh && k >= 4 ? pop(bt) : bt);
+      // text: each character over the bytes it takes
+      m.chars.forEach(function (c, i) {
+        var first = m.owner.indexOf(i), last = m.owner.lastIndexOf(i), x0 = bx(first), x1 = bx(last) + 8 * cw;
+        var label = c.ch === ' ' ? 'space' : '"' + c.ch + '"';
+        svg.appendChild(t((x0 + x1) / 2, 114, label, { fs: c.ch === ' ' ? 18 : 28, bold: true, anchor: 'middle' }));
+        if (last > first) svg.appendChild(s('path', { d: 'M ' + (x0 + 4) + ' 124 v 6 H ' + (x1 - 4) + ' v -6', fill: 'none', stroke: 'var(--muted)', 'stroke-width': 2 }));
+      });
+      // bytes: decimal value; a byte over 127 (top bit 1) is outlined red
+      m.bytes.forEach(function (b, i) {
+        var x = bx(i), hi = b > 127;
+        svg.appendChild(s('rect', { x: x + 2, y: 134, width: 8 * cw - 4, height: 32, rx: 5, fill: col(i, true), stroke: hi ? 'var(--red)' : col(i), 'stroke-width': hi ? 3 : 2 }));
+        svg.appendChild(t(x + 4 * cw, 157, String(b), { fs: 19, bold: true, fill: col(i), anchor: 'middle' }));
+      });
+      if (m.high) svg.appendChild(t(X0 + XW - 20, 157, 'red: top bit 1, not 7-bit ASCII', { fs: 15, bold: true, fill: 'var(--red)', anchor: 'end' }));
+      if (k < 1) { caption(); return; }
+      // one bit cell; fill = a grey dashed zero added to complete the last group of 6
+      function cell(x, y, bit, fill) {
+        var g = s('g');
+        g.appendChild(s('rect', { x: x + 1, y: y, width: cw - 2, height: 34, rx: 3, fill: fill ? 'var(--grey-bg)' : col(bit.byte, true), stroke: fill ? 'var(--muted)' : col(bit.byte), 'stroke-width': 1.5, 'stroke-dasharray': fill ? '3 3' : null }));
+        g.appendChild(t(x + cw / 2, y + 24, bit.b, { fs: Math.min(20, cw - 4), bold: true, mono: true, anchor: 'middle', fill: fill ? 'var(--muted)' : col(bit.byte) }));
+        return g;
+      }
+      function cut(x, y) { svg.appendChild(s('line', { x1: x, y1: y - 8, x2: x, y2: y + 42, stroke: 'var(--ink)', 'stroke-width': 3.5 })); }
+      // 8 bits each: cuts at byte edges
+      m.bytes.forEach(function (b, i) {
+        for (var j = 0; j < 8; j++) svg.appendChild(cell(bx(i) + j * cw, 200, { b: String(b >> (7 - j) & 1), byte: i }, false));
+        cut(bx(i), 200);
+        if (i % 3 === 2 || i === m.bytes.length - 1) cut(bx(i) + 8 * cw, 200);
+      });
+      if (k < 2) { caption(); return; }
+      // 6 bits each: the same bits (same x, same colour), cut every 6; '=' groups are a dashed empty box
+      svg.appendChild(t(X0 + XW / 2, 268, '↓ same bits, same order: only the cuts move ↓', { fs: 16, bold: true, fill: 'var(--muted)', anchor: 'middle' }));
+      m.groups.forEach(function (gr, g) {
+        gr.sextets.forEach(function (sx, q) {
+          var x = gx(g) + q * 6 * cw, grp = s('g');
+          if (sx.pad) grp.appendChild(s('rect', { x: x + 4, y: 296, width: 6 * cw - 8, height: 34, rx: 5, fill: 'none', stroke: 'var(--line)', 'stroke-width': 2, 'stroke-dasharray': '6 5' }));
+          else sx.bits.forEach(function (bit, j) { grp.appendChild(cell(x + j * cw, 296, bit, bit.byte === null)); });
+          svg.appendChild(fresh && k === 2 ? pop(grp) : grp);
+          if (!sx.pad) { cut(x, 296); cut(x + 6 * cw, 296); }
+          // number, then the character
+          var cx = x + 3 * cw;
+          if (k >= 3 && !sx.pad) svg.appendChild(fresh && k === 3 ? pop(t(cx, 386, String(sx.value), { fs: 26, bold: true, anchor: 'middle' })) : t(cx, 386, String(sx.value), { fs: 26, bold: true, anchor: 'middle' }));
+          var showCh = sx.pad ? k >= 5 : k >= 4;
+          if (showCh) {
+            var cg = s('g');
+            cg.appendChild(s('rect', { x: cx - 26, y: 404, width: 52, height: 44, rx: 8, fill: sx.pad ? 'var(--grey-bg)' : 'var(--accent-bg)', stroke: sx.pad ? 'var(--muted)' : 'var(--accent)', 'stroke-width': 2.5 }));
+            cg.appendChild(t(cx, 436, sx.ch, { fs: 30, bold: true, mono: true, anchor: 'middle', fill: sx.pad ? 'var(--muted)' : 'var(--accent)' }));
+            if (!sx.pad) {
+              var ax = X0 + (sx.value + 0.5) * (XW / 64);
+              cg.appendChild(s('line', { x1: cx, y1: 450, x2: ax, y2: 498, stroke: 'var(--accent)', 'stroke-width': 2, opacity: 0.7 }));
+            }
+            svg.appendChild(fresh && (sx.pad ? k === 5 : k === 4) ? pop(cg) : cg);
+          }
+        });
+      });
+      caption();
+    }
+    // the 64-character table (always shown; the used cells light at step 4) and the step's sentence
+    function caption() {
+      var m = st.m, k = st.k, w = XW / 64, used = {};
+      if (k >= 4) m.groups.forEach(function (g) { g.sextets.forEach(function (x) { if (!x.pad) used[x.value] = true; }); });
+      for (var v = 0; v < 64; v++) {
+        var x = X0 + v * w, on = !!used[v];
+        svg.appendChild(s('rect', { x: x, y: 500, width: w, height: 40, fill: on ? 'var(--accent-bg)' : 'var(--panel)', stroke: on ? 'var(--accent)' : 'var(--line)', 'stroke-width': on ? 2.5 : 1 }));
+        svg.appendChild(t(x + w / 2, 527, CN.http.B64[v], { fs: 15, bold: on, mono: true, anchor: 'middle', fill: on ? 'var(--accent)' : null }));
+      }
+      [0, 26, 52, 63].forEach(function (v) { svg.appendChild(t(X0 + (v + 0.5) * w, 560, String(v), { fs: 14, fill: 'var(--muted)', anchor: 'middle' })); });
+      svg.appendChild(t(20, H - 14, k + '. ' + m.say[k], { fs: 20, bold: true, fill: k === m.end ? 'var(--green)' : null }));
+      fresh = false;
+    }
+    function step() { if (st.k >= st.m.end) return false; st.k++; fresh = true; draw(); return true; }
+    function reset() { st.k = 0; st.m = CN.http.base64(hT.value()); fresh = false; draw(); }
+    body.appendChild(ui.controls());
+    reset();
+    // reached: step 5, where the '=' settles the predict; learnStep: the Step (the table follows the text via genText)
+    return { step: step, reset: reset, reached: function () { return st.k >= 5; },
+      prev: function () { if (st.k > 0) { st.k--; draw(); return true; } return false; },
+      learnStep: function () { return st.k; }, genText: function () { return 'text ' + hT.value(); },
+      input: ui.numbers({ label: 'Text: 1–' + CN.http.B64_MAX + ' bytes (UTF-8)', example: CN.http.B64_TEXTS[0],
+        parse: function (x) { var v = String(x).trim(), r = CN.http.base64(v); return r.error ? r : { text: v }; },
+        read: function () { return hT.value(); }, write: function (v) { hT.set(v.text, true); } }) };
   }
 
   var PARTS = { path: path, smtp: dialogue, parts: parts, mime: mime };
