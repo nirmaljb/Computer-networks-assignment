@@ -1238,7 +1238,7 @@
       case 'ArrowUp': case 'ArrowDown': if (learn.on) scrollLearn(k === 'ArrowUp' ? -1 : 1); else handled = false; break;
       case '=': case '+': if (learn.on) sizeLearn(1); else handled = false; break;
       case '-': case '_': case '−': if (learn.on) sizeLearn(-1); else handled = false; break;
-      case ' ': if (main.querySelector('.ctl-run')) simRun(); else handled = false; break;
+      case ' ': if (main.querySelector('.ctl-run')) simRun(); else if (main.querySelector('.ctl-pause')) main.querySelector('.ctl-pause').click(); else handled = false; break;
       default: handled = false;
     }
     if (handled) e.preventDefault();

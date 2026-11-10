@@ -541,3 +541,9 @@ p.ln-hl, li.ln-hl { border-radius: 6px; padding: 0 .4em; }
 .u4d-in { animation: u4d-in .6s ease-out both; }
 @keyframes u4d-in { from { opacity: 0; } }
 .u4d-sum { font-size: 34px; font-weight: 700; text-align: center; margin-top: 14px; }
+/* 1a services loop: movers and timers hidden by default (motion off shows the end state); Pause freezes it */
+.svc-fig .svc-tok, .svc-fig .svc-timer { opacity: 0; }
+.svc-fig .svc-bar { transform-box: fill-box; transform-origin: left center; }
+.svc-wrap.paused * { animation-play-state: paused !important; }
+.svc-foot { justify-content: center; gap: 28px; margin-top: 10px; }
+[data-motion="off"] .ctl-pause { display: none; }

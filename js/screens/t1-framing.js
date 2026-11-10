@@ -1,6 +1,6 @@
 (function () {
   'use strict';
-  var CN = window.CN, h = CN.h, ui = CN.ui, F = CN.framing;
+  var CN = window.CN, h = CN.h, s = CN.s, ui = CN.ui, F = CN.framing;
 
   // SPEC-v5: one framing method per sub-slide, fixed Tanenbaum examples; Step shows the receiver side.
   // Each also takes your own data: E on all three, a drag-and-drop pop-up on 1c, a tap on a bit on 1d.
@@ -14,14 +14,116 @@
     return h('div', { class: 'row nowrap' }, h('span', { class: 'label', style: { width: (width || 170) + 'px' } }, label), h('div', { class: 'bits' + (tight ? ' tight' : '') }, kids));
   }
 
+  // 1a: the three services as three lanes playing the same 13 s loop (CN.framing.serviceLanes), A sends H, i, !
+  // to B. Pure CSS keyframes built from the lib's timeline: Pause (Space) freezes them; with motion off (A)
+  // every lane shows its end state (what B passed up, the ✕ losses, the timeout, the dropped duplicate).
+  var SVC_TEXT = [
+    ['Unacknowledged', 'connectionless', 'Ethernet', 'no ACK: a lost frame stays lost'],
+    ['Acknowledged', 'connectionless', '802.11 (Wi-Fi)', 'ACK each frame, resend on timeout'],
+    ['Acknowledged', 'connection-oriented', 'e.g. long satellite links', 'connect · number · ACK · release']];
   function services(body) {
-    body.appendChild(h('div', { class: 'row nowrap', style: { gap: '16px', alignItems: 'stretch', marginTop: '40px' } },
-      [['Unacknowledged connectionless', 'Ethernet'], ['Acknowledged connectionless', '802.11 (Wi-Fi)'],
-        ['Acknowledged connection-oriented', 'numbered frames, each delivered exactly once, in order']].map(function (x, i) {
-        return h('div', { class: 'panel grow', style: { padding: '24px' } }, h('div', { class: 'label' }, 'Service ' + (i + 1)),
-          h('div', { style: { fontWeight: 700, fontSize: '30px', margin: '8px 0' } }, x[0]), h('div', { class: 'muted' }, x[1]));
-      })));
-    body.appendChild(h('div', { class: 'say' }, 'Before any service, the layer must cut the bit stream into frames.'));
+    var run = F.serviceLanes(), LOOP = run.loop, SHOW = LOOP - 0.6, GONE = LOOP - 0.2;
+    var W = 1500, LH = 200, XA = 470, XB = 1080, BOX = 56, SLOT = 1185, svg, css, kf;
+    function pc(t) { return (Math.max(0, Math.min(LOOP, t)) / LOOP * 100).toFixed(3) + '%'; }
+    function anim(el, frames) {
+      var name = 'svc' + (kf++);
+      css.push('@keyframes ' + name + ' {' + frames.map(function (f) { return f[0] + ' {' + f[1] + '}'; }).join(' ') + '}');
+      el.setAttribute('style', 'animation: ' + name + ' ' + LOOP + 's linear infinite');
+      return el;
+    }
+    // on screen from t to the end of the loop (base style = shown, so motion off keeps it)
+    function from(el, t) {
+      return anim(el, [['0%, ' + pc(t - 0.01), 'opacity: 0'], [pc(t) + ', ' + pc(SHOW), 'opacity: 1'], [pc(GONE) + ', 100%', 'opacity: 0']]);
+    }
+    function t(x, y, str, o) {
+      o = o || {};
+      return s('text', { x: x, y: y, 'font-size': o.fs || 18, 'font-weight': o.bold ? 700 : null, fill: o.fill || null,
+        'text-anchor': o.anchor || 'middle', class: o.mono ? 'mono' : null }, str);
+    }
+    var STYLE = { data: ['var(--blue-bg)', 'var(--blue)'], ack: ['var(--amber-bg)', 'var(--amber)'], ctl: ['var(--grey-bg)', 'var(--ink)'] };
+    function token(e, y) {
+      var w = e.type === 'ctl' ? 128 : e.type === 'ack' ? (e.label.length > 3 ? 86 : 64) : (e.label.length > 1 ? 74 : 44);
+      var ab = e.dir === 'AB', x0 = ab ? XA + BOX / 2 + 8 : XB - BOX / 2 - 8 - w, x1 = ab ? XB - BOX / 2 - 8 - w : XA + BOX / 2 + 8;
+      var g = s('g', { class: 'svc-tok' });
+      g.appendChild(s('rect', { x: x0, y: y - 17, width: w, height: 34, rx: 4, fill: STYLE[e.type][0], stroke: STYLE[e.type][1], 'stroke-width': 2.5 }));
+      g.appendChild(t(x0 + w / 2, y + 7, e.label, { fs: e.type === 'ctl' ? 17 : 20, bold: true, mono: true, fill: STYLE[e.type][1] }));
+      var end = e.lost ? e.tLost : e.t1, dx = (x1 - x0) * (end - e.t0) / (e.t1 - e.t0);
+      var at = function (d) { return 'opacity: 1; transform: translateX(' + d.toFixed(1) + 'px)'; };
+      anim(g, [['0%, ' + pc(e.t0 - 0.01), 'opacity: 0; transform: translateX(0px)'], [pc(e.t0), at(0)], [pc(end), at(dx)],
+        [pc(end + 0.15) + ', 100%', 'opacity: 0; transform: translateX(' + dx.toFixed(1) + 'px)']]);
+      svg.appendChild(g);
+      if (e.lost) {
+        var cx = x0 + dx + w / 2, m = s('g', { class: 'svc-lost' });
+        m.appendChild(t(cx, y + 10, '✕', { fs: 34, bold: true, fill: 'var(--red)' }));
+        m.appendChild(t(cx, ab ? y - 24 : y + 38, (e.type === 'ack' ? 'ACK' : 'frame') + ' lost', { fs: 16, bold: true, fill: 'var(--red)' }));
+        svg.appendChild(from(m, e.tLost));
+      }
+    }
+
+    svg = s('svg', { viewBox: '0 0 ' + W + ' ' + (LH * 3), width: W, height: LH * 3, class: 'svc-fig' });
+    css = []; kf = 0;
+    run.lanes.forEach(function (lane, i) {
+      var y0 = i * LH, mid = y0 + LH / 2 + 6, txt = SVC_TEXT[i];
+      if (i) svg.appendChild(s('line', { x1: 0, y1: y0, x2: W, y2: y0, stroke: 'var(--line)', 'stroke-width': 2 }));
+      svg.appendChild(t(0, y0 + 44, 'Service ' + (i + 1), { fs: 16, fill: 'var(--muted)', anchor: 'start' }));
+      svg.appendChild(t(0, y0 + 76, txt[0], { fs: 27, bold: true, anchor: 'start' }));
+      svg.appendChild(t(0, y0 + 108, txt[1], { fs: 27, bold: true, anchor: 'start' }));
+      svg.appendChild(t(0, y0 + 138, txt[2], { fs: 18, fill: 'var(--blue)', anchor: 'start' }));
+      svg.appendChild(t(0, y0 + 166, txt[3], { fs: 17, fill: 'var(--muted)', anchor: 'start' }));
+      // the link: A and B with the wire between; frames ride above it, ACKs below
+      svg.appendChild(s('line', { x1: XA, y1: mid, x2: XB, y2: mid, stroke: 'var(--line)', 'stroke-width': 4 }));
+      [[XA, 'A'], [XB, 'B']].forEach(function (n) {
+        svg.appendChild(s('rect', { x: n[0] - BOX / 2, y: mid - BOX / 2, width: BOX, height: BOX, rx: 6, fill: 'var(--panel)', stroke: 'var(--ink)', 'stroke-width': 2.5 }));
+        svg.appendChild(t(n[0], mid + 9, n[1], { fs: 26, bold: true }));
+      });
+      // what B passes up to its network layer, in arrival order
+      svg.appendChild(t(SLOT, y0 + 48, 'B passes up', { fs: 17, fill: 'var(--muted)', anchor: 'start' }));
+      for (var k = 0; k < 3; k++) {
+        svg.appendChild(s('rect', { x: SLOT + k * 78, y: mid - 26, width: 64, height: 52, rx: 4, fill: 'none', stroke: 'var(--line)', 'stroke-width': 2, 'stroke-dasharray': '6 5' }));
+      }
+      lane.delivered.forEach(function (d, k) {
+        var g = s('g');
+        g.appendChild(s('rect', { x: SLOT + k * 78, y: mid - 26, width: 64, height: 52, rx: 4, fill: 'var(--green-bg)', stroke: 'var(--green)', 'stroke-width': 2.5 }));
+        g.appendChild(t(SLOT + k * 78 + 32, mid + 10, d.ch, { fs: 28, bold: true, mono: true, fill: 'var(--green)' }));
+        svg.appendChild(from(g, d.t));
+      });
+      var res = s('g');
+      var good = lane.text === 'Hi!', verdict = !good ? '✕ ' + lane.text + ' — i never arrives'
+        : lane.kind === 'conn' ? '✓ Hi! — each exactly once, in order' : '✓ Hi! — i arrived on the resend';
+      res.appendChild(t(SLOT + 117, y0 + LH - 26, verdict, { fs: 18, bold: true, fill: good ? 'var(--green)' : 'var(--red)' }));
+      svg.appendChild(from(res, lane.end + 0.1));
+      // the timer under A: fills while A waits; red when it runs out
+      lane.events.forEach(function (e) {
+        if (e.type !== 'timer') return;
+        var tw = 120, frac = (e.t1 - e.t0) / run.timeout, ty = mid + 46, g = s('g');
+        g.appendChild(s('rect', { x: XA - tw / 2, y: ty, width: tw, height: 10, fill: 'none', stroke: 'var(--muted)', 'stroke-width': 1.5 }));
+        // grey while it counts; a timer that runs out turns red at that moment
+        var bar = s('rect', { x: XA - tw / 2, y: ty, width: tw, height: 10, fill: 'var(--muted)', class: 'svc-bar' }), full = 'transform: scaleX(' + frac.toFixed(3) + ')';
+        anim(bar, [['0%, ' + pc(e.t0), 'transform: scaleX(0); fill: var(--muted)'], [pc(e.t1 - 0.01), full + '; fill: var(--muted)'],
+          [pc(e.t1) + ', 100%', full + '; fill: ' + (e.fired ? 'var(--red)' : 'var(--muted)')]]);
+        g.appendChild(bar);
+        g.appendChild(t(XA - tw / 2 - 8, ty + 10, 'timer', { fs: 15, fill: 'var(--muted)', anchor: 'end' }));
+        anim(g, [['0%, ' + pc(e.t0 - 0.01), 'opacity: 0'], [pc(e.t0) + ', ' + pc(e.t1 + 0.3), 'opacity: 1'], [pc(e.t1 + 0.4) + ', 100%', 'opacity: 0']]);
+        g.setAttribute('class', 'svc-timer');
+        svg.appendChild(g);
+        if (e.fired) svg.appendChild(from(t(XA, ty + 34, 'timeout → resend', { fs: 16, bold: true, fill: 'var(--red)' }), e.t1));
+      });
+      lane.events.forEach(function (e) {
+        if (e.type === 'timer') return;
+        token(e, e.dir === 'AB' ? mid - 30 : mid + 30);
+        if (e.dup) svg.appendChild(from(t(XB, mid - 54, 'duplicate 1 dropped', { fs: 16, bold: true, fill: 'var(--red)' }), e.t1));
+      });
+    });
+
+    var fig = h('div', { class: 'svc-wrap' }, h('style', null, css.join('\n')), svg);
+    body.appendChild(h('div', { style: { marginTop: '14px' } }, fig));
+    var pause = ui.btn('Pause (Space)', function () { toggle(); }, 'ctl-pause');
+    function toggle() {
+      var on = !fig.classList.contains('paused');
+      fig.classList.toggle('paused', on);
+      pause.textContent = on ? 'Play (Space)' : 'Pause (Space)';
+    }
+    body.appendChild(h('div', { class: 'row svc-foot' }, h('div', { class: 'say' }, 'Before any service, the layer must cut the bit stream into frames.'), pause));
     return {};
   }
 

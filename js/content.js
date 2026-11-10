@@ -67,7 +67,7 @@
     {
       id: 't1', topic: 1, stop: '1', act: 1, short: 'Services & framing', title: 'Design issues: services & framing', target: 25,
       subs: [
-        { id: 't1', part: 'services', stop: '1a', short: 'Services', title: 'Data link services', click: 'Static: the three services.' },
+        { id: 't1', part: 'services', stop: '1a', short: 'Services', title: 'Data link services', click: 'Loops by itself (13 s): A sends H, i, ! to B in each lane. Space or Pause freezes it. Lane 1 loses i for good; lane 2 loses i, times out, resends; lane 3 connects, loses ACK 2, resends, B drops the duplicate by its number, then releases.' },
         { id: 't1b', part: 'count', stop: '1b', short: 'Byte count', title: 'Framing: byte count', click: 'Step corrupts the 2nd count (Fig 3-3). E types your own stream.' },
         { id: 't1c', part: 'bytes', stop: '1c', short: 'Byte stuffing', title: 'Framing: byte stuffing (PPP)', click: 'Step shows the receiver removing the ESC (Fig 3-4). "Drag and drop bytes" (or E) changes the data.' },
         { id: 't1d', part: 'bits', stop: '1d', short: 'Bit stuffing', title: 'Framing: bit stuffing (HDLC, USB)', click: 'Step shows the receiver destuffing (Fig 3-5). Tap a data bit to flip it; E types your own bits.' }
@@ -79,6 +79,8 @@
       click: 'Bit stuffing tab is open with Fig 3-5. Toggle "Receiver view" to destuff. Byte tabs have the Fig 3-4 presets.',
       facts: [
         'Services: unacknowledged connectionless (Ethernet) · acknowledged connectionless (802.11) · acknowledged connection-oriented (numbered frames, exactly once, in order).',
+        '1a loop: same link in every lane, 0.8 s a hop, 2.5 s timer, stop-and-wait in the acknowledged lanes, ACK n = next frame expected (as on 4a). Timings are illustrative, not measured.',
+        '1a: in acknowledged connectionless service a lost ACK can make B receive a frame twice; real 802.11 carries a sequence number so B can drop retries. Lane 2 only loses a frame.',
         'Framing: byte count · flag bytes + byte stuffing · flag bits + bit stuffing · physical-layer coding violations. Byte count fails: one bad count desynchronises every later frame.',
         'Byte stuffing (PPP): ESC before any FLAG or ESC in the data; receiver removes it.',
         'Bit stuffing (HDLC, USB): flag 01111110; after five 1s insert 0; receiver deletes the 0 after five 1s.',
