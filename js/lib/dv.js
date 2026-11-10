@@ -132,8 +132,35 @@
     return net.links.filter(function (l) { return (l.a === a && l.b === b) || (l.a === b && l.b === a); })[0];
   }
 
+  // The other textbook's five-router network (its distance vector figures): A–B 5, A–C 2, A–D 3, B–C 4, B–E 3, C–E 4.
+  var FIG = { nodes: ['A', 'B', 'C', 'D', 'E'], links: [['A', 'B', 5], ['A', 'C', 2], ['A', 'D', 3], ['B', 'C', 4], ['B', 'E', 3], ['C', 'E', 4]] };
+
+  // Initialization (before any exchange): each router knows only itself and its up neighbours, at the link cost.
+  function start(net) {
+    reset(net);
+    net.nodes.forEach(function (x) {
+      if (!net.routerUp[x]) return;
+      neighbours(net, x).forEach(function (n) { net.tables[x][n.v] = { cost: n.c, via: n.v }; });
+    });
+    return net;
+  }
+
+  // figure(cut): the network with link 'A-C' (or none) cut, initialised. → net
+  function figure(cut, opts) {
+    var net = create(FIG.nodes, FIG.links, opts || { inf: 16 });
+    if (cut) { var ab = cut.split('-'), l = findLink(net, ab[0], ab[1]); if (l) l.up = false; }
+    return start(net);
+  }
+
+  // Why x's entry for y changed: x heard v say y is d, and c(x, v) + d beat what x had.
+  function because(net, prev, x, y) {
+    var e = net.tables[x][y], n = neighbours(net, x).filter(function (p) { return p.v === e.via; })[0];
+    return { x: x, y: y, v: e.via, c: n ? n.c : null, d: prev[e.via] ? prev[e.via][y].cost : null, cost: e.cost, was: prev[x][y].cost };
+  }
+
   CN.dv = {
     create: create, reset: reset, exchange: exchange, converge: converge, column: column,
-    neighbours: neighbours, counting: counting, reachable: reachable, setRouter: setRouter, findLink: findLink
+    neighbours: neighbours, counting: counting, reachable: reachable, setRouter: setRouter, findLink: findLink,
+    FIG: FIG, start: start, figure: figure, because: because
   };
 })(typeof window !== 'undefined' ? window : globalThis);

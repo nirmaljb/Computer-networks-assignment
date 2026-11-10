@@ -415,7 +415,7 @@
     {
       id: 't12', topic: 12, stop: '12', act: 4, hero: true, short: 'Distance vector', title: 'Distance vector routing', target: 45,
       subs: [
-        { id: 't12', part: 'good', stop: '12a', short: 'DV: good news', title: 'Distance vector: good news travels fast', click: 'Step = one exchange. Routers: chain length 3–6. Click a router in the top row to take it down/up.' },
+        { id: 't12', part: 'tables', stop: '12a', short: 'DV tables', title: 'Distance vector routing tables', click: 'Step 0 = initialization; each Step = one exchange (stable after 2). Click a lit entry for its update. Tap a link to cut it.' },
         { id: 't12b', part: 'bad', stop: '12b', short: 'DV: bad news', title: 'Distance vector: count to infinity', click: 'Step = one exchange; distances climb toward ∞ = 16. Routers: chain length 3–6.', predict: { q: 'A dies: how many exchanges until every router reads 16?', a: '15 exchanges (with poisoned reverse: 4)' } },
         { id: 't12c', part: 'poison', stop: '12c', short: 'Poisoned reverse', title: 'Split horizon with poisoned reverse', click: 'Bad news now spreads one hop per exchange: every router reads 16 after 4 exchanges (on this chain). Routers: chain length 3–6.', predict: { q: 'With poisoned reverse: exchanges until every router reads 16?', a: '4 exchanges (without it: 15)' } }
       ],
@@ -423,12 +423,15 @@
       problem: 'No router has the map. Can routers find best paths by only asking their neighbours?',
       but: 'Bad news crawls. In 1979 the ARPANET replaced it.',
       history: 'The ARPANET used distance vector until 1979, then switched to link state.',
-      live: '"Nobody has the map, so each router tells only its neighbours how far it thinks everything is. Good news, A coming up, spreads one hop per exchange. Now the bad news: A dies. B hears from C that A is 2 away, not realising that path runs through B itself. So B says 3, C says 4… they\'re counting to infinity. RIP stops this at 16. But bad news crawls, and in 1979 the ARPANET replaced distance vector."',
-      click: '"Good news" then S × 4. "Bad news" then S repeatedly (or Run). Toggle split horizon to show the fix.',
+      live: '"Nobody has the map, so each router tells only its neighbours how far it thinks everything is. At the start A knows B 5, C 2, D 3 and nothing about E. C tells A \"E is 4\"; A adds its link to C, 2, gets 6, beats ∞, so E 6 via C. Two exchanges and every table is final. Now the bad news: A dies. B hears from C that A is 2 away, not realising that path runs through B itself. So B says 3, C says 4… they\'re counting to infinity. RIP stops this at 16. But bad news crawls, and in 1979 the ARPANET replaced distance vector."',
+      click: '12a: S × 3 (init → 2 exchanges → stable). 12b: S repeatedly (or Run). 12c shows the fix.',
       facts: [
         'Each router keeps (distance, line) per destination; exchanges only with neighbours. Distributed Bellman-Ford; ARPANET, RIP.',
         'D(x,y) = min over neighbours v of [c(x,v) + D_v(y)].',
-        'Good news: k hops away after k exchanges: ∞∞∞∞ → 1∞∞∞ → 12∞∞ → 123∞ → 1234.',
+        '12a network (the other textbook\'s figures): A–B 5, A–C 2, A–D 3, B–C 4, B–E 3, C–E 4. Init = neighbours only, Next —.',
+        'Exchange 1: A E 6 via C (2 + 4), B D 8 via A, C D 5 via A, D B 8 / C 5 via A, E A 6 via C. Exchange 2: D E 9 via A, E D 9 via C. Exchange 3: no change.',
+        'Next "—" = directly connected. Its initialization figure prints Next B, C, D in E\'s table; they are neighbours, so the slide shows —.',
+        'Good news (Tanenbaum\'s chain): k hops away after k exchanges: ∞∞∞∞ → 1∞∞∞ → 12∞∞ → 123∞ → 1234.',
         'Bad news counts to infinity: 1234 → 3234 → 3434 → 5454 → 5656 → 7676 → … Infinity = longest path + 1 (RIP 16).',
         'Root cause: B cannot know C\'s path to A goes through B.',
         'Split horizon + poisoned reverse (Q&A only): 1234 → 16 2 3 4 → 16 16 3 4 → 16 16 16 4 → all 16. Still fails on loops of 3+. Path vector (BGP) fixes it.'

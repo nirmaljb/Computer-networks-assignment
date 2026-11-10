@@ -160,7 +160,7 @@
     };
   }
 
-  /* ---------- Distance vector (12a–12c): Tanenbaum's chain A–B–C–D–E, distances to A ---------- */
+  /* ---------- Distance vector (12b–12c): Tanenbaum's chain A–B–C–D–E, distances to A ---------- */
   // '| routers 6': the chain's length (3–6 routers, A first).
   function dvChain(n) {
     var nodes = 'ABCDEF'.slice(0, n).split(''), links = [];
@@ -171,8 +171,7 @@
     return function (text) {
       var n = +(cfg(text, ['routers']).k.routers || 5), ch = dvChain(n), others = ch.nodes.slice(1);
       var D = CN.dv, poison = kind === 'poison', net = D.reset(D.create(ch.nodes, ch.links, { inf: 16, poison: poison }));
-      if (kind === 'good') { D.setRouter(net, 'A', false); D.converge(net); D.setRouter(net, 'A', true); }
-      else { D.converge(net); D.setRouter(net, 'A', false); }
+      D.converge(net); D.setRouter(net, 'A', false);
       function fmt(v) { return v >= 16 ? (poison ? '16' : '∞') : String(v); }
       var rows = [], k = 0, cols = D.column(net, 'A', others);
       rows.push(row(['Initially'].concat(cols.map(fmt)), 0));
@@ -183,6 +182,25 @@
       }
       return table([''].concat(others), rows);
     };
+  }
+
+  /* ---------- Distance vector tables (12a): the other textbook's five routers; '| cut A-C' cuts a link ---------- */
+  // One row per Step: initialization (each router's neighbours), then the entries each exchange changed.
+  function dvTables(text) {
+    var c = (cfg(text, ['cut']).k.cut || 'none'), D = CN.dv, net = D.figure(c === 'none' ? null : c), N = D.FIG.nodes;
+    function cost(v) { return v >= 16 ? '∞' : String(v); }
+    var rows = [row(['Initially'].concat(N.map(function (x) {
+      return N.filter(function (y) { return y !== x && net.tables[x][y].cost < 16; }).map(function (y) { return y + ' ' + net.tables[x][y].cost; }).join(', ');
+    })), 0)];
+    for (var k = 1; k < 20; k++) {
+      var prev = net.tables, ch = D.exchange(net);
+      if (!ch.length) { rows.push(row(['Exchange ' + k].concat(N.map(function () { return 'no change'; })), k)); break; }
+      rows.push(row(['After exchange ' + k].concat(N.map(function (x) {
+        var mine = ch.filter(function (e) { return e[0] === x; }).map(function (e) { var w = D.because(net, prev, e[0], e[1]); return w.y + ' ' + cost(w.cost) + ' via ' + w.v + ' (' + w.c + ' + ' + w.d + ')'; });
+        return mine.length ? mine.join(', ') : '—';
+      })), k));
+    }
+    return table([''].concat(N), rows);
   }
 
   /* ---------- TCP connection scenarios (17a–17d): x 1000, y 5000, old x' 700, old ACK z 4000 ---------- */
@@ -541,7 +559,7 @@
     'crc.divide': crcDivide, 'crc.check': crcCheck,
     'arq.p1': arqP1, 'arq.p2': arqP2, 'arq.p3': arqP3, 'arq.gbn': arqTable('gbn'), 'arq.sr': arqTable('sr'), 'arq.trap': arqTrap,
     'csma.1p': csmaTable('1p', false, WAIT), 'csma.np': csmaTable('np', false, WAIT), 'csma.pp': csmaTable('pp', false, WAIT), 'csma.cd': csmaTable('1p', true, FAR),
-    'dv.good': dvTable('good'), 'dv.bad': dvTable('bad'), 'dv.poison': dvTable('poison'),
+    'dv.tables': dvTables, 'dv.bad': dvTable('bad'), 'dv.poison': dvTable('poison'),
     'tcp.handshake': tcpScenario('handshake'), 'tcp.oldSyn': tcpScenario('oldSyn'), 'tcp.oldSynAck': tcpScenario('oldSynAck'), 'tcp.release': tcpScenario('release'),
     'tcp.rto': rtoTable, 'tcp.karn': rtoTable, 'tcp.tahoe': cwndTable('tahoe'), 'tcp.reno': cwndTable('reno'),
     'dns.iterative': dnsTable('iterative'), 'dns.recursive': dnsTable('recursive'),
