@@ -450,6 +450,21 @@
       return row(r.cells, st);
     }));
   }
+  // 6c/6d: A, then one "what if" frame per Step (CN.csma.alohaWhatIf), then the vulnerable period
+  function alohaTable(slotted) {
+    return function () {
+      var m = CN.csma.alohaWhatIf(slotted), END = m.rows.length + 1;
+      function when(v) { return v === 0 ? 't₀' : 't₀ ' + (v < 0 ? '−' : '+') + ' ' + (Math.abs(v) === 1 ? '' : Math.abs(v)) + 't'; }
+      var rows = [row([0, slotted ? 'A, ready at ' + when(m.a.ready) : 'A', when(m.a.start) + ' to ' + when(m.a.start + 1), 'on the air alone'], 0)];
+      m.rows.forEach(function (r, i) {
+        rows.push(row([i + 1, slotted ? 'ready at ' + when(r.ready) : 'starts at ' + when(r.ready), when(r.start) + ' to ' + when(r.start + 1),
+          r.hit ? 'overlaps A: both lost' : 'no overlap: both get through'], i + 1));
+      });
+      rows.push(row([END, 'vulnerable period', when(m.vuln[0]) + ' to ' + when(m.vuln[1]) + (slotted ? ', t' : ', 2t'),
+        'P(A survives) = ' + (slotted ? 'e^(−G)' : 'e^(−2G)')], END));
+      return table(['Step', 'Frame', 'On the air', 'Result'], rows);
+    };
+  }
   // 22f: the default swarm, round by round (CN.http.swarm)
   // '| have A0 B01 C0 D02' (the 22f tap handle): the chunks each peer starts with
   function swarmTable(text) {
@@ -501,7 +516,7 @@
     'graph.flood': flood, 'graph.dijkstra': function () { return dijkstraTable(GN, GE, 'A'); },
     'graph.lsflood': function () { return floodTable(LN, LE, 'B', 99, true, 4); },
     'graph.linkstate': function () { return dijkstraTable(LN, LE, 'B', 5 + CN.graph.flood(LN, LE, 'B', 99, true).length); },
-    'ip.frag': fragTable, 'ip.split': splitTable, 'ip.lpm': lpmTable, 'ip.v6': v6Table, 'tcp.flow': flowTable, 'http.rtt': httpTable, 'http.url': urlTable, 'http.steps': urlSteps, 'http.hol': holTable, 'mail.smtp': smtpTable, 'p2p.swarm': swarmTable, 'static.tdm': tdmTable, 'static.slots': slotsTable,
+    'ip.frag': fragTable, 'ip.split': splitTable, 'ip.lpm': lpmTable, 'ip.v6': v6Table, 'tcp.flow': flowTable, 'http.rtt': httpTable, 'http.url': urlTable, 'http.steps': urlSteps, 'http.hol': holTable, 'mail.smtp': smtpTable, 'p2p.swarm': swarmTable, 'static.tdm': tdmTable, 'static.slots': slotsTable, 'aloha.pure': alohaTable(false), 'aloha.slotted': alohaTable(true),
     'cipher.caesar': caesarTable, 'cipher.mono': monoTable, 'cipher.columnar': columnarTable, 'mail.base64': base64Table, 'mail.path': mailPathTable,
     'hamming.encode': hammingEncode, 'hamming.correct': hammingCorrect,
     'crc.divide': crcDivide, 'crc.check': crcCheck,

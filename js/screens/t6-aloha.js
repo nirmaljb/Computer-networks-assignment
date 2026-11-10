@@ -3,8 +3,7 @@
   var CN = window.CN, h = CN.h, s = CN.s, ui = CN.ui, X = CN.csma;
 
   // SPEC-v5: four sub-slides. Static allocation (a Step sim since v14), the S–G curves,
-  // then one fixed 5-station run for pure and for slotted ALOHA (G = 1, seed 11).
-  var G = 1, SEED = 11;
+  // then the pure and slotted ALOHA "what if" Step sims (v23).
 
   // 6a (v14): static allocation as a Step sim (CN.csma.staticTdm). A bursts 3 frames while the other N − 1 stations
   // are silent; three alternative rules for the same channel: the whole channel (A done at slot 3), TDM (A owns every
@@ -136,50 +135,103 @@
     return {};
   }
 
-  function timeline(body, slotted) {
-    var TW = 1460, lanes = 5, lx0 = 70, lw = TW - 100, frames = 12, laneH = 80, TH = 50 + lanes * laneH + 40;
-    var tl = s('svg', { width: TW, height: TH, viewBox: '0 0 ' + TW + ' ' + TH });
-    var r = X.rng(SEED * 7919), list = [];
-    for (var k = 0; k < lanes; k++) {
-      var t = 0;
-      for (;;) {
-        t += -Math.log(1 - r()) / (G / lanes);
-        if (t > frames - 1) break;
-        var start = slotted ? Math.ceil(t) : t;
-        if (start > frames - 1) break;
-        list.push({ lane: k, start: start });
+  // 6c/6d (v23): one frame A, t₀ to t₀ + t, and four "what if" frames from CN.csma.alohaWhatIf, each alone with A
+  // (dashed ghost of A in its row). Step 0 = A alone, Steps 1–4 = one row each (✓ / ✕, the overlap hatched red),
+  // Step 5 = the vulnerable period shaded: the ready times that kill A, 2t pure, t slotted. Slotted rows show
+  // the ready dot and the wait to the next slot boundary.
+  function whatIf(body, slotted) {
+    var m = X.alohaWhatIf(slotted), W = 1400, H = 600, LX = 230, RX = 1110, T0 = -2, T1 = 3, U = (RX - LX) / (T1 - T0);
+    var AY = 58, RY = 182, RH = 58, GAP = 80, AXY = RY + 4 * GAP + 4, END = m.rows.length + 1, id = slotted ? 'al6d' : 'al6c';
+    var st = { k: 0 }, fresh = false;
+    var svg = s('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H });
+    body.appendChild(h('div', { class: 'say' }, slotted ? 'Same question, but a frame may leave only on a slot boundary: a station that is ready mid-slot waits.'
+      : 'A is on the air from t₀ to t₀ + t. Where can another frame start without hitting it?'));
+    body.appendChild(h('div', { class: 'panel', style: { padding: '6px' } }, svg));
+    function tx(v) { return LX + (v - T0) * U; }
+    function t(x, y, str, o) {
+      o = o || {};
+      return s('text', { x: x, y: y, 'font-size': o.fs || 20, 'font-weight': o.bold ? 800 : null, fill: o.fill || null, 'text-anchor': o.anchor || 'start' }, str);
+    }
+    function when(v) { return v === 0 ? 't₀' : 't₀ ' + (v < 0 ? '−' : '+') + ' ' + (Math.abs(v) === 1 ? '' : Math.abs(v)) + 't'; }
+    function frame(g, v, y, look) {
+      g.appendChild(s('rect', { x: tx(v) + 2, y: y, width: U - 4, height: RH, rx: 6, fill: look[0], stroke: look[1], 'stroke-width': look[2] || 2.5, 'stroke-dasharray': look[3] || null }));
+    }
+    // a ready dot and, if it had to wait, a dashed arrow to the slot boundary it leaves on
+    function ready(g, r, v, y, col) {
+      g.appendChild(s('circle', { cx: tx(r), cy: y + RH / 2, r: 7, fill: col }));
+      if (v > r) g.appendChild(s('line', { x1: tx(r) + 9, y1: y + RH / 2, x2: tx(v) - 4, y2: y + RH / 2, stroke: col, 'stroke-width': 2.5, 'stroke-dasharray': '6 5', 'marker-end': 'url(#' + id + '-ah)' }));
+    }
+    function why(r) {
+      if (!slotted) return r.hit ? (r.start < 0 ? 'still on the air when A starts' : 'starts while A is on the air') : (r.start < 0 ? 'ends before A starts' : 'starts after A ends');
+      return 'waits to ' + when(r.start) + ': ' + (r.hit ? 'A\'s slot' : r.start < m.a.start ? 'the slot before A\'s' : 'a later slot');
+    }
+    function draw() {
+      CN.clear(svg);
+      var k = st.k;
+      svg.appendChild(s('defs', null, [
+        s('marker', { id: id + '-ah', viewBox: '0 0 10 10', refX: 8, refY: 5, markerWidth: 5, markerHeight: 5, orient: 'auto' }, s('path', { d: 'M0 0L10 5L0 10z', fill: 'var(--muted)' })),
+        s('pattern', { id: id + '-hatch', width: 10, height: 10, patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(45)' }, s('rect', { width: 5, height: 10, fill: 'var(--red)', opacity: 0.55 }))]));
+      // Step 5: the vulnerable period, under everything else
+      if (k >= END) {
+        var vb = s('g', { class: 'u4d-in' });
+        vb.appendChild(s('rect', { x: tx(m.vuln[0]), y: 30, width: tx(m.vuln[1]) - tx(m.vuln[0]), height: AXY - 30, fill: 'var(--accent-bg)', stroke: 'var(--accent)', 'stroke-width': 2, 'stroke-dasharray': '8 6' }));
+        vb.appendChild(t((tx(m.vuln[0]) + tx(m.vuln[1])) / 2, 22, 'vulnerable period = ' + (slotted ? 't (one slot)' : '2t'), { fs: 22, bold: true, fill: 'var(--accent)', anchor: 'middle' }));
+        svg.appendChild(vb);
       }
+      // the time grid: slot boundaries (slotted) or plain frame-time ticks, and A's start and end guides
+      for (var v = T0; v <= T1; v++) {
+        var guide = v === 0 || v === 1;
+        svg.appendChild(s('line', { x1: tx(v), y1: AY - 8, x2: tx(v), y2: AXY, stroke: guide ? 'var(--accent)' : 'var(--line)', 'stroke-width': guide ? 2 : slotted ? 2 : 1, 'stroke-dasharray': guide ? '4 5' : slotted ? null : '3 6' }));
+        svg.appendChild(t(tx(v), AXY + 30, when(v), { fs: 20, bold: guide, fill: guide ? 'var(--accent)' : 'var(--muted)', anchor: 'middle' }));
+      }
+      svg.appendChild(s('line', { x1: LX, y1: AXY, x2: RX, y2: AXY, stroke: 'var(--ink)', 'stroke-width': 2 }));
+      if (slotted) svg.appendChild(t(RX + 20, AY + RH / 2 + 8, 'grey lines: slots of t', { fs: 17, fill: 'var(--muted)' }));
+      // A, the frame we follow
+      svg.appendChild(t(0, AY + 28, 'A', { fs: 30, bold: true, fill: 'var(--accent)' }));
+      svg.appendChild(t(0, AY + 54, slotted ? 'ready at t₀ − 0.4t' : 'starts at t₀', { fs: 18, fill: 'var(--muted)' }));
+      var ga = s('g');
+      frame(ga, m.a.start, AY, ['var(--accent-bg)', 'var(--accent)', 3]);
+      ga.appendChild(t(tx(m.a.start) + U / 2, AY + RH / 2 + 9, 'A', { fs: 26, bold: true, fill: 'var(--accent)', anchor: 'middle' }));
+      if (slotted) ready(ga, m.a.ready, m.a.start, AY, 'var(--accent)');
+      svg.appendChild(ga);
+      svg.appendChild(t(0, RY - 22, slotted ? 'What if one other station is ready at …' : 'What if one other frame starts at …', { fs: 22, bold: true }));
+      m.rows.forEach(function (r, i) {
+        var y = RY + i * GAP, ink = r.hit ? 'var(--red)' : 'var(--green)';
+        svg.appendChild(t(0, y + RH / 2 + 8, when(r.ready), { fs: 24, bold: i < k, fill: i < k ? null : 'var(--muted)' }));
+        var g = s('g');
+        frame(g, m.a.start, y, ['none', 'var(--accent)', 1.5, '5 5']);   // A's ghost: the frames in this row are A and this one
+        g.appendChild(t(tx(m.a.start) + 12, y + 22, 'A', { fs: 16, fill: 'var(--accent)' }));
+        if (i < k) {
+          frame(g, r.start, y, [r.hit ? 'var(--red-bg)' : 'var(--green-bg)', ink]);
+          if (r.hit) {
+            var o0 = Math.max(r.start, m.a.start), o1 = Math.min(r.start, m.a.start) + 1;
+            g.appendChild(s('rect', { x: tx(o0) + 2, y: y + 2, width: tx(o1) - tx(o0) - 4, height: RH - 4, fill: 'url(#' + id + '-hatch)' }));
+          }
+          if (slotted) ready(g, r.ready, r.start, y, 'var(--muted)');
+          g.appendChild(t(RX + 20, y + 26, r.hit ? '✕ both lost' : '✓ both get through', { fs: 22, bold: true, fill: ink }));
+          g.appendChild(t(RX + 20, y + 50, why(r), { fs: 17, fill: 'var(--muted)' }));
+          if (fresh && i === k - 1) g.setAttribute('class', 'h3-pop');
+        }
+        svg.appendChild(g);
+      });
+      if (k >= END) svg.appendChild(t(W / 2, H - 6, slotted
+        ? 'Only a frame ready in the slot before A\'s can hit it: P(A survives) = e⁻ᴳ, so S = Ge⁻ᴳ, max 1/e ≈ 0.368'
+        : 'Any other start in a 2t window kills A: P(A survives) = e⁻²ᴳ, so S = Ge⁻²ᴳ, max 1/(2e) ≈ 0.184',
+        { fs: 21, bold: true, anchor: 'middle' }));
+      fresh = false;
     }
-    list.forEach(function (a) { a.hit = list.some(function (b) { return b !== a && Math.abs(b.start - a.start) < 1 - 1e-9; }); });
-    var u = lw / frames;
-    function tx(t) { return lx0 + t * u; }
-    // the frame whose vulnerable period is shaded: the first one after 2t
-    var pick = list.filter(function (f) { return f.start >= 2; }).sort(function (a, b) { return a.start - b.start; })[0];
-    if (pick) {
-      var a = slotted ? pick.start : pick.start - 1, b = pick.start + 1;
-      tl.appendChild(s('rect', { x: tx(a), y: 4, width: tx(b) - tx(a), height: TH - 44, fill: 'var(--accent-bg)' }));
-      tl.appendChild(s('text', { x: tx(pick.start + 0.5), y: 28, 'text-anchor': 'middle', 'font-size': 24, 'font-weight': 700, fill: 'var(--accent)' },
-        'vulnerable: ' + (slotted ? '1 frame time' : '2 frame times')));
-    }
-    for (var i = 0; i <= frames; i++) {
-      tl.appendChild(s('line', { x1: tx(i), y1: 40, x2: tx(i), y2: TH - 36, stroke: slotted ? 'var(--muted)' : 'var(--line)', 'stroke-width': slotted ? 1.5 : 1, 'stroke-dasharray': slotted ? null : '3 5' }));
-      if (i % 2 === 0) tl.appendChild(s('text', { x: tx(i), y: TH - 8, 'text-anchor': 'middle', 'font-size': 22, fill: 'var(--muted)' }, i + 't'));
-    }
-    for (k = 0; k < lanes; k++) tl.appendChild(s('text', { x: 10, y: 50 + k * laneH + 40, 'font-size': 26, 'font-weight': 700 }, 'S' + (k + 1)));
-    list.forEach(function (f) {
-      var y = 50 + f.lane * laneH;
-      tl.appendChild(s('rect', { x: tx(f.start) + 1, y: y + 8, width: u - 2, height: laneH - 24, rx: 6, fill: f.hit ? 'var(--red-bg)' : 'var(--green-bg)', stroke: f.hit ? 'var(--red)' : 'var(--green)', 'stroke-width': 2.5 }));
-      tl.appendChild(s('text', { x: tx(f.start) + u / 2, y: y + 46, 'text-anchor': 'middle', 'font-size': 26, 'font-weight': 900, fill: f.hit ? 'var(--red)' : 'var(--green)' }, f.hit ? '✕' : '✓'));
-    });
-    body.appendChild(h('div', { class: 'say' }, slotted ? 'Frames may start only on a slot boundary.' : 'A station sends whenever it has a frame.'));
-    body.appendChild(h('div', { class: 'panel' }, tl));
-    return {};
+    function step() { if (st.k >= END) return false; st.k++; fresh = true; draw(); return true; }
+    function reset() { st.k = 0; fresh = false; draw(); }
+    body.appendChild(ui.controls());
+    reset();
+    return { step: step, reset: reset, reached: function () { return st.k >= END; }, learnStep: function () { return st.k; },
+      prev: function () { if (st.k > 0) { st.k--; draw(); return true; } return false; } };
   }
 
   var PARTS = {
     static: staticAlloc, curves: curves,
-    pure: function (body) { return timeline(body, false); },
-    slotted: function (body) { return timeline(body, true); }
+    pure: function (body) { return whatIf(body, false); },
+    slotted: function (body) { return whatIf(body, true); }
   };
 
   CN.screens.t6 = function (root, sc) {

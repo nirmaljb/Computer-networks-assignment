@@ -41,6 +41,19 @@
       idle: end - burst };   // TDM slots left empty while A still had a frame queued (none on the shared channel)
   }
 
+  // 6c/6d: one frame A on the air from t₀ = 0 to t₀ + t = 1 (times in frame times), and four "what if" frames, each
+  // alone with A. Pure: a frame starts the moment it is ready. Slotted: it waits for the next slot boundary (an
+  // integer; A was ready at −0.4, so it starts at 0). Two frames collide when their starts are less than t apart.
+  // vuln = the ready times that kill A: (−1, 1) pure, 2t; (−1, 0] slotted, the slot before A's, t.
+  var WHATIF = [-1.5, -0.5, 0.5, 1.5], A_READY = -0.4;
+  function alohaWhatIf(slotted) {
+    function start(r) { return slotted ? Math.ceil(r) : r; }
+    var a = slotted ? start(A_READY) : 0;
+    return { slotted: !!slotted, a: { ready: slotted ? A_READY : a, start: a },
+      rows: WHATIF.map(function (r) { var s = start(r); return { ready: r, start: s, hit: Math.abs(s - a) < 1 }; }),
+      vuln: slotted ? [-1, 0] : [-1, 1] };
+  }
+
   // After collision i: K uniform in 0 .. 2^min(i,10) - 1. Give up after 16.
   function bebRange(i) {
     if (i >= 16) return { abort: true };
@@ -259,7 +272,7 @@
   }
 
   CN.csma = {
-    rng: rng, alohaPure: alohaPure, alohaSlotted: alohaSlotted, bebRange: bebRange,
+    rng: rng, alohaPure: alohaPure, alohaSlotted: alohaSlotted, alohaWhatIf: alohaWhatIf, bebRange: bebRange,
     staticDelay: staticDelay, staticTdm: staticTdm, TDM_NS: TDM_NS, TDM_BURST: TDM_BURST,
     minFrame: minFrame, binaryCountdown: binaryCountdown, createBus: createBus
   };

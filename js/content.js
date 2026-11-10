@@ -211,8 +211,8 @@
       subs: [
         { id: 't6', part: 'static', stop: '6a', short: 'Static allocation', title: 'Static channel allocation', click: 'Step moves one slot. Three rules for the same channel, the same 3-frame burst from A: whole channel (top), TDM (middle, A owns every Nth slot), FDM (bottom, A owns 1 band of N at C/N). Tap N to change the number of slices.', predict: { q: 'N = 10: in which slot does A\'s last frame leave on TDM?', a: 'Slot 21 (= 2N + 1): A owns slots 1, 11, 21' } },
         { id: 't6b', part: 'curves', stop: '6b', short: 'ALOHA throughput', title: 'ALOHA: throughput vs load', click: 'Static.' },
-        { id: 't6c', part: 'pure', stop: '6c', short: 'Pure ALOHA', title: 'Pure ALOHA: vulnerable period', click: 'Static, G = 1.' },
-        { id: 't6d', part: 'slotted', stop: '6d', short: 'Slotted ALOHA', title: 'Slotted ALOHA: vulnerable period', click: 'Static, G = 1.' }
+        { id: 't6c', part: 'pure', stop: '6c', short: 'Pure ALOHA', title: 'Pure ALOHA: vulnerable period', click: 'Step 1–4: one other frame each, alone with A (✓ or ✕, overlap hatched red). Step 5 shades the vulnerable period, 2t.', predict: { q: 'Another frame starts 0.5t after A starts. Does A get through?', a: 'No: A is on the air until t₀ + t, so the two overlap and both are lost' } },
+        { id: 't6d', part: 'slotted', stop: '6d', short: 'Slotted ALOHA', title: 'Slotted ALOHA: vulnerable period', click: 'Same four ready times as 6c; a ready station waits for the next slot boundary. Step 5 shades the vulnerable period, one slot t.', predict: { q: 'Another station is ready 0.5t after A starts. Does A get through?', a: 'Yes: it waits for the boundary at t₀ + t, just as A ends' } }
       ],
       syllabus: 'Medium Access Control Sublayer, Channel Allocation Problem, Multiple Access Protocols, ALOHA',
       problem: 'Many stations, one channel. Fixed slices waste bursty traffic. Who sends?',
