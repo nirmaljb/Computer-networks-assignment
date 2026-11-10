@@ -474,6 +474,7 @@ p.ln-hl, li.ln-hl { border-radius: 6px; padding: 0 .4em; }
 .ln-primer-title { font-weight: 800; color: var(--accent); margin-top: .4em; }
 .ln-empty { color: var(--muted); margin-top: 2em; }
 .ln-act:disabled { opacity: .4; cursor: default; }
+.ln-icon { display: inline-flex; align-items: center; justify-content: center; padding: 3px 7px; line-height: 0; }
 .ln-pen-btn.on { background: #ffe14d; border-color: #c9a600; color: #3d3200; }
 mark.ln-pen { background: rgba(255, 221, 51, .55); color: inherit; border-radius: 2px; padding: 0 .05em; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 [data-theme="dark"] mark.ln-pen { background: rgba(255, 214, 10, .32); }

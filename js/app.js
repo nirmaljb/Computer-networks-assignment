@@ -799,6 +799,16 @@
   var learn = { on: false, page: -1, primer: null, hit: null, hlKey: null, genKey: null, size: 18, pen: false };
   var lnPane, lnHead, lnNote, lnScroll, lnFind, lnFindField, lnFindList, lnFound = [], lnSel = 0;
   var LN_MIN = 13, LN_MAX = 30;
+  // pen / clear-marks button icons (Lucide highlighter and eraser, ISC)
+  var LN_ICON = {
+    pen: ['m9 11-6 6v3h9l3-3', 'm22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4'],
+    clear: ['m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21', 'M22 21H7', 'm5 11 9 9']
+  };
+  function lnIcon(name) {
+    return s('svg', { viewBox: '0 0 24 24', width: 18, height: 18, fill: 'none', stroke: 'currentColor', 'stroke-width': 2,
+      'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' },
+      LN_ICON[name].map(function (d) { return s('path', { d: d }); }));
+  }
 
   function lnStore(k, v) {
     try { if (arguments.length > 1) localStorage.setItem('cn.' + k, JSON.stringify(v)); else return JSON.parse(localStorage.getItem('cn.' + k)); }
@@ -929,9 +939,11 @@
     } else lnHead.appendChild(h('div', { class: 'ln-kicker' }, 'LEARN · ' + here));
     var hasBody = !!lnScroll.querySelector('.ln-body');
     lnHead.appendChild(h('div', { class: 'ln-actions' },
-      h('button', { class: 'ln-act ln-pen-btn' + (learn.pen ? ' on' : ''), 'data-act': 'pen', disabled: hasBody ? null : 'disabled',
-        title: 'Highlighter (H): select text to mark it, click a mark to erase it' }, learn.pen ? '🖍 Pen on' : '🖍 Pen'),
-      learn.pen && hasBody && penMarks().length ? h('button', { class: 'ln-act', 'data-act': 'pen-clear' }, 'Clear page') : null));
+      h('button', { class: 'ln-act ln-icon ln-pen-btn' + (learn.pen ? ' on' : ''), 'data-act': 'pen', disabled: hasBody ? null : 'disabled',
+        'aria-label': 'Highlighter pen', 'aria-pressed': learn.pen ? 'true' : 'false',
+        title: 'Highlighter (H): select text to mark it, click a mark to erase it' }, lnIcon('pen')),
+      learn.pen && hasBody && penMarks().length ? h('button', { class: 'ln-act ln-icon', 'data-act': 'pen-clear',
+        'aria-label': 'Clear marks on this page', title: 'Clear marks on this page' }, lnIcon('clear')) : null));
     lnHead.appendChild(h('div', { class: 'ln-keys' }, '↑ ↓ scroll · = − size · / search · H pen · L close'));
   }
   function lnPageLabel(p) { var pg = CN.learn.pages[p]; return pg ? (pg.topic ? 'S' + pg.topic : pg.title) : ''; }
