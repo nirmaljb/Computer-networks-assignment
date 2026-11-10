@@ -115,7 +115,7 @@
   }
 
   // Release after the default handshake: FIN seq=x+1 → ACK → FIN seq=y+1 → ACK; client waits 2 MSL.
-  // o.combined: Forouzan's three-way release (Fig 23.20), the server's ACK and FIN ride in one FIN+ACK.
+  // o.combined: the three-segment release, the server's ACK and FIN ride in one FIN+ACK.
   function release(o) {
     o = o || {};
     var x = wrap(o.x == null ? 1000 : o.x), y = wrap(o.y == null ? 5000 : o.y), msl = o.msl || 4;

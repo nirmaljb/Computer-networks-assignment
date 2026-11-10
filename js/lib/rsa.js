@@ -77,7 +77,7 @@
   function encrypt(nums, key) { return nums.map(function (P) { return modpow(P, key.e, key.n); }); }
   function decrypt(nums, key) { return nums.map(function (C) { return modpow(C, key.d, key.n); }); }
 
-  // Forouzan's order (Fig 30.24, Ex 30.7): Φ = (p−1)(q−1), choose e coprime to Φ, d = e⁻¹ mod Φ.
+  // The e-first order: Φ = (p−1)(q−1), choose e coprime to Φ, d = e⁻¹ mod Φ.
   // Same key pair as keygen(p, q, d) with the roles of choosing swapped: 7, 11, e 13 → n 77, Φ 60, d 37.
   function keygenE(p, q, e) {
     p = num(p); q = num(q); e = num(e);

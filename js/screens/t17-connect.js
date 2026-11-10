@@ -6,7 +6,7 @@
   // fixed ISNs x = 1000, y = 5000 (old x' = 700, old ACK z = 4000). Step = one tick.
   // 17a: tap an arrow in flight to lose it (SPEC-v8: a handle, so it replays; tap the lost one to bring it back),
   // with both ends' states under their names. 17d: chips 4 segments (FIN → ACK each way, Tanenbaum, RFC 9293) or
-  // 3 (the server's ACK and FIN in one FIN+ACK, Forouzan Fig 23.20). 17e: SYN flood (static).
+  // 3 (the server's ACK and FIN in one FIN+ACK). 17e: SYN flood (static).
   var COLORS = { syn: 'var(--blue)', synack: 'var(--blue)', ack: 'var(--green)', rst: 'var(--red)', fin: 'var(--amber)', old: 'var(--amber)' };
   var RUNS = {
     normal: { build: T.handshake, say: 'Each side picks its own ISN; the other echoes it + 1. A SYN uses up one sequence number.' },

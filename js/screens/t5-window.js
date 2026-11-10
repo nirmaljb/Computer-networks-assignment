@@ -37,7 +37,7 @@
     function listed(m) { return hLoss.value().some(function (r) { return r.kind === m.kind && r.abs === m.abs; }); }
     var sStrip = CN.ui.windowStrip({ total: TOTAL, title: 'Sender', box: 46 });
     var rStrip = CN.ui.windowStrip({ total: TOTAL, title: 'Receiver', box: 46 });
-    // ACK numbers name the next frame expected (Forouzan); SR's selective ACKs name the frame received (SACK).
+    // ACK numbers name the next frame expected; SR's selective ACKs name the frame received (SACK).
     var tl = CN.ui.timeLine({ width: 1470, height: 260, visible: 25, ackLegend: run.proto === 'sr' ? 'SACK' : 'ACK',
       label: function (m) { return A.ackName(m, sim).replace(/^\D+/, ''); },
       onKill: function (id) { if (sim.kill(id)) killed = true; draw(); },

@@ -42,7 +42,7 @@
     var r = T.tcpHeaderBytes(5);
     body.appendChild(h('div', { class: 'say' }, '20 bytes minimum, 60 maximum: header length counts 32-bit words, 5 × 4 = ' + r.bytes + ' bytes.'));
     body.appendChild(h('div', { class: 'col', style: { gap: '6px', marginTop: '10px', width: '100%' } }, ruler(), diagram(T.TCP)));
-    // Forouzan's figure (2007, Fig 23.16) predates ECN in most texts: 6 reserved bits, 6 flags.
+    // Older figures predate ECN: 6 reserved bits, 6 flags.
     body.appendChild(h('div', { class: 'muted', style: { fontSize: '22px', marginTop: '10px' } },
       h('span', { class: 'ecn-key' }, 'CWR ECE'), ' added by ECN (RFC 3168, 2001). Older figures: 6 reserved bits + 6 flags URG ACK PSH RST SYN FIN.'));
     return {};

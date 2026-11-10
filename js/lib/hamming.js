@@ -90,9 +90,9 @@
     return res;
   }
 
-  /* Forouzan's C(7,4) (Table 10.4, Fig 10.12): systematic, the codeword is a3 a2 a1 a0 r2 r1 r0, the check bits
+  /* The C(7,4) layout: systematic, the codeword is a3 a2 a1 a0 r2 r1 r0, the check bits
      after the data. r0 = a2⊕a1⊕a0, r1 = a3⊕a2⊕a1, r2 = a1⊕a0⊕a3. The receiver's syndrome s2 s1 s0 is not a
-     position: Table 10.5 maps it to the bit to flip. */
+     position: a table maps it to the bit to flip. */
   var C74_TABLE = { '000': null, '001': 'q0', '010': 'q1', '011': 'b2', '100': 'q2', '101': 'b0', '110': 'b3', '111': 'b1' };
   var C74_NAMES = ['b3', 'b2', 'b1', 'b0', 'q2', 'q1', 'q0'];   // received bits, left to right
   function c74Encode(data) {

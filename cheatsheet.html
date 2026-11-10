@@ -98,7 +98,7 @@
   p2.appendChild(hl);
   p2.appendChild(el('h2', 'Notation traps (default: "following our prescribed text")'));
   var nt = el('table');
-  nt.innerHTML = '<tr><th>Topic</th><th>Tanenbaum</th><th>Forouzan</th><th>App</th></tr>';
+  nt.innerHTML = '<tr><th>Topic</th><th>Tanenbaum</th><th>Other textbook</th><th>App</th></tr>';
   C.traps.forEach(function (r) { var tr = el('tr'); r.forEach(function (x) { tr.appendChild(el('td', x)); }); nt.appendChild(tr); });
   p2.appendChild(nt);
   p2.appendChild(el('h2', 'Keys'));

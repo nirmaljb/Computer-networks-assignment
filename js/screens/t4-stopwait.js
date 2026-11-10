@@ -10,7 +10,7 @@
   };
 
   // P3's scripted run: frame 1 is lost once (timeout, resend), the first ACK for frame 2 is lost (duplicate, re-ACK).
-  // ACKs are named by the next frame expected (Forouzan), so frame 0 → ACK 1.
+  // ACKs are named by the next frame expected, so frame 0 → ACK 1.
   function p3Drop() {
     var ackLost = false;
     return function (m) {

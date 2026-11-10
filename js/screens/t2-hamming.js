@@ -140,14 +140,14 @@
         answer: function () { return { flips: [1, 2] }; } } };
   }
 
-  // 2c: Forouzan's C(7,4) (Table 10.4, Fig 10.12, Ex 10.13): dataword 0111, the check bits after the data.
+  // 2c: the C(7,4) layout: dataword 0111, the check bits after the data.
   // Steps 1–3 compute r0, r1, r2; 4 sends with b2 flipped (tap another received bit to move the flip, tap it
-  // again for none); 5 the syndrome s2 s1 s0; 6 Table 10.5 names the bit and it is flipped back.
+  // again for none); 5 the syndrome s2 s1 s0; 6 the syndrome table names the bit and it is flipped back.
   var C74_DATA = '0111', C74_FLIP = 'b2';
   function c74(body) {
     var k = 0, enc = H.c74Encode(C74_DATA), hFlip = ui.handle({ key: 'flip', kind: 'tap', value: C74_FLIP });
     var out = h('div', { class: 'col', style: { gap: '12px', marginTop: '10px' } });
-    body.appendChild(h('div', { class: 'say' }, 'Forouzan\'s layout: check bits after the data. The syndrome is looked up in a table, not read as a position.'));
+    body.appendChild(h('div', { class: 'say' }, 'Check bits after the data. The syndrome is looked up in a table, not read as a position.'));
     body.appendChild(out);
     function boxes(bits, names, o) {
       o = o || {};
@@ -182,7 +182,7 @@
         chk.eqs.forEach(function (e) { w2.appendChild(h('div', { class: 'ln' + (e.value ? ' bad' : '') }, eqLine(e))); });
         w2.appendChild(h('div', { style: { marginTop: '6px', fontWeight: 800 } }, 'Syndrome s2 s1 s0 = ' + chk.syndrome));
         out.appendChild(w2);
-        var tbl = h('div', { class: 'row', style: { gap: '8px', fontSize: '20px' } }, h('span', { class: 'label' }, 'Table 10.5'));
+        var tbl = h('div', { class: 'row', style: { gap: '8px', fontSize: '20px' } }, h('span', { class: 'label' }, 'Syndrome table'));
         ['000', '001', '010', '011', '100', '101', '110', '111'].forEach(function (sy) {   // not Object.keys: '100'… sort first
           var on = k >= 6 && sy === chk.syndrome;
           tbl.appendChild(h('span', { class: 'chip mono' + (on ? ' on' : ''), style: on ? { background: 'var(--accent-bg)', color: 'var(--accent)', fontWeight: 800 } : null },
@@ -200,7 +200,7 @@
     function reset() { k = 0; draw(); }
     body.appendChild(ui.controls());
     reset();
-    // learnStep: the Step, only for the slide's own flip (b2, Forouzan's Ex 10.13)
+    // learnStep: the Step, only for the slide's own flip (b2)
     return { step: step, reset: reset, prev: function () { if (k > 0) { k--; draw(); return true; } return false; },
       learnStep: function () { return hFlip.value() === C74_FLIP ? k : null; } };
   }

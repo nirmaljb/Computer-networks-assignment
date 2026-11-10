@@ -7,11 +7,11 @@
 
    GBN / stop-and-wait ACKs are cumulative. Internally m.seq is the last frame
    received correctly (Tanenbaum); every screen and table names the ACK by the
-   NEXT frame expected, (seq + 1) mod 2^n, as Forouzan's slides do (ackName).
+   NEXT frame expected, (seq + 1) mod 2^n, as the slides do (ackName).
 
    SR acknowledges each frame individually (a selective ACK, named SACK k = frame k
    received) and NAKs the first hole. Neither book does exactly this: Tanenbaum's
-   Protocol 6 piggybacks a cumulative ACK, Forouzan (Ex 11.8) sends one cumulative
+   Protocol 6 piggybacks a cumulative ACK, the other common version sends one cumulative
    ACK when frames are delivered. With either, and this short timer, frames 2 and 3
    would also time out before the ACK covering them could return.
 

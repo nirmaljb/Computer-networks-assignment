@@ -211,10 +211,10 @@
     return {};
   }
 
-  // 25c: the same algorithm in Forouzan's notation (Fig 30.24, Ex 30.7) beside the slide's Tanenbaum run.
-  // Tanenbaum chooses d and solves for e (z); Forouzan chooses e and solves for d (Φ). Step reveals one row.
+  // 25c: the same algorithm in the e-first notation beside the slide's Tanenbaum run.
+  // Tanenbaum chooses d and solves for e (z); the e-first version chooses e and solves for d (Φ). Step reveals one row.
   var FOR = { p: 7, q: 11, e: 13, P: 5 };
-  function forouzan(body) {
+  function eFirst(body) {
     var T = R.keygen(3, 11, 7), F = R.keygenE(FOR.p, FOR.q, FOR.e), tP = 19, k = 0;
     var tC = R.modpow(tP, T.e, T.n).value, fC = R.modpow(FOR.P, F.e, F.n).value;
     var rows = [
@@ -232,7 +232,7 @@
     function draw() {
       CN.clear(host);
       var tb = h('table', { class: 't', style: { fontSize: '27px', marginTop: '16px' } },
-        h('tr', null, h('th', null, ''), h('th', null, 'Tanenbaum (25a, 25b)'), h('th', null, 'Forouzan (Ex 30.7)')));
+        h('tr', null, h('th', null, ''), h('th', null, 'Choose d first (25a, 25b)'), h('th', null, 'Choose e first')));
       rows.slice(0, k).forEach(function (r, i) {
         tb.appendChild(h('tr', { class: i === k - 1 ? 'win' : '' }, h('td', null, r[0]), h('td', { class: 'mono' }, r[1]), h('td', { class: 'mono' }, r[2])));
       });
@@ -245,7 +245,7 @@
     return { step: step, reset: reset, prev: function () { if (k > 0) { k--; draw(); return true; } return false; }, learnStep: function () { return k; } };
   }
 
-  var PARTS = { keys: keys, encrypt: encrypt, forouzan: forouzan, compare: compare, firewall: firewall, ids: ids };
+  var PARTS = { keys: keys, encrypt: encrypt, efirst: eFirst, compare: compare, firewall: firewall, ids: ids };
 
   CN.screens.t25 = function (root, sc) {
     return PARTS[sc.part](ui.screen(root, { num: sc.stop, title: sc.title }));
