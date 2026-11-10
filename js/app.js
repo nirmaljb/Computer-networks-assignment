@@ -796,7 +796,7 @@
   // right (CN.learn, built from LEARN.md by tools/learn-build.mjs). The pane follows → ←, opens at the sub-slide's
   // section, lights the row for a ★ sim's learnStep(), and on an E slide swaps in tables built from the typed
   // numbers (CN.learnGen). It only reads the screen's controller: the sims run the same with L on or off.
-  var learn = { on: false, page: -1, primer: null, hit: null, hlKey: null, genKey: null, size: 18 };
+  var learn = { on: false, page: -1, primer: null, hit: null, hlKey: null, genKey: null, size: 18, pen: false };
   var lnPane, lnHead, lnNote, lnScroll, lnFind, lnFindField, lnFindList, lnFound = [], lnSel = 0;
   var LN_MIN = 13, LN_MAX = 30;
 
@@ -837,7 +837,10 @@
       if (act === 'back') { learn.hit = null; learn.primer = null; showSlide(true); }
       else if (act === 'goto') gotoHit();
       else if (act === 'chip') toggleChip(t);
+      else if (act === 'pen') togglePen();
+      else if (act === 'pen-clear') penClear();
     });
+    lnScroll.addEventListener('mouseup', function (e) { if (learn.pen) setTimeout(function () { penUp(e.target); }, 0); });
     var sz = lnStore('learnSize');
     learn.size = typeof sz === 'number' && sz >= LN_MIN && sz <= LN_MAX ? sz : 18;
     lnPane.style.setProperty('--ln-size', learn.size + 'px');
@@ -852,6 +855,7 @@
     document.body.classList.toggle('learn-on', learn.on);
     if (!learn.on) closeFind();
     learn.hit = null; learn.primer = null; learn.page = -1;
+    if (!learn.on) { learn.pen = false; lnPane.classList.remove('pen-on'); }
     fit();
     if (learn.on) showSlide(false);
   }
@@ -896,7 +900,10 @@
         })));
       lnScroll.appendChild(h('div', { class: 'ln-primers' }));
     }
-    pg.body.forEach(function (n) { lnScroll.appendChild(lnNode(n)); });
+    var body = h('div', { class: 'ln-body' });
+    pg.body.forEach(function (n) { body.appendChild(lnNode(n)); });
+    lnScroll.appendChild(body);
+    penApply();
     lnScroll.scrollTop = 0;
   }
   // A chip opens its primer in place, under the chips; a second click closes it.
@@ -920,7 +927,12 @@
         e.kind === 'primer' ? null : h('button', { class: 'ln-act', 'data-act': 'goto' }, 'Go to slide'),
         h('button', { class: 'ln-act', 'data-act': 'back' }, 'Back to ' + here)));
     } else lnHead.appendChild(h('div', { class: 'ln-kicker' }, 'LEARN · ' + here));
-    lnHead.appendChild(h('div', { class: 'ln-keys' }, '↑ ↓ scroll · = − size · / search · L close'));
+    var hasBody = !!lnScroll.querySelector('.ln-body');
+    lnHead.appendChild(h('div', { class: 'ln-actions' },
+      h('button', { class: 'ln-act ln-pen-btn' + (learn.pen ? ' on' : ''), 'data-act': 'pen', disabled: hasBody ? null : 'disabled',
+        title: 'Highlighter (H): select text to mark it, click a mark to erase it' }, learn.pen ? '🖍 Pen on' : '🖍 Pen'),
+      learn.pen && hasBody && penMarks().length ? h('button', { class: 'ln-act', 'data-act': 'pen-clear' }, 'Clear page') : null));
+    lnHead.appendChild(h('div', { class: 'ln-keys' }, '↑ ↓ scroll · = − size · / search · H pen · L close'));
   }
   function lnPageLabel(p) { var pg = CN.learn.pages[p]; return pg ? (pg.topic ? 'S' + pg.topic : pg.title) : ''; }
 
@@ -984,6 +996,105 @@
     CN.toast('Learn text ' + learn.size + ' px');
   }
 
+  // H highlighter pen: with it on, a text selection in the page becomes a yellow mark and a click on a mark
+  // erases it. Marks are kept per page in localStorage as character ranges of the page body, so they come back
+  // when the page is shown again. The ✎ tables an E slide swaps in are skipped: ranges count the page's own text.
+  function togglePen() {
+    if (!learn.on) return;
+    if (!lnScroll.querySelector('.ln-body')) { CN.toast('The pen marks stop pages only'); return; }
+    learn.pen = !learn.pen;
+    lnPane.classList.toggle('pen-on', learn.pen);
+    if (!learn.pen && window.getSelection) window.getSelection().removeAllRanges();
+    CN.toast(learn.pen ? 'Pen on: select text to mark it, click a mark to erase' : 'Pen off');
+    drawHead();
+  }
+  function penKey() { var pg = CN.learn.pages[learn.page]; return pg ? (pg.topic ? 'S' + pg.topic : pg.title) : null; }
+  function penAll() { var a = lnStore('learnPen'); return a && typeof a === 'object' ? a : {}; }
+  function penMarks() { var k = penKey(); return (k && penAll()[k]) || []; }
+  function penSave(list) {
+    var all = penAll(), k = penKey();
+    if (!k) return;
+    if (list.length) all[k] = list; else delete all[k];
+    lnStore('learnPen', all);
+  }
+  // Every text node of the page body in order; a swapped E box is read from its original nodes.
+  function penTexts(root) {
+    var out = [];
+    (function walk(n) {
+      if (n.nodeType === 3) { out.push(n); return; }
+      if (n.nodeType !== 1) return;
+      var kids = n.classList.contains('ln-gen') && n.classList.contains('custom') && n.orig ? n.orig : n.childNodes;
+      Array.prototype.slice.call(kids).forEach(walk);
+    })(root);
+    return out;
+  }
+  function penUnwrapAll(body) {
+    penTexts(body).forEach(function (t) {
+      var m = t.parentNode;
+      if (!m || m.nodeName !== 'MARK' || !m.classList.contains('ln-pen')) return;
+      var p = m.parentNode;
+      while (m.firstChild) p.insertBefore(m.firstChild, m);
+      p.removeChild(m);
+      p.normalize();
+    });
+  }
+  function penWrap(body, s, e) {
+    var pos = 0;
+    penTexts(body).forEach(function (t) {
+      var len = t.data.length, a = Math.max(s, pos) - pos, b = Math.min(e, pos + len) - pos;
+      pos += len;
+      if (a >= b || !t.parentNode || /^(TABLE|THEAD|TBODY|TR|UL|OL)$/.test(t.parentNode.nodeName)) return;
+      if (!/\S/.test(t.data.slice(a, b))) return;
+      if (b < len) t.splitText(b);
+      var mid = a > 0 ? t.splitText(a) : t, m = h('mark', { class: 'ln-pen' });
+      mid.parentNode.insertBefore(m, mid);
+      m.appendChild(mid);
+    });
+  }
+  function penApply() {
+    var body = lnScroll.querySelector('.ln-body');
+    if (!body) return;
+    penUnwrapAll(body);
+    penMarks().forEach(function (r) { penWrap(body, r[0], r[1]); });
+  }
+  function penMerge(list) {
+    list = list.filter(function (r) { return r[1] > r[0]; }).sort(function (x, y) { return x[0] - y[0]; });
+    var out = [];
+    list.forEach(function (r) {
+      var last = out[out.length - 1];
+      if (last && r[0] <= last[1]) last[1] = Math.max(last[1], r[1]); else out.push([r[0], r[1]]);
+    });
+    return out;
+  }
+  function penUp(target) {
+    var body = lnScroll.querySelector('.ln-body'), sel = window.getSelection && window.getSelection();
+    if (!body || !sel) return;
+    if (!sel.isCollapsed && sel.rangeCount) {
+      var rg = sel.getRangeAt(0), pos = 0, s = -1, e = -1;
+      penTexts(body).forEach(function (t) {
+        var len = t.data.length;
+        if (rg.intersectsNode(t)) {
+          var a = t === rg.startContainer ? rg.startOffset : 0, b = t === rg.endContainer ? rg.endOffset : len;
+          if (b > a) { if (s < 0) s = pos + a; e = pos + b; }
+        }
+        pos += len;
+      });
+      sel.removeAllRanges();
+      if (s < 0) return;
+      penSave(penMerge(penMarks().concat([[s, e]])));
+    } else {
+      var m = target && target.closest ? target.closest('mark.ln-pen') : null;
+      if (!m) return;
+      // erase the stored range that holds this mark's first character
+      var pos2 = 0, at = -1, first = penTexts(m)[0];
+      penTexts(body).forEach(function (t) { if (t === first) at = pos2; pos2 += t.data.length; });
+      penSave(penMarks().filter(function (r) { return !(at >= r[0] && at < r[1]); }));
+    }
+    penApply();
+    drawHead();
+  }
+  function penClear() { penSave([]); penApply(); drawHead(); CN.toast('Marks cleared on this page'); }
+
   // / search: every section, primer and Q&A row of every page. Every word must appear; title hits rank first.
   CN.learnFind = function (q) {
     var words = String(q || '').toLowerCase().split(/\s+/).filter(Boolean);
@@ -1036,6 +1147,7 @@
     if (e.kind === 'primer') {
       var pr = CN.learn.primers[e.primer];
       learn.page = -1; learn.primer = e.primer;
+      if (learn.pen) { learn.pen = false; lnPane.classList.remove('pen-on'); }
       clear(lnScroll).appendChild(h('h2', { class: 'ln-title' }, pr.title));
       pr.body.forEach(function (n) { lnScroll.appendChild(lnNode(n)); });
       lnScroll.scrollTop = 0;
@@ -1234,6 +1346,7 @@
       case ']': nudgeHandle(1); break;
       case 'a': case 'A': setMotion(!motion); break;
       case 'l': case 'L': toggleLearn(); break;
+      case 'h': case 'H': if (learn.on) togglePen(); else handled = false; break;
       case '/': openFind(); break;
       case 'ArrowUp': case 'ArrowDown': if (learn.on) scrollLearn(k === 'ArrowUp' ? -1 : 1); else handled = false; break;
       case '=': case '+': if (learn.on) sizeLearn(1); else handled = false; break;
