@@ -68,9 +68,9 @@
       id: 't1', topic: 1, stop: '1', act: 1, short: 'Services & framing', title: 'Design issues: services & framing', target: 25,
       subs: [
         { id: 't1', part: 'services', stop: '1a', short: 'Services', title: 'Data link services', click: 'Static: the three services.' },
-        { id: 't1b', part: 'count', stop: '1b', short: 'Byte count', title: 'Framing: byte count', click: 'Step corrupts the 2nd count (Fig 3-3).' },
-        { id: 't1c', part: 'bytes', stop: '1c', short: 'Byte stuffing', title: 'Framing: byte stuffing (PPP)', click: 'Step shows the receiver removing the ESC (Fig 3-4).' },
-        { id: 't1d', part: 'bits', stop: '1d', short: 'Bit stuffing', title: 'Framing: bit stuffing (HDLC, USB)', click: 'Step shows the receiver destuffing (Fig 3-5).' }
+        { id: 't1b', part: 'count', stop: '1b', short: 'Byte count', title: 'Framing: byte count', click: 'Step corrupts the 2nd count (Fig 3-3). E types your own stream.' },
+        { id: 't1c', part: 'bytes', stop: '1c', short: 'Byte stuffing', title: 'Framing: byte stuffing (PPP)', click: 'Step shows the receiver removing the ESC (Fig 3-4). "Drag and drop bytes" (or E) changes the data.' },
+        { id: 't1d', part: 'bits', stop: '1d', short: 'Bit stuffing', title: 'Framing: bit stuffing (HDLC, USB)', click: 'Step shows the receiver destuffing (Fig 3-5). Tap a data bit to flip it; E types your own bits.' }
       ],
       syllabus: 'Design Issues – Services, Framing, Error Control, Flow Control',
       problem: 'The wire delivers an endless bit stream. Where does a frame start and end?',

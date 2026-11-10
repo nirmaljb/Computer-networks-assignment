@@ -91,12 +91,14 @@
   };
   // The only controls a sim slide shows: Back, Step, Run, Reset. They drive the screen's controller
   // through the deck (sim* below), so the keys do the same: ← Back, S Step, Space Run, R Reset.
-  ui.controls = function () {
+  // o.stepOnly: a one-step slide shows just Back and Step (Run and Reset would add nothing).
+  ui.controls = function (o) {
+    var one = o && o.stepOnly;
     return h('div', { class: 'row ctl' },
       ui.btn('◀ Back', function () { simBack(); }, 'ctl-back'),
       ui.btn('Step (S)', function () { simStep(); }, 'primary'),
-      ui.btn('Run', function () { simRun(); }, 'ctl-run'),
-      ui.btn('Reset (R)', function () { simReset(); }));
+      one ? null : ui.btn('Run', function () { simRun(); }, 'ctl-run'),
+      one ? null : ui.btn('Reset (R)', function () { simReset(); }));
   };
   // SPEC-v6 E: what a screen returns as ctrl.input. parse(text) → { error } or a value; use(value) restarts
   // the sim with it, use(null) with the slide's own example. The input box itself lives in the shell.
@@ -190,6 +192,7 @@
     if (kind === 'slider') sliderEl(hd, o);
     else if (kind === 'chips') chipsEl(hd, o);
     else if (kind === 'dial') dialEl(hd, o);
+    else if (kind === 'build') buildEl(hd, o);
     curHandles.push(hd);
     return hd;
   };
@@ -296,6 +299,121 @@
     ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (t) { svg.addEventListener(t, function () { hd.el.classList.remove('dragging'); }); });
     hd.draw();
   }
+  // build: the value is a list of tokens, changed in a pop-up: drag tokens from the palette (o.palette) into the
+  // tray, along it to reorder, off it to remove (a tap adds or removes one). Use sets the handle; Esc cancels.
+  // o.max caps the length, o.check(list) → an error or null, o.tokClass(t) colours a token.
+  var bld = null;
+  function buildEl(hd, o) {
+    var label = h('span', { class: 'hd-label' });
+    var open = ui.btn(o.button || 'Drag and drop', function () { openBuild(hd, o); }, 'hd-open');
+    hd.el = h('div', { class: 'hd hd-build', 'data-key': hd.key }, label, open);
+    if (!o.fmt) hd.fmt = function (v) { return v.join(' '); };
+    hd.draw = function () { hdLabel(hd, o, label); };
+    hd.nudgeable = function () { return false; };
+    hd.draw();
+  }
+  function openBuild(hd, o) {
+    if (!handlesOpen() || bld) return;
+    stopRun();
+    var max = o.max || 8, draft = hd.value().slice();
+    var tray = h('div', { class: 'bld-tray' }), pal = h('div', { class: 'bld-pal' }), err = h('div', { class: 'ein-err' });
+    var wrap = h('div', { class: 'ein bld open' }, h('div', { class: 'ein-box' },
+      h('div', { class: 'ein-title' }, 'Drag and drop · S' + screens[idx].stop),
+      h('div', { class: 'ein-label' }, o.label + ': drag bytes into the frame, along it to move one, or off it to remove one'),
+      h('div', { class: 'bld-cap' }, 'Bytes'), pal, h('div', { class: 'bld-cap' }, 'Data in the frame (at most ' + max + ')'), tray, err,
+      h('div', { class: 'row', style: { gap: '12px' } },
+        ui.btn('Use (Enter)', function () { applyBuild(); }, 'primary'),
+        ui.btn('Clear', function () { draft = []; drawTray(); }),
+        ui.btn('Example', function () { draft = hd.dflt.slice(); drawTray(); }),
+        ui.btn('Cancel (Esc)', function () { closeBuild(); })),
+      h('div', { class: 'ein-hint' }, 'A tap on a byte adds it at the end; a tap on one in the frame removes it')));
+    function tok(t) { return h('span', { class: 'bit tok bld-tok ' + (o.tokClass ? o.tokClass(t) : 'data') }, t); }
+    // drawn without the token being dragged; slot = where it would land (or -1)
+    function drawTray(skip, slot) {
+      clear(tray);
+      var list = draft.filter(function (x, i) { return i !== skip; });
+      if (!list.length && slot == null) tray.appendChild(h('span', { class: 'bld-empty' }, 'Drop bytes here'));
+      list.forEach(function (t, i) {
+        if (i === slot) tray.appendChild(h('span', { class: 'bld-slot' }));
+        var el = tok(t), at = skip != null && i >= skip ? i + 1 : i;
+        el.addEventListener('pointerdown', function (e) { drag(e, t, at); });
+        tray.appendChild(el);
+      });
+      if (slot != null && slot >= list.length) tray.appendChild(h('span', { class: 'bld-slot' }));
+      err.textContent = '';
+    }
+    function add(t, i) {
+      if (draft.length >= max) { err.textContent = '✕ At most ' + max + ' bytes'; return false; }
+      draft.splice(i == null ? draft.length : i, 0, t);
+      return true;
+    }
+    // from: the token's index in the tray, or -1 for the palette
+    function drag(e, t, from) {
+      e.preventDefault();
+      var x0 = e.clientX, y0 = e.clientY, ghost = null, slot = null;
+      var sr = stage.getBoundingClientRect(), sc = sr.width / 1600 || 1;
+      function over(ev) {
+        var r = tray.getBoundingClientRect(), pad = 30 * sc;
+        return ev.clientX > r.left - pad && ev.clientX < r.right + pad && ev.clientY > r.top - pad && ev.clientY < r.bottom + pad;
+      }
+      function slotAt(ev) {
+        var n = 0;
+        Array.prototype.forEach.call(tray.querySelectorAll('.bld-tok'), function (c) {
+          var r = c.getBoundingClientRect();
+          if (ev.clientX > r.left + r.width / 2) n++;
+        });
+        return n;
+      }
+      function move(ev) {
+        if (!ghost) {
+          if (Math.abs(ev.clientX - x0) + Math.abs(ev.clientY - y0) < 6) return;
+          ghost = tok(t); ghost.classList.add('bld-ghost'); wrap.appendChild(ghost);
+          drawTray(from >= 0 ? from : null, null);
+        }
+        ghost.style.left = (ev.clientX - sr.left) / sc + 'px';
+        ghost.style.top = (ev.clientY - sr.top) / sc + 'px';
+        var s2 = null;
+        if (over(ev)) { drawTray(from >= 0 ? from : null, null); s2 = slotAt(ev); }
+        if (s2 !== slot) { slot = s2; drawTray(from >= 0 ? from : null, slot); }
+        tray.classList.toggle('over', slot != null);
+      }
+      function up(ev) {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        window.removeEventListener('pointercancel', up);
+        tray.classList.remove('over');
+        if (ghost) ghost.remove();
+        if (!ghost) {   // a tap
+          if (from >= 0) draft.splice(from, 1); else if (!add(t)) return;
+        } else {
+          var at = over(ev) ? slot : null;
+          if (from >= 0) draft.splice(from, 1);
+          if (at != null && !add(t, at) && from >= 0) draft.splice(from, 0, t);
+        }
+        drawTray();
+      }
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+      window.addEventListener('pointercancel', up);
+    }
+    o.palette.forEach(function (t) {
+      var el = tok(t);
+      el.addEventListener('pointerdown', function (e) { drag(e, t, -1); });
+      pal.appendChild(el);
+    });
+    function applyBuild() {
+      var bad = !draft.length ? 'Put at least one byte in the frame' : o.check ? o.check(draft) : null;
+      if (bad) { err.textContent = '✕ ' + bad; return; }
+      var list = draft.slice();
+      closeBuild();
+      hd.set(list);
+    }
+    bld = { el: wrap, apply: applyBuild };
+    drawTray();
+    stage.appendChild(wrap);
+  }
+  function closeBuild() { if (bld) { bld.el.remove(); bld = null; } }
+
   // The row a screen puts its handles in (under the figure, above Back · Step · Run · Reset).
   ui.handleRow = function () {
     return h('div', { class: 'hd-row' }, Array.prototype.slice.call(arguments).map(function (x) { return x && x.el; }));
@@ -961,6 +1079,7 @@
     i = Math.max(0, Math.min(screens.length - 1, i));
     stopRun(); trail = [];
     if (einBox) closeInput();
+    closeBuild();
     predict = null;
     clearInterval(chalTimer); chalTimer = null; chal = null;
     if (screens[idx] && screens[i].topic !== screens[idx].topic) shared = {};
@@ -1081,6 +1200,11 @@
     var k = e.key;
     if (overlay.classList.contains('open')) {
       if (k === 'Escape' || k === 'm' || k === 'M') { closeMap(); e.preventDefault(); }
+      return;
+    }
+    if (bld) {
+      if (k === 'Escape') closeBuild(); else if (k === 'Enter') bld.apply();
+      e.preventDefault();
       return;
     }
     if (isTyping(e.target)) return;

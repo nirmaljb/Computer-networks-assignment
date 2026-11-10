@@ -116,6 +116,9 @@ input[type=range] { accent-color: var(--accent); }
 .bit.dim { opacity: .35; }
 .bit.gone { text-decoration: line-through; opacity: .55; }
 .bit.gap { margin-left: 14px; }
+.bits.tight { gap: 3px; }
+.bits.tight .bit { min-width: 32px; padding: 0 2px; font-size: 24px; }
+.bits.tight .bit.flag { font-size: 19px; }
 
 .working { font: 22px/1.45 var(--mono); background: var(--panel2); border-radius: 10px; padding: 10px 16px; white-space: pre-wrap; overflow: auto; }
 .working .ln.dim { opacity: .3; }
@@ -361,6 +364,16 @@ table.t.dv-table .dv-node { position: relative; }
 .ein-field:focus { outline: none; border-color: var(--accent); }
 .ein-err { min-height: 32px; font-size: 24px; font-weight: 700; color: var(--red); }
 .ein-hint { font-size: 18px; color: var(--muted); }
+/* build handle: the drag-and-drop pop-up (palette → tray) */
+.bld .ein-box { width: 1000px; }
+.bld-cap { font: 700 18px var(--display); letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-top: 6px; }
+.bld-pal, .bld-tray { display: flex; flex-wrap: nowrap; gap: 8px; align-items: center; min-height: 76px; }
+.bld-tray { padding: 10px 12px; border: 2px dashed var(--line); border-radius: 10px; background: var(--bg); }
+.bld-tray.over { border-color: var(--accent); border-style: solid; }
+.bld-tok { cursor: grab; touch-action: none; }
+.bld-slot { width: 6px; height: 52px; border-radius: 3px; background: var(--accent); }
+.bld-empty { font-size: 20px; color: var(--muted); }
+.bld-ghost { position: absolute; z-index: 80; pointer-events: none; transform: translate(-50%, -50%) rotate(-3deg); opacity: .9; }
 .custom-tag { font: 700 17px var(--display); letter-spacing: 1px; text-transform: uppercase; color: var(--amber); border: 2px solid var(--amber); background: var(--amber-bg); border-radius: 999px; padding: 2px 12px; align-self: center; }
 
 .say.predict { font-style: normal; color: var(--ink); font-size: 26px; font-weight: 700; background: var(--accent-bg); border: 2px dashed var(--accent); border-radius: 10px; padding: 6px 16px; align-self: center; }
