@@ -407,6 +407,18 @@ table.t.dv-table .dv-node { position: relative; }
 @keyframes h3-fly { from { transform: translate(var(--dx), var(--dy)); opacity: .5; } }
 .h3-pop { transform-box: fill-box; transform-origin: center; animation: h3-pop .5s ease-out .15s both; }
 @keyframes h3-pop { from { transform: scale(1.12); opacity: .3; } }
+/* v25 6c/6d: a row's Step plays as a clock. Each element carries --w (start, s after the Step) and --d (length);
+   the SVG holds the end state, so motion off (below) shows it at once. */
+.al-grow { transform-box: fill-box; transform-origin: left center; animation: al-grow var(--d) linear var(--w) both; }
+@keyframes al-grow { from { transform: scaleX(0); } }
+.al-pend { animation: al-pend var(--d) step-end var(--w); }
+@keyframes al-pend { from, to { fill: var(--pf); stroke: var(--ps); } }
+.al-late { animation: al-hide var(--w) step-end; }
+@keyframes al-hide { from, to { opacity: 0; } }
+.al-win { opacity: 0; animation: al-show var(--d) step-end var(--w); }
+@keyframes al-show { from, to { opacity: 1; } }
+.al-now { opacity: 0; animation: al-now var(--d) linear var(--w); }
+@keyframes al-now { from { opacity: 1; transform: translateX(0); } to { opacity: 1; transform: translateX(var(--dx)); } }
 [data-motion="off"] #stage *,[data-motion="off"] #stage *::before, [data-motion="off"] #stage *::after { animation: none !important; transition: none !important; }
 
 /* S24c frequency crack */
