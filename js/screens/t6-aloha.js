@@ -136,13 +136,15 @@
   }
 
   // 6c/6d (v23): one frame A, t₀ to t₀ + t, and four "what if" frames from CN.csma.alohaWhatIf, each alone with A
-  // (dashed ghost of A in its row). Step 0 = A alone, Steps 1–4 = one row each (✓ / ✕, the overlap hatched red),
+  // (each row an A lane and a B lane, empty until its Step). Step 0 = A alone, Steps 1–4 = one row each (✓ / ✕, the overlap hatched red),
   // Step 5 = the vulnerable period shaded: the ready times that kill A, 2t pure, t slotted. Slotted rows show
-  // the ready dot and the wait to the next slot boundary.
+  // the ready dot and the wait to the next slot boundary. v25: with motion on, each row's Step plays as a clock:
+  // a "now" line sweeps the row's time span, the frames fill in as it passes, and the pair turns red the instant
+  // B first overlaps A (or green once both have ended clean). Run waits for the sweep (runMs); motion off = instant.
   function whatIf(body, slotted) {
     var m = X.alohaWhatIf(slotted), W = 1400, H = 600, LX = 230, RX = 1110, T0 = -2, T1 = 3, U = (RX - LX) / (T1 - T0);
-    var AY = 58, RY = 182, RH = 58, GAP = 80, AXY = RY + 4 * GAP + 4, END = m.rows.length + 1, id = slotted ? 'al6d' : 'al6c';
-    var st = { k: 0 }, fresh = false;
+    var AY = 58, RY = 182, RH = 58, LH = 27, LG = 4, GAP = 80, AXY = RY + 4 * GAP + 4, END = m.rows.length + 1, id = slotted ? 'al6d' : 'al6c';
+    var st = { k: 0, clock: null }, fresh = false, raf = 0, SEC = 0.75;   // SEC: seconds of sweep per frame time t
     var svg = s('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H });
     body.appendChild(h('div', { class: 'say' }, slotted ? 'Same question, but a frame may leave only on a slot boundary: a station that is ready mid-slot waits.'
       : 'A is on the air from t₀ to t₀ + t. Where can another frame start without hitting it?'));
@@ -153,14 +155,21 @@
       return s('text', { x: x, y: y, 'font-size': o.fs || 20, 'font-weight': o.bold ? 800 : null, fill: o.fill || null, 'text-anchor': o.anchor || 'start' }, str);
     }
     function when(v) { return v === 0 ? 't₀' : 't₀ ' + (v < 0 ? '−' : '+') + ' ' + (Math.abs(v) === 1 ? '' : Math.abs(v)) + 't'; }
-    function frame(g, v, y, look) {
-      g.appendChild(s('rect', { x: tx(v) + 2, y: y, width: U - 4, height: RH, rx: 6, fill: look[0], stroke: look[1], 'stroke-width': look[2] || 2.5, 'stroke-dasharray': look[3] || null }));
+    // frac: how much of the frame is on the air so far (the sweep), 1 = all of it
+    function frame(g, v, y, look, fh, frac) {
+      frac = frac == null ? 1 : frac;
+      g.appendChild(s('rect', { x: tx(v) + 2, y: y, width: Math.max(frac * U - 4, 1), height: fh || RH, rx: 6, fill: look[0], stroke: look[1], 'stroke-width': look[2] || 2.5, 'stroke-dasharray': look[3] || null }));
     }
     // a ready dot and, if it had to wait, a dashed arrow to the slot boundary it leaves on
-    function ready(g, r, v, y, col) {
-      g.appendChild(s('circle', { cx: tx(r), cy: y + RH / 2, r: 7, fill: col }));
-      if (v > r) g.appendChild(s('line', { x1: tx(r) + 9, y1: y + RH / 2, x2: tx(v) - 4, y2: y + RH / 2, stroke: col, 'stroke-width': 2.5, 'stroke-dasharray': '6 5', 'marker-end': 'url(#' + id + '-ah)' }));
+    // (upto: the sweep's clock; the arrow grows with it)
+    function ready(g, r, v, y, col, fh, upto) {
+      var cy = y + (fh || RH) / 2, e = upto == null ? v : Math.min(upto, v);
+      if (upto != null && upto < r) return;
+      g.appendChild(s('circle', { cx: tx(r), cy: cy, r: 7, fill: col }));
+      if (tx(e) - 4 > tx(r) + 9) g.appendChild(s('line', { x1: tx(r) + 9, y1: cy, x2: tx(e) - 4, y2: cy, stroke: col, 'stroke-width': 2.5, 'stroke-dasharray': '6 5', 'marker-end': e >= v ? 'url(#' + id + '-ah)' : null }));
     }
+    function clockText(v) { var a = Math.abs(v).toFixed(2); return a === '0.00' ? 't₀' : 't₀ ' + (v < 0 ? '−' : '+') + ' ' + a + 't'; }
+    function clamp01(v) { return Math.max(0, Math.min(1, v)); }
     function why(r) {
       if (!slotted) return r.hit ? (r.start < 0 ? 'still on the air when A starts' : 'starts while A is on the air') : (r.start < 0 ? 'ends before A starts' : 'starts after A ends');
       return 'waits to ' + when(r.start) + ': ' + (r.hit ? 'A\'s slot' : r.start < m.a.start ? 'the slot before A\'s' : 'a later slot');
@@ -189,43 +198,80 @@
       // A, the frame we follow
       svg.appendChild(t(0, AY + 28, 'A', { fs: 30, bold: true, fill: 'var(--accent)' }));
       svg.appendChild(t(0, AY + 54, slotted ? 'ready at t₀ − 0.4t' : 'starts at t₀', { fs: 18, fill: 'var(--muted)' }));
+      svg.appendChild(t(RX + 20, AY + RH / 2 + (slotted ? 30 : 8), 'A alone: no collision', { fs: 17, fill: 'var(--muted)' }));
       var ga = s('g');
       frame(ga, m.a.start, AY, ['var(--accent-bg)', 'var(--accent)', 3]);
       ga.appendChild(t(tx(m.a.start) + U / 2, AY + RH / 2 + 9, 'A', { fs: 26, bold: true, fill: 'var(--accent)', anchor: 'middle' }));
       if (slotted) ready(ga, m.a.ready, m.a.start, AY, 'var(--accent)');
       svg.appendChild(ga);
-      svg.appendChild(t(0, RY - 22, slotted ? 'What if one other station is ready at …' : 'What if one other frame starts at …', { fs: 22, bold: true }));
+      svg.appendChild(t(0, RY - 22, slotted ? 'What if one other station B is ready at …' : 'What if one other frame B starts at …', { fs: 22, bold: true }));
+      // each row is its own scenario, A and B alone on the channel: A's lane on top, B's below. Nothing is drawn in
+      // a row until its Step; then both frames take the outcome's colour (both lost, or both through). While the
+      // row's sweep plays, c is the clock: frames show only up to it, and the colour waits for the outcome.
       m.rows.forEach(function (r, i) {
-        var y = RY + i * GAP, ink = r.hit ? 'var(--red)' : 'var(--green)';
+        var y = RY + i * GAP, by = y + LH + LG, live = st.clock != null && i === k - 1, c = live ? st.clock : Infinity;
+        var o0 = Math.max(r.start, m.a.start), o1 = Math.min(r.start, m.a.start) + 1;
+        var decided = r.hit ? c >= o0 : c >= Math.max(r.start, m.a.start) + 1;
+        var ink = r.hit ? 'var(--red)' : 'var(--green)', bg = r.hit ? 'var(--red-bg)' : 'var(--green-bg)';
         svg.appendChild(t(0, y + RH / 2 + 8, when(r.ready), { fs: 24, bold: i < k, fill: i < k ? null : 'var(--muted)' }));
+        if (i >= k) return;
         var g = s('g');
-        frame(g, m.a.start, y, ['none', 'var(--accent)', 1.5, '5 5']);   // A's ghost: the frames in this row are A and this one
-        g.appendChild(t(tx(m.a.start) + 12, y + 22, 'A', { fs: 16, fill: 'var(--accent)' }));
-        if (i < k) {
-          frame(g, r.start, y, [r.hit ? 'var(--red-bg)' : 'var(--green-bg)', ink]);
-          if (r.hit) {
-            var o0 = Math.max(r.start, m.a.start), o1 = Math.min(r.start, m.a.start) + 1;
-            g.appendChild(s('rect', { x: tx(o0) + 2, y: y + 2, width: tx(o1) - tx(o0) - 4, height: RH - 4, fill: 'url(#' + id + '-hatch)' }));
-          }
-          if (slotted) ready(g, r.ready, r.start, y, 'var(--muted)');
+        var fs = [[m.a.start, y, 'A', 'var(--accent-bg)', 'var(--accent)'], [r.start, by, 'B', 'var(--grey-bg)', 'var(--ink)']];
+        fs.forEach(function (f) { var fr = clamp01(c - f[0]); if (fr > 0) frame(g, f[0], f[1], decided ? [bg, ink] : [f[3], f[4]], LH, fr); });
+        if (r.hit && decided) {
+          var o2 = Math.min(o1, c);
+          [y, by].forEach(function (ly) { g.appendChild(s('rect', { x: tx(o0) + 2, y: ly + 2, width: Math.max(tx(o2) - tx(o0) - (o2 >= o1 ? 4 : 2), 1), height: LH - 4, fill: 'url(#' + id + '-hatch)' })); });
+        }
+        fs.forEach(function (f) {
+          if (c - f[0] < 0.6) return;
+          g.appendChild(t(tx(f[0]) + U / 2, f[1] + LH / 2 + 7, f[2] + (decided ? (r.hit ? ' ✕' : ' ✓') : ''), { fs: 18, bold: true, fill: decided ? ink : f[4], anchor: 'middle' }));
+        });
+        if (slotted) ready(g, r.ready, r.start, by, 'var(--muted)', LH, live ? c : null);
+        if (decided) {
           g.appendChild(t(RX + 20, y + 26, r.hit ? '✕ both lost' : '✓ both get through', { fs: 22, bold: true, fill: ink }));
           g.appendChild(t(RX + 20, y + 50, why(r), { fs: 17, fill: 'var(--muted)' }));
-          if (fresh && i === k - 1) g.setAttribute('class', 'h3-pop');
         }
+        if (fresh && i === k - 1) g.setAttribute('class', 'h3-pop');
         svg.appendChild(g);
       });
+      // the sweep's clock: a "now" line over the grid and its reading
+      if (st.clock != null) {
+        var cx = tx(st.clock);
+        svg.appendChild(s('line', { x1: cx, y1: 32, x2: cx, y2: AXY, stroke: 'var(--ink)', 'stroke-width': 2.5 }));
+        svg.appendChild(t(cx, 24, 'now = ' + clockText(st.clock), { fs: 20, bold: true, anchor: 'middle' }));
+      }
       if (k >= END) svg.appendChild(t(W / 2, H - 6, slotted
         ? 'Only a frame ready in the slot before A\'s can hit it: P(A survives) = e⁻ᴳ, so S = Ge⁻ᴳ, max 1/e ≈ 0.368'
         : 'Any other start in a 2t window kills A: P(A survives) = e⁻²ᴳ, so S = Ge⁻²ᴳ, max 1/(2e) ≈ 0.184',
         { fs: 21, bold: true, anchor: 'middle' }));
       fresh = false;
     }
-    function step() { if (st.k >= END) return false; st.k++; fresh = true; draw(); return true; }
-    function reset() { st.k = 0; fresh = false; draw(); }
+    // the sweep for row i: from just before its first event (a ready time or a start) to just after its last end
+    function stopSweep() { if (raf) cancelAnimationFrame(raf); raf = 0; st.clock = null; }
+    function sweep(r) {
+      var lo = Math.max(T0, Math.min(r.ready, m.a.start) - 0.25), hi = Math.min(T1, Math.max(r.start, m.a.start) + 1.25), t0 = performance.now();
+      function tick(now) {
+        if (!svg.isConnected) { raf = 0; st.clock = null; return; }
+        st.clock = lo + (now - t0) / 1000 / SEC;
+        if (st.clock >= hi) { st.clock = null; raf = 0; draw(); return; }
+        draw();
+        raf = requestAnimationFrame(tick);
+      }
+      tick(t0);
+    }
+    function step() {
+      stopSweep();
+      if (st.k >= END) return false;
+      st.k++;
+      if (st.k <= m.rows.length && CN.motion()) { fresh = false; sweep(m.rows[st.k - 1]); } else { fresh = true; draw(); }
+      return true;
+    }
+    function reset() { stopSweep(); st.k = 0; fresh = false; draw(); }
     body.appendChild(ui.controls());
     reset();
     return { step: step, reset: reset, reached: function () { return st.k >= END; }, learnStep: function () { return st.k; },
-      prev: function () { if (st.k > 0) { st.k--; draw(); return true; } return false; } };
+      get runMs() { return CN.motion() ? 3000 : 800; },   // Run lets each row's sweep (at most 3t) finish
+      prev: function () { stopSweep(); if (st.k > 0) { st.k--; draw(); return true; } return false; } };
   }
 
   var PARTS = {
