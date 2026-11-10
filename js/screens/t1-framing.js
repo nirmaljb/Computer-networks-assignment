@@ -61,7 +61,8 @@
     function step() { if (hit >= 0) return false; hit = F.byteCountFrames(stream).length > 1 ? 1 : 0; draw(); return true; }
     function reset() { hit = -1; draw(); }
     body.appendChild(ui.controls({ stepOnly: true }));
-    return { step: step, reset: reset,
+    // learnStep: 0 as sent, 1 the count hit (the pane's table follows the E stream)
+    return { step: step, reset: reset, learnStep: function () { return hit >= 0 ? 1 : 0; },
       input: ui.numbers({ label: 'The byte stream: 2–30 numbers, each frame led by its count', example: COUNT_STREAM.join(' '), parse: parseStream,
         use: function (v) { stream = v || COUNT_STREAM; reset(); } }) };
   }
@@ -96,7 +97,8 @@
     reset();
     body.appendChild(ui.handleRow(hData));
     body.appendChild(ui.controls({ stepOnly: true }));
-    return { step: step, reset: reset,
+    // learnStep: 0 sent, 1 received (the pane's table follows the handle through input.value())
+    return { step: step, reset: reset, learnStep: function () { return rx ? 1 : 0; },
       input: ui.numbers({ label: 'Data bytes: 1–' + BYTE_MAX + ' of A–Z, FLAG, ESC', example: BYTE_DATA, parse: parseBytes,
         read: function () { return hData.value().join(' '); }, write: function (v) { hData.set(v, true); } }) };
   }
@@ -136,7 +138,8 @@
     function reset() { rx = false; draw(); }
     reset();
     body.appendChild(ui.controls({ stepOnly: true }));
-    return { step: step, reset: reset,
+    // learnStep: 0 sent, 1 received (the pane's table follows the handle through input.value())
+    return { step: step, reset: reset, learnStep: function () { return rx ? 1 : 0; },
       input: ui.numbers({ label: 'Data bits: 1–' + BIT_MAX + ' bits of 0/1', example: BIT_DATA, parse: parseBits,
         read: function () { return hData.value(); }, write: function (v) { hData.set(v, true); } }) };
   }

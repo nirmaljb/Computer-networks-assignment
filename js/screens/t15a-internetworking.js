@@ -83,7 +83,8 @@
     function reset() { st.k = 0; draw(); }
     draw();
     body.appendChild(ui.controls());
-    return { step: step, reset: reset, prev: function () { if (st.k > 0) { st.k--; draw(); return true; } return false; } };
+    // learnStep: the stop shown (one learn list item each)
+    return { step: step, reset: reset, prev: function () { if (st.k > 0) { st.k--; draw(); return true; } return false; }, learnStep: function () { return st.k; } };
   }
 
   function asRouting(body) {

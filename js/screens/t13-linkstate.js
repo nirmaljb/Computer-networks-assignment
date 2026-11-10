@@ -119,7 +119,9 @@
     }
     draw();
     body.appendChild(ui.controls());
-    return { step: step, reset: reset, prev: prev };
+    // learnStep: Steps since Reset: stages 1–3, stage 4 and its flood hops, then stage 5 and its Dijkstra Steps
+    function learnStep() { return st.k < 4 ? st.k : st.k === 4 ? 4 + st.round : 5 + floodRounds().length + st.dj; }
+    return { step: step, reset: reset, prev: prev, learnStep: learnStep };
   }
 
   function compare(body) {

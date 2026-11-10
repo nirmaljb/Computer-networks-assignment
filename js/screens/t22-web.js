@@ -171,8 +171,9 @@
     function reset() { st.k = 0; fresh = false; draw(); }
     body.appendChild(ui.controls());
     reset();
+    // learnStep: the Step (the pane's step table follows the URL chip through genText)
     return { step: step, reset: reset, prev: function () { if (st.k > 0) { st.k--; draw(); return true; } return false; },
-      reached: function () { return st.k >= 2; } };
+      reached: function () { return st.k >= 2; }, learnStep: function () { return st.k; }, genText: function () { return 'url ' + hU.value(); } };
   }
 
   function roundTrips(body) {
@@ -422,7 +423,9 @@
     function reset() { st.k = 0; st.m = CN.http.hol(hLose.value()); fresh = false; draw(); }
     body.appendChild(ui.controls());
     reset();
-    return { step: step, reset: reset, reached: function () { return st.k >= st.m.end; },
+    // learnStep: the Step (the pane's table follows the lost packet through genText)
+    return { step: step, reset: reset, reached: function () { return st.k >= st.m.end; }, learnStep: function () { return st.k; },
+      genText: function () { var v = hLose.value(); return 'lose ' + (v == null ? 'none' : v); },
       prev: function () { if (st.k > 0) { st.k--; draw(); return true; } return false; } };
   }
 
@@ -550,7 +553,9 @@
     function reset() { st.k = 0; st.m = CN.http.swarm(hHave.value()); fresh = false; draw(); }
     body.appendChild(ui.controls());
     reset();
-    return { step: step, reset: reset, reached: function () { return st.k >= st.m.end; },
+    // learnStep: the Step (the pane's table follows the chunks tapped through genText)
+    return { step: step, reset: reset, reached: function () { return st.k >= st.m.end; }, learnStep: function () { return st.k; },
+      genText: function () { var v = hHave.value(); return 'have ' + P.map(function (p) { return p + (v[p] || []).join(''); }).join(' '); },
       prev: function () { if (st.k > 0) { st.k--; draw(); return true; } return false; } };
   }
 

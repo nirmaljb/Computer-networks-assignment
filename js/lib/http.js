@@ -151,6 +151,24 @@
     return { online: !!online, steps: steps, end: steps.length - 1 };
   }
 
-  CN.http = { plan: plan, rtts: rtts, STATUS: STATUS, URLS: URLS, PORT: PORT, url: url, exchange: exchange, hol: hol, HOL_STREAMS: HOL_STREAMS,
+  // 23b: the SMTP dialogue, one line per Step: [C client | S server, the line, what it means]
+  var SMTP = [
+    ['S', '220 two.example.com ESMTP ready', 'Server greets on TCP port 25'],
+    ['C', 'HELO one.example.com', 'Client names itself'],
+    ['S', '250 two.example.com', 'OK'],
+    ['C', 'MAIL FROM:<alice@one.example.com>', 'Envelope sender'],
+    ['S', '250 OK', 'Sender accepted'],
+    ['C', 'RCPT TO:<bob@two.example.com>', 'Envelope recipient (one per RCPT)'],
+    ['S', '250 OK', 'Recipient accepted'],
+    ['C', 'DATA', 'The message follows'],
+    ['S', '354 End data with <CR><LF>.<CR><LF>', 'Go ahead'],
+    ['C', 'From: alice@one.example.com\nTo: bob@two.example.com\nSubject: Hi\n\nHi Bob!', 'Header lines, blank line, body'],
+    ['C', '.', 'A line holding only "." ends the message'],
+    ['S', '250 OK: queued', 'Accepted for delivery'],
+    ['C', 'QUIT', 'Client is done'],
+    ['S', '221 Bye', 'Connection closes']
+  ];
+
+  CN.http = { SMTP: SMTP, plan: plan, rtts: rtts, STATUS: STATUS, URLS: URLS, PORT: PORT, url: url, exchange: exchange, hol: hol, HOL_STREAMS: HOL_STREAMS,
     swarm: swarm, PEERS: PEERS, CHUNKS: CHUNKS, SWARM_HAVE: SWARM_HAVE, mailPath: mailPath, MAIL_NODES: MAIL_NODES };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -101,7 +101,8 @@
     function reset() { st.k = 0; st.m = X.staticTdm(hN.value()); st.end = Math.max(st.m.end, st.m.fdmEnd); fresh = false; draw(); }
     body.appendChild(ui.controls());
     reset();
-    return { step: step, reset: reset, reached: function () { return st.k >= st.end; },
+    // learnStep: the slot reached (the pane's slot table follows the N chip through genText)
+    return { step: step, reset: reset, reached: function () { return st.k >= st.end; }, learnStep: function () { return st.k; }, genText: function () { return 'N ' + hN.value(); },
       prev: function () { if (st.k > 0) { st.k--; draw(); return true; } return false; } };
   }
 

@@ -959,7 +959,7 @@
       if (!box.orig) box.orig = Array.prototype.slice.call(box.childNodes);
       clear(box);
       box.classList.remove('custom');
-      if (custom == null || box.getAttribute('data-sub') !== sub) { append(box, box.orig); return; }
+      if (custom == null || box.getAttribute('data-sub') !== sub || CN.learnGen.fixed[box.getAttribute('data-gen')]) { append(box, box.orig); return; }
       var t = CN.learnGen(box.getAttribute('data-gen'), custom);
       box.classList.add('custom');
       if (t.error) { box.appendChild(h('div', { class: 'ln-gen-tag' }, '✎ your numbers: ' + t.error)); return; }
@@ -967,7 +967,7 @@
       box.appendChild(h('div', { class: 'ln-tw' }, h('table', { class: 'ln-table' },
         h('thead', null, h('tr', null, t.head.map(function (c) { return h('th', null, c); }))),
         h('tbody', null, t.rows.map(function (r) {
-          return h('tr', r.step == null ? null : { 'data-hl': sub + ':' + r.step }, r.cells.map(function (c) { return h('td', null, c); }));
+          return h('tr', r.step == null ? null : { 'data-hl': [].concat(r.step).map(function (s) { return sub + ':' + s; }).join(' ') }, r.cells.map(function (c) { return h('td', null, c); }));
         })))));
     });
   }

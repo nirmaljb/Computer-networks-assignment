@@ -64,7 +64,8 @@
     function step() { if (round >= rounds.length) return false; round++; draw(); return true; }
     function reset() { round = 0; draw(); }
     body.appendChild(ui.controls());
-    return { step: step, reset: reset, prev: function () { if (round > 0) { round--; draw(); return true; } return false; } };
+    // learnStep: the hop shown (one learn row each)
+    return { step: step, reset: reset, prev: function () { if (round > 0) { round--; draw(); return true; } return false; }, learnStep: function () { return round; } };
   }
 
   function dijkstra(body) {
@@ -98,7 +99,8 @@
     function step() { if (k >= last) return false; k++; draw(); return true; }
     function reset() { k = 0; draw(); }
     body.appendChild(ui.controls());
-    return { step: step, reset: reset, prev: function () { if (k > 0) { k--; draw(); return true; } return false; } };
+    // learnStep: the node made permanent at this Step (one learn row each)
+    return { step: step, reset: reset, prev: function () { if (k > 0) { k--; draw(); return true; } return false; }, learnStep: function () { return k; } };
   }
 
   function optimality(body) {

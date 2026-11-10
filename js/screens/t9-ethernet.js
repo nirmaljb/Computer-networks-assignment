@@ -91,7 +91,8 @@
     function step() { if (st.rts) return false; st.rts = true; drawWifi(); return true; }
     function reset() { st.rts = false; drawWifi(); }
     body.appendChild(ui.controls());
-    return { step: step, reset: reset };
+    // learnStep: 0 basic access, 1 with RTS/CTS
+    return { step: step, reset: reset, learnStep: function () { return st.rts ? 1 : 0; } };
   }
 
   CN.screens.t9 = function (root, sc) {

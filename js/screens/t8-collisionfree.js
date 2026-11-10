@@ -66,7 +66,8 @@
     function step() { if (k < w) { k++; draw(); return true; } return false; }
     function reset() { k = 0; draw(); }
     body.appendChild(ui.controls());
-    return { step: step, reset: reset, prev: function () { if (k > 0) { k--; draw(); return true; } return false; } };
+    // learnStep: the bits arbitrated so far (one learn row each)
+    return { step: step, reset: reset, prev: function () { if (k > 0) { k--; draw(); return true; } return false; }, learnStep: function () { return k; } };
   }
 
   function terminals(body, scen) {
@@ -124,7 +125,8 @@
     function step() { if (st.maca) return false; st.maca = true; drawW(); return true; }
     function reset() { st.maca = false; drawW(); }
     body.appendChild(ui.controls());
-    return { step: step, reset: reset };
+    // learnStep: 0 plain carrier sense, 1 with MACA
+    return { step: step, reset: reset, learnStep: function () { return st.maca ? 1 : 0; } };
   }
 
   var PARTS = {

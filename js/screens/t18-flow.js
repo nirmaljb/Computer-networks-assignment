@@ -82,7 +82,8 @@
     }
     body.appendChild(ui.controls());
     reset();
-    return { step: step, reset: reset, runMs: 1200, destroy: function () { clearTimeout(timer); } };
+    // learnStep: the scripted action done last (one learn row each)
+    return { step: step, reset: reset, runMs: 1200, learnStep: function () { return st.script; }, destroy: function () { clearTimeout(timer); } };
   }
 
   function card(body, items) {

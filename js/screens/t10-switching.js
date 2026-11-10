@@ -73,7 +73,8 @@
     }
     body.appendChild(ui.controls());
     reset();
-    return { step: step, reset: reset };
+    // learnStep: frames sent so far (one learn row each)
+    return { step: step, reset: reset, learnStep: function () { return st.scriptAt; } };
   }
 
   function devices(body) {

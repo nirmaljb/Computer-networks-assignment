@@ -21,25 +21,27 @@
   }
 
   function protocol(body, key) {
-    var proto = PROTOS[key].p, sim;
+    var proto = PROTOS[key].p, sim, steps = 0, killed = false;
     body.appendChild(h('div', { class: 'say' }, PROTOS[key].desc));
     var ts = CN.ui.timeSpace({ width: 1100, height: 560, visible: 30, rightPad: 260, timers: function () { return proto === 3; },
       label: function (m) { return m.kind === 'data' ? (proto === 1 ? 'frame' : 'frame ' + m.seq) : CN.arq.ackName(m, sim); },
-      onKill: function (id) { sim.kill(id); ts.draw(sim); } });
+      onKill: function (id) { sim.kill(id); killed = true; ts.draw(sim); } });
     body.appendChild(h('div', { class: 'panel', style: { padding: '6px' } }, ts.el));
     function reset() {
       sim = CN.arq.create({ proto: 'gbn', n: 1, W: 1, total: 6, delay: 3, timeout: proto === 3 ? 8 : 1e6, noAck: proto === 1,
         drop: proto === 3 ? p3Drop() : null });
+      steps = 0; killed = false;
       ts.draw(sim);
     }
     function step() {
       if (sim.done) return false;
-      CN.arq.stepToEvent(sim);
+      CN.arq.stepToEvent(sim); steps++;
       ts.draw(sim); return true;
     }
     body.appendChild(ui.controls());
     reset();
-    return { step: step, reset: reset, runMs: 600 };
+    // learnStep: Steps since Reset (one learn row each); a message killed by hand leaves the script (null)
+    return { step: step, reset: reset, runMs: 600, learnStep: function () { return killed ? null : steps; } };
   }
 
   // v17 4d: one figure on one time axis (2 px per ms). Top: the time-space picture of a single

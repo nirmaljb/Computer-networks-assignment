@@ -4,22 +4,7 @@
 
   // SPEC-v5: 23a the mail path (a Step sim since v16), 23b the SMTP dialogue (one line per Step), 23c envelope /
   // header / body, 23d MIME base64 of "Hi". 23c and 23d are static. example.com names only.
-  var DIALOG = [
-    ['S', '220 two.example.com ESMTP ready', 'Server greets on TCP port 25'],
-    ['C', 'HELO one.example.com', 'Client names itself'],
-    ['S', '250 two.example.com', 'OK'],
-    ['C', 'MAIL FROM:<alice@one.example.com>', 'Envelope sender'],
-    ['S', '250 OK', ''],
-    ['C', 'RCPT TO:<bob@two.example.com>', 'Envelope recipient (one per RCPT)'],
-    ['S', '250 OK', ''],
-    ['C', 'DATA', 'The message follows'],
-    ['S', '354 End data with <CR><LF>.<CR><LF>', 'Go ahead'],
-    ['C', 'From: alice@one.example.com\nTo: bob@two.example.com\nSubject: Hi\n\nHi Bob!', 'Header lines, blank line, body'],
-    ['C', '.', 'A line holding only "." ends the message'],
-    ['S', '250 OK: queued', 'Accepted for delivery'],
-    ['C', 'QUIT', ''],
-    ['S', '221 Bye', 'Connection closes']
-  ];
+  var DIALOG = CN.http.SMTP;
 
   function b64(text) {
     var bytes = new TextEncoder().encode(text), bin = '';
@@ -143,7 +128,8 @@
     function step() { if (k >= DIALOG.length) return false; k++; draw(); return true; }
     function reset() { k = 0; draw(); }
     body.appendChild(ui.controls());
-    return { step: step, reset: reset, prev: function () { if (k > 0) { k--; draw(); return true; } return false; } };
+    // learnStep: the newest line (one learn row each)
+    return { step: step, reset: reset, prev: function () { if (k > 0) { k--; draw(); return true; } return false; }, learnStep: function () { return k; } };
   }
 
   function parts(body) {

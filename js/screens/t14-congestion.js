@@ -113,7 +113,8 @@
     function step() { if (at >= STATES.length - 1) return false; at++; draw(); return true; }
     function reset() { at = 0; draw(); }
     body.appendChild(ui.controls());
-    return { step: step, reset: reset, prev: function () { if (at > 0) { at--; draw(); return true; } return false; } };
+    // learnStep: the queue state shown (one learn row each)
+    return { step: step, reset: reset, prev: function () { if (at > 0) { at--; draw(); return true; } return false; }, learnStep: function () { return at; } };
   }
 
   var PARTS = { approaches: approaches, routing: routing, throttling: throttling, shedding: shedding };

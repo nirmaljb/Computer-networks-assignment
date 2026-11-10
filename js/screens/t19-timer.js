@@ -51,7 +51,8 @@
     function step() { if (shown >= rows.length) return false; shown++; draw(); return true; }
     function reset() { shown = 1; draw(); }
     body.appendChild(ui.controls());
-    return { step: step, reset: reset, prev: function () { if (shown > 1) { shown--; draw(); return true; } return false; },
+    // learnStep: the newest sample row (the pane's table follows the E samples)
+    return { step: step, reset: reset, prev: function () { if (shown > 1) { shown--; draw(); return true; } return false; }, learnStep: function () { return shown; },
       input: ui.numbers({ label: 'RTT samples in ms (1–8), * after a retransmitted one', example: def.map(function (x) { return x.r + (x.retx ? '*' : ''); }).join(' '),
         parse: CN.tcp.parseSamples, use: function (v) { load(v ? v.samples : def); } }) };
   }

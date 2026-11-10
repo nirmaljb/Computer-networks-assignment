@@ -7,6 +7,7 @@
   var CN = G.CN = G.CN || {};
 
   function table(head, rows) { return { head: head, rows: rows }; }
+  // step: the learnStep() that lights the row, or a list of them (a row that stays lit for several Steps)
   function row(cells, step) { return { cells: cells.map(String), step: step == null ? null : step }; }
   function num(v) { return v == null ? '—' : String(Math.round(v * 1e9) / 1e9); }
   function bin(n, w) { var s = n.toString(2); while (s.length < w) s = '0' + s; return s; }
@@ -119,6 +120,14 @@
     };
   }
   // 4c: Protocol 3 (n = 1, W = 1, 6 frames); frame 1 lost once, then the first ACK for frame 2, named ACK 1 (as the screen scripts it)
+  // 4a / 4b: the same run as the slide, no losses; P1 sends no ACKs, P2 has no timer.
+  // P1 frames carry no sequence number (the slide labels them just "frame").
+  function arqP1() {
+    return table(['Step', 't', 'What happens'], arqRun('gbn', 1, null, null, { n: 1, total: 6, noAck: true, timeout: 1e6 }).rows.map(function (r) {
+      return row([r.cells[0], r.cells[1], r.cells[2].replace(/([Ff])rame \d/g, '$1rame').replace(/accept \d/g, 'passed up')], r.step);
+    }));
+  }
+  function arqP2() { return table(['Step', 't', 'What happens'], arqRun('gbn', 1, null, null, { n: 1, total: 6, timeout: 1e6 }).rows); }
   function arqP3() {
     var ackLost = false, drop = function (m) {
       if (m.kind === 'data') return m.abs === 1 && m.copy === 1;
@@ -193,7 +202,7 @@
     var p = CN.tcp.parseSamples(text); if (p.error) return p;
     var rows = CN.tcp.rtoTable(p.samples, 'rfc');
     return table(['#', 'R (ms)', 'Retransmitted?', 'RTTVAR', 'SRTT', 'RTO'], rows.map(function (r, i) {
-      return row([i + 1, num(r.r), p.samples[i].retx ? 'yes: ignored (Karn)' : 'no', num(r.rttvar), num(r.srtt), num(r.rto) + (r.ignored ? ' (doubled)' : '')], null);
+      return row([i + 1, num(r.r), p.samples[i].retx ? 'yes: ignored (Karn)' : 'no', num(r.rttvar), num(r.srtt), num(r.rto) + (r.ignored ? ' (doubled)' : '')], i + 1);
     }));
   }
 
@@ -270,24 +279,26 @@
   }
 
   /* ---------- Checked-only tables (no E input): each worked number in LEARN.md comes from a lib ---------- */
-  function framingCount() {
-    var stream = [5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 8, 0, 1, 2, 3, 4, 5, 6, 8, 7, 8, 9, 0, 1, 2, 3], bad = stream.slice();
-    bad[5] = 7;
+  // 1b–1d follow the slide's data (E numbers, or the 1c build / 1d tap handle): step 0 sent, step 1 the Step.
+  function framingCount(text) {
+    var stream = text == null ? [5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 8, 0, 1, 2, 3, 4, 5, 6, 8, 7, 8, 9, 0, 1, 2, 3] : ints(text), bad = stream.slice();
+    var clean = CN.framing.byteCountFrames(stream), hit = clean.length > 1 ? 1 : 0, was = stream[clean[hit].start];
+    bad[clean[hit].start] = was + 2;
     function show(fr) { return fr.map(function (f) { return '[' + f.bytes.join(' ') + ']' + (f.short ? ' (runs off the end)' : ''); }).join(' '); }
     return table(['Stream', 'Frames the receiver reads'], [
-      row(['As sent', show(CN.framing.byteCountFrames(stream))], 0),
-      row(['2nd count hit, 5 → 7', show(CN.framing.byteCountFrames(bad))], 1)
+      row(['As sent', show(clean)], 0),
+      row([(hit ? '2nd' : '1st') + ' count hit, ' + was + ' → ' + (was + 2), show(CN.framing.byteCountFrames(bad))], 1)
     ]);
   }
-  function framingBytes() {
-    var r = CN.framing.byteStuff('A ESC FLAG B');
+  function framingBytes(text) {
+    var r = CN.framing.byteStuff(text == null ? 'A ESC FLAG B' : text);
     return table(['Stage', 'Bytes'], [
       row(['Data', r.input.join(' ')], 0), row(['Sent (stuffed)', r.out.join(' ')], 0),
       row(['Receiver, ESCs removed', CN.framing.byteDestuff(r.out).out.join(' ')], 1)
     ]);
   }
-  function framingBits() {
-    var r = CN.framing.bitStuff('011011111111111111110010');
+  function framingBits(text) {
+    var r = CN.framing.bitStuff(text == null ? '011011111111111111110010' : String(text).replace(/\s+/g, ''));
     return table(['Stage', 'Bits'], [
       row(['Data', r.input], 0), row(['Sent (stuffed, between flags)', r.out], 0),
       row(['Receiver, stuffed 0s removed', CN.framing.bitDestuff(r.out).out], 1)
@@ -306,18 +317,23 @@
   }
   var GN = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], GE = [['A', 'B', 2], ['A', 'G', 6], ['B', 'C', 7], ['B', 'E', 2], ['C', 'D', 3], ['C', 'F', 3],
     ['D', 'H', 2], ['E', 'F', 2], ['E', 'G', 1], ['F', 'H', 2], ['G', 'H', 4]];
-  function flood() {
-    return table(['Hop', 'Copies sent', 'Duplicates', 'Total so far', 'Routers reached'], CN.graph.flood(GN, GE, 'A', 3, false).map(function (r, i) {
-      return row([i + 1, r.sent.length, r.dups, r.total, r.reached], i + 1);
+  // 13a's graph; its Steps run stages 1–4, the flood hops (from step 4), then Dijkstra (from 5 + the hops)
+  var LN = ['A', 'B', 'C', 'D', 'E', 'F'], LE = [['A', 'B', 2], ['A', 'C', 5], ['B', 'C', 1], ['B', 'D', 4], ['C', 'E', 3], ['D', 'E', 1], ['D', 'F', 2], ['E', 'F', 6]];
+  function floodTable(nodes, edges, src, hops, dedup, at) {
+    return table(['Hop', 'Copies sent', 'Duplicates', 'Total so far', 'Routers reached'], CN.graph.flood(nodes, edges, src, hops, dedup).map(function (r, i) {
+      return row([i + 1, r.sent.length, r.dups, r.total, r.reached], at + i + 1);
     }));
   }
-  function dijkstraTable(nodes, edges, src) {
+  function flood() { return floodTable(GN, GE, 'A', 3, false, 0); }
+  // at: the learnStep of the first Dijkstra Step, less 1 (11d starts at 1, 13a after its flood)
+  function dijkstraTable(nodes, edges, src, at) {
+    at = at || 0;
     var r = CN.graph.dijkstra(nodes, edges, src);
     return table(['Step', 'Made permanent', 'Neighbours relaxed', 'Tentative labels after the step'], r.steps.slice(1).map(function (s, i) {
       var tent = nodes.filter(function (n) { return !s.labels[n].perm && s.labels[n].dist < Infinity; })
         .map(function (n) { return n + ' (' + s.labels[n].dist + ', ' + s.labels[n].pred + ')'; });
       return row([i + 1, s.perm + ' (' + s.labels[s.perm].dist + (s.labels[s.perm].pred ? ', ' + s.labels[s.perm].pred : '') + ')',
-        s.relaxed.length ? s.relaxed.map(function (n) { return n + ' → ' + s.labels[n].dist; }).join(', ') : 'none', tent.join(', ') || 'none'], i + 1);
+        s.relaxed.length ? s.relaxed.map(function (n) { return n + ' → ' + s.labels[n].dist; }).join(', ') : 'none', tent.join(', ') || 'none'], at + i + 1);
     }));
   }
   function fragTable() {
@@ -353,7 +369,7 @@
   }
   function flowTable() {
     var f = CN.tcp.flow(4096), rows = [];
-    function after(what, fn) { var n = f.log.length; fn(); rows.push(row([rows.length + 1, what, f.log.slice(n).map(function (l) { return l.text; }).join('; ')])); }
+    function after(what, fn) { var n = f.log.length; fn(); rows.push(row([rows.length + 1, what, f.log.slice(n).map(function (l) { return l.text; }).join('; ')], rows.length + 1)); }
     after('Sender writes 2 KB', function () { f.send(2048); f.deliver(); });
     after('Sender writes 2 KB', function () { f.send(2048); f.deliver(); });
     after('App reads 2 KB', function () { f.readApp(2048); });
@@ -385,12 +401,70 @@
       return row([N, m.tdm.join(', '), 'slot ' + m.shared[m.burst - 1], 'slot ' + m.end, m.idle, 'slot ' + m.fdmEnd, us(N * T)]);
     }));
   }
+  // 22e, '| lose 1' (the tap handle; 'lose none'): one row per Step, what each lane hands to the browser
+  function holTable(text) {
+    var lv = cfg(text, ['lose']).k.lose, m = CN.http.hol(lv == null ? 1 : lv === 'none' ? null : +lv), rows = [];
+    var NAME = { css: 'style.css', js: 'app.js', png: 'logo.png' };
+    function pk(i) { return m.order[i].s + ' ' + m.order[i].n; }
+    function lane(at, t) {
+      var got = [], wait = [];
+      m.order.forEach(function (p, i) { if (at[i] === t) got.push(pk(i)); else if (m.arrive[i] <= t && at[i] > t) wait.push(pk(i)); });
+      var done = m.order.map(function (p) { return p.s; }).filter(function (s, i, a) { return a.indexOf(s) === i && Math.max.apply(null, m.order.map(function (q, j) { return q.s === s ? at[j] : 0; })) === t; });
+      return (got.length ? got.join(', ') : 'nothing') + (wait.length ? '; held: ' + wait.join(', ') : '') + (done.length ? '; ' + done.map(function (s) { return NAME[s]; }).join(', ') + ' complete' : '');
+    }
+    for (var t = 1; t <= m.end; t++) {
+      var i = t <= m.order.length ? t - 1 : m.lost;
+      rows.push(row([t, (t > m.order.length ? 'resend ' : '') + pk(i) + (t <= m.order.length && i === m.lost ? ' (lost ✕)' : ''), lane(m.tcp, t), lane(m.quic, t)], t));
+    }
+    return table(['Step', 'Packet', 'HTTP/2 (TCP) hands the browser', 'HTTP/3 (QUIC) hands the browser'], rows);
+  }
+  // 22a, '| url …' (the URL chips): what each Step adds, from CN.http.exchange
+  function urlSteps(text) {
+    var x = CN.http.exchange(cfg(text, ['url']).k.url || CN.http.URLS[0], CN.dns.addrFor), u = x.url;
+    if (x.error) return x;
+    return table(['Step', 'What happens', 'From the URL'], [
+      row([0, 'The browser has the URL', u.parts.map(function (p) { return p.t; }).join('')], 0),
+      row([1, 'It splits the URL into pieces', u.parts.filter(function (p) { return p.k !== 'sep'; }).map(function (p) { return p.k + ' ' + p.t; }).join(' · ')], 1),
+      row([2, 'DNS gives the address; TCP connects to ' + x.ip + ':' + u.port, 'host → ' + x.ip + '; ' + (u.explicit ? 'port given: ' + u.port : u.scheme + ' → port ' + u.port)], 2),
+      row([3, (x.tls ? 'TLS handshake, then the' : 'The') + ' request goes out: ' + x.request.join(' · '), 'path → request line; host' + (u.explicit ? ' and port' : '') + ' → Host:'], 3),
+      row([4, 'The response comes back: ' + x.response.join(' · '), 'nothing: Content-Type comes from the file, not the URL'], 4)
+    ]);
+  }
+  // 6a, '| N 5' (the N chips): what each rule does slot by slot; a row covers the slots until the next change
+  function slotsTable(text) {
+    var N = +(cfg(text, ['N']).k.N || 10), m = CN.csma.staticTdm(N), last = Math.max(m.end, m.fdmEnd), rows = [];
+    function frame(i) { return 'A' + (i + 1) + (i + 1 === m.burst ? ' (A done)' : ''); }
+    for (var n = 1; n <= last; n++) {
+      var i = m.shared.indexOf(n), j = m.tdm.indexOf(n), f = Math.floor((n - 1) / N);
+      var one = i >= 0 ? 'sends ' + frame(i) : '—';
+      var tdm = j >= 0 ? 'A\'s slot: sends ' + frame(j) : n < m.end ? 'not A\'s slot: idle, A waits' : '—';
+      var fdm = n > m.fdmEnd ? '—' : n === m.fdm[f] ? (N === 1 ? 'sends ' : 'finishes ') + frame(f) : 'A' + (f + 1) + ' under way, ' + (n - f * N) + ' of ' + N + ' slots';
+      var p = rows[rows.length - 1];
+      if (p && p.k === one + tdm + fdm.replace(/\d+ of/, '')) { p.to = n; p.cells[3] = p.f0 + ' … ' + fdm.replace(/^A\d+ under way, /, ''); continue; }
+      rows.push({ from: n, to: n, k: one + tdm + fdm.replace(/\d+ of/, ''), f0: fdm, cells: ['', one, tdm, fdm] });
+    }
+    return table(['Slot', 'One channel', 'TDM, N = ' + N, 'FDM, N = ' + N], rows.map(function (r) {
+      var st = []; for (var s = r.from; s <= r.to; s++) st.push(s);
+      r.cells[0] = r.from === r.to ? r.from : r.from + '–' + r.to;
+      r.cells[2] = r.cells[2].replace(/^not A's slot/, r.from === r.to ? m.owner(r.from) + '\'s slot' : m.owner(r.from) + '–' + m.owner(r.to) + '\'s slots');
+      return row(r.cells, st);
+    }));
+  }
   // 22f: the default swarm, round by round (CN.http.swarm)
-  function swarmTable() {
-    var m = CN.http.swarm(CN.http.SWARM_HAVE);
-    return table(['Step', 'Uploads (from → to: chunk)', 'Waits'], [row([1, 'A asks the tracker: S, B, C, D', ''])].concat(m.rounds.map(function (r, i) {
-      return row([i + 2, r.xfers.map(function (x) { return x.from + ' → ' + x.to + ': ' + x.c + (x.rarest ? '' : ' (rarer one busy)'); }).join(', '), r.blocked.join(', ')]);
+  // '| have A0 B01 C0 D02' (the 22f tap handle): the chunks each peer starts with
+  function swarmTable(text) {
+    var hv = cfg(text, ['have']).k.have, have = CN.http.SWARM_HAVE;
+    if (hv) { have = {}; hv.split(/\s+/).forEach(function (w) { have[w[0]] = w.slice(1).split('').map(Number); }); }
+    var m = CN.http.swarm(have);
+    return table(['Step', 'Uploads (from → to: chunk)', 'Waits'], [row([1, 'A asks the tracker: S, B, C, D', ''], 1)].concat(m.rounds.map(function (r, i) {
+      return row([i + 2, r.xfers.map(function (x) { return x.from + ' → ' + x.to + ': ' + x.c + (x.rarest ? '' : ' (rarer one busy)'); }).join(', ') || 'none', r.blocked.join(', ')], i + 2);
     })));
+  }
+  // 23b: one row per Step, the dialogue from CN.http.SMTP
+  function smtpTable() {
+    return table(['Step', 'Who', 'Line', 'Meaning'], CN.http.SMTP.map(function (d, i) {
+      return row([i + 1, d[0] === 'C' ? 'client' : 'server', d[1].replace(/\n\n/g, ' · (blank line) · ').replace(/\n/g, ' · '), d[2]], i + 1);
+    }));
   }
   // 23a: the mail path with Bob offline (CN.http.mailPath)
   function mailPathTable() {
@@ -425,14 +499,13 @@
   var GEN = {
     'framing.count': framingCount, 'framing.bytes': framingBytes, 'framing.bits': framingBits, 'csma.countdown': countdown,
     'graph.flood': flood, 'graph.dijkstra': function () { return dijkstraTable(GN, GE, 'A'); },
-    'graph.linkstate': function () {
-      return dijkstraTable(['A', 'B', 'C', 'D', 'E', 'F'], [['A', 'B', 2], ['A', 'C', 5], ['B', 'C', 1], ['B', 'D', 4], ['C', 'E', 3], ['D', 'E', 1], ['D', 'F', 2], ['E', 'F', 6]], 'B');
-    },
-    'ip.frag': fragTable, 'ip.split': splitTable, 'ip.lpm': lpmTable, 'ip.v6': v6Table, 'tcp.flow': flowTable, 'http.rtt': httpTable, 'http.url': urlTable, 'p2p.swarm': swarmTable, 'static.tdm': tdmTable,
+    'graph.lsflood': function () { return floodTable(LN, LE, 'B', 99, true, 4); },
+    'graph.linkstate': function () { return dijkstraTable(LN, LE, 'B', 5 + CN.graph.flood(LN, LE, 'B', 99, true).length); },
+    'ip.frag': fragTable, 'ip.split': splitTable, 'ip.lpm': lpmTable, 'ip.v6': v6Table, 'tcp.flow': flowTable, 'http.rtt': httpTable, 'http.url': urlTable, 'http.steps': urlSteps, 'http.hol': holTable, 'mail.smtp': smtpTable, 'p2p.swarm': swarmTable, 'static.tdm': tdmTable, 'static.slots': slotsTable,
     'cipher.caesar': caesarTable, 'cipher.mono': monoTable, 'cipher.columnar': columnarTable, 'mail.base64': base64Table, 'mail.path': mailPathTable,
     'hamming.encode': hammingEncode, 'hamming.correct': hammingCorrect,
     'crc.divide': crcDivide, 'crc.check': crcCheck,
-    'arq.p3': arqP3, 'arq.gbn': arqTable('gbn'), 'arq.sr': arqTable('sr'), 'arq.trap': arqTrap,
+    'arq.p1': arqP1, 'arq.p2': arqP2, 'arq.p3': arqP3, 'arq.gbn': arqTable('gbn'), 'arq.sr': arqTable('sr'), 'arq.trap': arqTrap,
     'csma.1p': csmaTable('1p', false, WAIT), 'csma.np': csmaTable('np', false, WAIT), 'csma.pp': csmaTable('pp', false, WAIT), 'csma.cd': csmaTable('1p', true, FAR),
     'dv.good': dvTable('good'), 'dv.bad': dvTable('bad'), 'dv.poison': dvTable('poison'),
     'tcp.handshake': tcpScenario('handshake'), 'tcp.oldSyn': tcpScenario('oldSyn'), 'tcp.oldSynAck': tcpScenario('oldSynAck'), 'tcp.release': tcpScenario('release'),
@@ -454,4 +527,6 @@
   };
   CN.learnGen.names = Object.keys(GEN);
   CN.learnGen.defaults = DEFAULTS;
+  // tables that never read the slide's numbers: on a slide with numbers of your own they keep the example
+  CN.learnGen.fixed = { 'static.tdm': true, 'http.url': true };
 })(typeof window !== 'undefined' ? window : globalThis);
