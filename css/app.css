@@ -118,6 +118,9 @@ input[type=range] { accent-color: var(--accent); }
 .bit.gap { margin-left: 14px; }
 .bits.tight { gap: 3px; }
 .bits.tight .bit { min-width: 32px; padding: 0 2px; font-size: 24px; }
+.bits.tiny { gap: 2px; flex-wrap: nowrap; }
+.bits.tiny .bit { min-width: 24px; height: 40px; padding: 0 1px; font-size: 18px; border-radius: 5px; }
+.bits.tiny .bit.err::after { width: 16px; height: 16px; font-size: 11px; bottom: -9px; right: -5px; }
 .bits.tight .bit.flag { font-size: 19px; }
 
 .working { font: 22px/1.45 var(--mono); background: var(--panel2); border-radius: 10px; padding: 10px 16px; white-space: pre-wrap; overflow: auto; }

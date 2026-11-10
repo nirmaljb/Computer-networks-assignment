@@ -14,9 +14,11 @@
       write: function (v) { hs.msg.set(v.data, true); hs.gen.set(v.gen, true); } });
   }
   // a long division is taller than the slide: shrink it to fit (one scale, nothing reflows)
-  function fitted(grid, maxH) {
-    var hgt = parseFloat(grid.style.height), sc = Math.min(1, maxH / hgt);
-    grid.style.transform = 'scale(' + sc + ')'; grid.style.transformOrigin = 'top center';
+  function fitted(grid, maxH, maxW) {
+    var hgt = parseFloat(grid.style.height), sc = Math.min(1, maxH / hgt, maxW ? maxW / parseFloat(grid.style.width) : 1);
+    grid.style.transform = 'scale(' + sc + ')'; grid.style.transformOrigin = maxW ? 'top left' : 'top center';
+    // beside other content (maxW) the box must take the scaled width: a transform does not shrink layout
+    if (maxW) return h('div', { style: { height: Math.ceil(hgt * sc) + 'px', width: Math.ceil(parseFloat(grid.style.width) * sc) + 'px', flex: 'none' } }, grid);
     return h('div', { style: { height: Math.ceil(hgt * sc) + 'px', display: 'flex', justifyContent: 'center' } }, grid);
   }
 
@@ -40,15 +42,18 @@
     // divisor + bracket
     box.appendChild(h('div', { style: { position: 'absolute', left: 0, top: lh + 'px', color: 'var(--accent)' } }, gen + ' )'));
     rows.forEach(function (r, i) {
-      var color = r.cls === 'q' ? 'var(--accent)' : r.cls === 'rem' ? 'var(--amber)' : r.cls.indexOf('zero') >= 0 ? 'var(--muted)' : r.cls === 'dividend' ? 'var(--ink)' : 'var(--ink)';
+      var remC = opts && opts.remOk != null ? (opts.remOk ? 'green' : 'red') : 'amber';
+      var color = r.cls === 'q' ? 'var(--accent)' : r.cls === 'rem' ? 'var(--' + remC + ')' : r.cls.indexOf('zero') >= 0 ? 'var(--muted)' : r.cls === 'dividend' ? 'var(--ink)' : 'var(--ink)';
       var el = h('div', { style: {
         position: 'absolute', top: (i * lh) + 'px', left: (lead + r.col * ch) + 'px', color: color, letterSpacing: '0',
         borderTop: r.rule === 'top' ? '2px solid var(--ink)' : 'none',
         borderBottom: r.rule === 'under' ? '2px solid var(--line)' : 'none',
-        background: r.cls === 'rem' ? 'var(--amber-bg)' : 'none', lineHeight: (lh - 3) + 'px'
+        background: r.cls === 'rem' ? 'var(--' + remC + '-bg)' : 'none', lineHeight: (lh - 3) + 'px'
       } }, r.text.split('').map(function (c, j) {
         var augmented = r.cls === 'dividend' && opts && opts.appended && j >= dividend.length - opts.appended;
-        return h('span', { style: { display: 'inline-block', width: ch + 'px', textAlign: 'center', color: augmented ? 'var(--amber)' : null } }, c);
+        var bad = r.cls === 'dividend' && opts && opts.bad && opts.bad[j];
+        return h('span', { style: { display: 'inline-block', width: ch + 'px', textAlign: 'center', color: bad ? 'var(--red)' : augmented ? 'var(--amber)' : null,
+          background: bad ? 'var(--red-bg)' : null } }, c);
       }));
       box.appendChild(el);
     });
@@ -107,7 +112,7 @@
     var hAt = ui.handle({ key: 'at', label: 'Start', kind: 'slider', value: BURST[0], floor: 1, width: 360, fmt: function (v) { return 'bit ' + (v + 1); },
       values: function () { var v = []; for (var i = 0; i + hLen.value() <= enc.frame.length; i++) v.push(i); return v; } });
     body.appendChild(say);
-    var out = h('div', { class: 'col', style: { gap: '18px', marginTop: '20px' } });
+    var out = h('div', { class: 'col', style: { gap: '14px', marginTop: '8px' } });
     body.appendChild(out);
     body.appendChild(ui.handleRow(hAt, hLen));
     function error() {
@@ -117,12 +122,27 @@
     function draw() {
       CN.clear(out);
       var rx = sent ? error() : enc.frame, chk = C.check(rx, enc.gen), g = hLen.isBreak();
-      var rxRow = h('div', { class: 'bits' });
-      rx.split('').forEach(function (b, i) {
-        var bad = b !== enc.frame[i];
-        rxRow.appendChild(h('span', { class: 'bit ' + (bad ? 'err' : (i >= enc.data.length ? 'check' : 'data')) }, b));
-      });
-      out.appendChild(h('div', { class: 'row nowrap' }, h('span', { class: 'label', style: { width: '170px' } }, 'Received'), rxRow));
+      // the receiver's own division of what arrived (left); right: received = T ⊕ E, and T ÷ G leaves 0, so only E counts
+      var e = C.xor(rx, enc.frame), eChk = C.check(e, enc.gen);
+      var grid = divisionGrid(rx, enc.gen, chk.steps, chk.steps.length, { bad: rx.split('').map(function (b, i) { return b !== enc.frame[i]; }), remOk: chk.ok });
+      var long = rx.length > 16;  // E-box frames up to 24 bits: smaller boxes, one line each
+      function part(label, bits, rem, cls) {
+        return h('div', { class: 'row nowrap', style: { gap: '12px' } }, h('span', { class: 'label', style: { width: '150px' } }, label),
+          h('div', { class: 'bits ' + (long ? 'tiny' : 'tight') }, bits.split('').map(function (b, i) {
+            return h('span', { class: 'bit ' + cls(b, i) }, b);
+          })),
+          h('span', { style: { font: '700 24px var(--mono)', whiteSpace: 'pre' } }, '÷ G → ' + rem));
+      }
+      function kind(i) { return i >= enc.data.length ? 'check' : 'data'; }
+      var why = h('div', { class: 'col', style: { gap: '16px', justifyContent: 'center' } },
+        part('Sent T', enc.frame, C.zeros(enc.r), function (b, i) { return kind(i); }),
+        part('Error E', e, eChk.remainder, function (b) { return b === '1' ? 'err' : 'data'; }),
+        part('Received', rx, chk.remainder, function (b, i) { return b !== enc.frame[i] ? 'err' : kind(i); }),
+        h('div', { style: { fontSize: '22px', color: 'var(--muted)' } },
+          'Received = T ⊕ E. T leaves ' + C.zeros(enc.r) + ', so only E sets the remainder.'));
+      var whyW = 170 + rx.length * (long ? 28 : 35) + 60 + 22 * (enc.r + 6);
+      out.appendChild(h('div', { class: 'row nowrap', style: { gap: '40px', alignItems: 'center', justifyContent: 'center' } },
+        fitted(grid, 470, Math.max(240, 1460 - whyW)), why));
       var msg, a = hAt.value() + 1, b2 = hAt.value() + hLen.value();
       if (!sent) msg = 'Frame ÷ G leaves remainder ' + C.zeros(enc.r) + ' → accepted. Step sends the burst.';
       else if (chk.ok) msg = 'Bits ' + a + '–' + b2 + ' flipped in the pattern of G (' + enc.gen + '): a multiple of G(x), remainder ' + C.zeros(enc.r) + ', it slips through.';
